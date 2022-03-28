@@ -14,6 +14,38 @@
   <name>ColDP Archive Generator</name>
   <description>Code to generate ColDP archives for various custom sources, e.g. WCVP</description>
 
+  <properties>
+    <!-- build settings -->
+    <minimumMavenVersion>3.3</minimumMavenVersion>
+    <java.version>11</java.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+    <commons-compress.version>1.19</commons-compress.version>
+    <commons-io.version>2.11.0</commons-io.version>
+    <col.version>1.0-SNAPSHOT</col.version>
+    <dwc-api.version>1.36-SNAPSHOT</dwc-api.version>
+    <dwca-io.version>2.11</dwca-io.version>
+    <httpcore.version>4.4.12</httpcore.version>
+    <jbibtex.version>1.0.19</jbibtex.version>
+    <jsoup.version>1.14.3</jsoup.version>
+    <junit.version>4.12</junit.version>
+    <logback.version>1.2.9</logback.version>
+    <name-parser.version>3.7.2-SNAPSHOT</name-parser.version>
+    <poi.version>5.1.0</poi.version>
+    <slf4j.version>1.7.32</slf4j.version>
+    <tika.version>1.22</tika.version>
+    <univocity.version>2.9.1</univocity.version>
+  </properties>
+
+  <licenses>
+    <license>
+      <name>The Apache Software License, Version 2.0</name>
+      <url>https://raw.github.com/gbif/motherpom/master/LICENSE</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
   <build>
     <defaultGoal>compile exec:java</defaultGoal>
     <resources>
@@ -50,87 +82,112 @@
     <dependency>
       <groupId>org.gbif</groupId>
       <artifactId>dwc-api</artifactId>
+      <version>${dwc-api.version}</version>
     </dependency>
     <dependency>
       <groupId>org.catalogueoflife</groupId>
       <artifactId>coldp</artifactId>
+      <version>${col.version}</version>
     </dependency>
     <dependency>
       <groupId>org.catalogueoflife</groupId>
       <artifactId>metadata</artifactId>
+      <version>${col.version}</version>
     </dependency>
     <dependency>
       <groupId>org.catalogueoflife</groupId>
       <artifactId>api</artifactId>
+      <version>${col.version}</version>
     </dependency>
     <dependency>
       <groupId>org.catalogueoflife</groupId>
       <artifactId>doi</artifactId>
+      <version>${col.version}</version>
     </dependency>
     <dependency>
       <groupId>org.gbif</groupId>
       <artifactId>name-parser-api</artifactId>
+      <version>${name-parser.version}</version>
     </dependency>
     <dependency>
       <groupId>org.jbibtex</groupId>
       <artifactId>jbibtex</artifactId>
+      <version>${jbibtex.version}</version>
     </dependency>
     <dependency>
       <groupId>de.undercouch</groupId>
       <artifactId>citeproc-java</artifactId>
+      <version>${citeproc.version}</version>
     </dependency>
     <dependency>
       <groupId>commons-io</groupId>
       <artifactId>commons-io</artifactId>
+      <version>${commons-io.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-compress</artifactId>
+      <version>${commons-compress.version}</version>
     </dependency>
     <dependency>
       <groupId>com.univocity</groupId>
       <artifactId>univocity-parsers</artifactId>
+      <version>${univocity.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.poi</groupId>
       <artifactId>poi-ooxml</artifactId>
+      <version>${poi.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.poi</groupId>
       <artifactId>poi</artifactId>
+      <version>${poi.version}</version>
     </dependency>
     <dependency>
       <groupId>com.github.scribejava</groupId>
       <artifactId>scribejava-apis</artifactId>
+      <version>${scribejava.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jsoup</groupId>
+      <artifactId>jsoup</artifactId>
+      <version>${jsoup.version}</version>
     </dependency>
 
     <!-- templating -->
     <dependency>
       <groupId>com.beust</groupId>
       <artifactId>jcommander</artifactId>
+      <version>${jcommander.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.httpcomponents</groupId>
       <artifactId>httpcore</artifactId>
+      <version>${httpcore.version}</version>
     </dependency>
     <!-- logging -->
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
+      <version>${slf4j.version}</version>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>jcl-over-slf4j</artifactId>
+      <version>${slf4j.version}</version>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
+      <version>${logback.version}</version>
     </dependency>
     <!-- TEST SCOPE -->
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <scope>test</scope>
+      <version>${junit.version}</version>
     </dependency>
   </dependencies>
 </project>

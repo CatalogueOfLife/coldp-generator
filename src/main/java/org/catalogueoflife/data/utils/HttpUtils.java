@@ -34,6 +34,10 @@ public class HttpUtils {
     MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
   }
 
+  public HttpUtils() {
+    this(null, null);
+  }
+
   public HttpUtils(String username, String password) {
     this.client = HttpClient.newBuilder()
         .followRedirects(HttpClient.Redirect.ALWAYS)
@@ -84,7 +88,7 @@ public class HttpUtils {
 
   public <T> HttpResponse<T> send(HttpRequest.Builder req, HttpResponse.BodyHandler<T> bodyHandler) throws Exception {
     basicAuth(req);
-    req.header("User-Agent", "GBIF-ChecklistBuilder/1.0");
+    req.header("User-Agent", "ColDP-Generator/1.0");
     HttpResponse<T> resp = client.send(req.build(), bodyHandler);
     if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
       return resp;

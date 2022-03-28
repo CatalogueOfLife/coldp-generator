@@ -1,0 +1,34 @@
+---
+alias: Mites
+title: ICTV Master Species List (MSL)
+description: |-
+  The aim is to give a overview to the group starting with Linnaeus 1758 and continues till now. 
+  Recently the tables contain more than 58.000 species-names, 7.000 genus-names, and 30.000 papers, chapters and books.
+  
+  This data-base is a compilation of all named mites and ticks, but doesn't claim to be complete. 
+  I focus mainly to systematic and nomeclature. 
+  Ecological, faunistical, veterinary, medical, phylogenetic, anatomical, and all the other topics take into consideration too. 
+  Almost every day the list is treated.Sometimes the fields aren't complete but this goal is aspired.
+
+issued: {issued}
+version: {version}
+contact:
+  family: Schmidt
+  given: Karl-Heinz
+  email: info@miteresearch.org
+creator:
+ -
+   family: Schmidt
+   given: Karl-Heinz
+   address: Hintere Dorfstraße 29
+   city: Oderwitz
+   country: DE
+   email: info@miteresearch.org
+license: CC-BY
+taxonomicScope: Acariformes
+taxonomicScopeInEnglish: Mites
+geographicScope: global
+confidence: 4
+completeness: 100
+url: http://www.miteresearch.org/
+

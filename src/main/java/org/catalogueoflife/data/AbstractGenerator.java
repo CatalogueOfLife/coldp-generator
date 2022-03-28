@@ -10,6 +10,7 @@ import life.catalogue.metadata.DoiResolver;
 import life.catalogue.metadata.coldp.YamlMapper;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.catalogueoflife.data.utils.HttpUtils;
 import org.gbif.dwc.terms.Term;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,7 @@ public abstract class AbstractGenerator implements Runnable {
   protected static Logger LOG = LoggerFactory.getLogger(AbstractGenerator.class);
   protected final GeneratorConfig cfg;
   protected final DownloadUtil download;
+  protected final HttpUtils http;
   private final boolean addMetadata;
   protected final Map<String, Object> metadata = new HashMap<>();
   protected final List<Citation> sources = new ArrayList<>();
@@ -55,6 +57,7 @@ public abstract class AbstractGenerator implements Runnable {
     HttpClientBuilder htb = HttpClientBuilder.create();
     hc = htb.build();
     this.download = new DownloadUtil(hc);
+    this.http = new HttpUtils();
     this.srcUri = downloadUri;
     doiResolver = new DoiResolver(hc);
   }
