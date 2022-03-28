@@ -24,8 +24,8 @@ import com.github.scribejava.core.model.Verb;
 import com.github.scribejava.core.oauth.OAuth20Service;
 import life.catalogue.api.model.DOI;
 import life.catalogue.coldp.ColdpTerm;
-import org.catalogueoflife.coldp.gen.AbstractGenerator;
-import org.catalogueoflife.coldp.gen.GeneratorConfig;
+import org.catalogueoflife.data.AbstractGenerator;
+import org.catalogueoflife.data.GeneratorConfig;
 
 import java.io.IOException;
 import java.time.LocalDate;

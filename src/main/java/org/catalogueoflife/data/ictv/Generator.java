@@ -21,8 +21,8 @@ import life.catalogue.coldp.ColdpTerm;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
-import org.catalogueoflife.coldp.gen.AbstractXlsSrcGenerator;
-import org.catalogueoflife.coldp.gen.GeneratorConfig;
+import org.catalogueoflife.data.AbstractXlsSrcGenerator;
+import org.catalogueoflife.data.GeneratorConfig;
 import org.gbif.nameparser.api.NomCode;
 import org.gbif.nameparser.api.Rank;
 

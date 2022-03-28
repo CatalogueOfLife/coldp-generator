@@ -7,8 +7,8 @@ import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.csl.CslUtil;
 import life.catalogue.common.io.TabReader;
 import org.apache.commons.lang3.StringUtils;
-import org.catalogueoflife.coldp.gen.AbstractZipSrcGenerator;
-import org.catalogueoflife.coldp.gen.GeneratorConfig;
+import org.catalogueoflife.data.AbstractZipSrcGenerator;
+import org.catalogueoflife.data.GeneratorConfig;
 
 import java.io.File;
 import java.io.IOException;
