@@ -2,13 +2,9 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <parent>
-    <artifactId>motherpom</artifactId>
-    <groupId>org.catalogueoflife</groupId>
-    <version>1.0-SNAPSHOT</version>
-  </parent>
   <modelVersion>4.0.0</modelVersion>
 
+  <groupId>org.catalogueoflife</groupId>
   <artifactId>coldp-generator</artifactId>
   <version>1.0-SNAPSHOT</version>
   <name>ColDP Archive Generator</name>
@@ -20,7 +16,23 @@
     <java.version>11</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-
+    <!-- Maven plugin versions. Check for available updates: mvn versions:display-plugin-updates -->
+    <exec-maven-plugin.version>1.6.0</exec-maven-plugin.version>
+    <maven-clean-plugin.version>3.1.0</maven-clean-plugin.version>
+    <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
+    <maven-dependency-plugin.version>3.3.0</maven-dependency-plugin.version>
+    <maven-enforcer-plugin.version>1.4.1</maven-enforcer-plugin.version>
+    <maven-install-plugin.version>2.5.2</maven-install-plugin.version>
+    <maven-jar-plugin.version>3.2.0</maven-jar-plugin.version>
+    <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
+    <maven-resources-plugin.version>3.2.0</maven-resources-plugin.version>
+    <maven-shade-plugin.version>3.2.4</maven-shade-plugin.version>
+    <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
+    <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
+    <versions-maven-plugin.version>2.8.1</versions-maven-plugin.version>
+    <!-- project deps -->
+    <citeproc.version>3.0.0-alpha.6</citeproc.version>
+    <citeproc-styles.version>2.0.0</citeproc-styles.version>
     <commons-compress.version>1.19</commons-compress.version>
     <commons-io.version>2.11.0</commons-io.version>
     <col.version>1.0-SNAPSHOT</col.version>
@@ -28,11 +40,13 @@
     <dwca-io.version>2.11</dwca-io.version>
     <httpcore.version>4.4.12</httpcore.version>
     <jbibtex.version>1.0.19</jbibtex.version>
+    <jcommander.version>1.81</jcommander.version>
     <jsoup.version>1.14.3</jsoup.version>
     <junit.version>4.12</junit.version>
     <logback.version>1.2.9</logback.version>
     <name-parser.version>3.7.2-SNAPSHOT</name-parser.version>
     <poi.version>5.1.0</poi.version>
+    <scribejava.version>8.3.1</scribejava.version>
     <slf4j.version>1.7.32</slf4j.version>
     <tika.version>1.22</tika.version>
     <univocity.version>2.9.1</univocity.version>
@@ -46,6 +60,37 @@
     </license>
   </licenses>
 
+  <organization>
+    <name>Catalogue of Life</name>
+    <url>http://www.catalogueoflife.org/</url>
+  </organization>
+
+  <issueManagement>
+    <system>github</system>
+    <url>https://github.com/CatalogueOfLife/coldp-generator/issues</url>
+  </issueManagement>
+
+  <repositories>
+    <repository>
+      <id>gbif-all</id>
+      <url>https://repository.gbif.org/repository/gbif</url>
+      <snapshots>
+        <updatePolicy>always</updatePolicy>
+      </snapshots>
+    </repository>
+  </repositories>
+
+  <distributionManagement>
+    <repository>
+      <id>gbif-release</id>
+      <url>http://repository.gbif.org/content/repositories/releases</url>
+    </repository>
+    <snapshotRepository>
+      <id>gbif-snapshot</id>
+      <url>http://repository.gbif.org/content/repositories/snapshots</url>
+    </snapshotRepository>
+  </distributionManagement>
+
   <build>
     <defaultGoal>compile exec:java</defaultGoal>
     <resources>
@@ -56,14 +101,62 @@
     </resources>
     <plugins>
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${maven-compiler-plugin.version}</version>
+        <configuration>
+          <release>${java.version}</release>
+          <showWarnings>true</showWarnings>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>${maven-dependency-plugin.version}</version>
+        <!-- following is needed until 3.1.2 is released -->
+        <dependencies>
+          <dependency>
+            <groupId>org.apache.maven.shared</groupId>
+            <artifactId>maven-dependency-analyzer</artifactId>
+            <version>1.11.1</version>
+          </dependency>
+        </dependencies>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>${maven-enforcer-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>enforce-maven-3</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireMavenVersion>
+                  <version>[${minimumMavenVersion},)</version>
+                </requireMavenVersion>
+                <requireJavaVersion>
+                  <version>[${java.version},)</version>
+                </requireJavaVersion>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
-        <!-- cfg is shared in motherpom -->
+        <version>${exec-maven-plugin.version}</version>
+        <configuration>
+          <mainClass>org.catalogueoflife.coldp.gen.GeneratorCLI</mainClass>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
-        <!-- override motherpom -->
+        <version>${maven-shade-plugin.version}</version>
         <configuration>
           <transformers>
             <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
