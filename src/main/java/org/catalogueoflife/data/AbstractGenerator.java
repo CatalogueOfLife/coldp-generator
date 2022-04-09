@@ -39,7 +39,7 @@ public abstract class AbstractGenerator implements Runnable {
   protected TermWriter writer;
   protected TermWriter refWriter;
   private int refCounter = 1;
-  private final CloseableHttpClient hc;
+  protected final CloseableHttpClient hc;
   private final DoiResolver doiResolver;
 
   public AbstractGenerator(GeneratorConfig cfg, boolean addMetadata) throws IOException {
@@ -59,7 +59,7 @@ public abstract class AbstractGenerator implements Runnable {
     this.download = new DownloadUtil(hc);
     this.http = new HttpUtils();
     this.srcUri = downloadUri;
-    doiResolver = new DoiResolver(hc);
+    doiResolver = null; //new DoiResolver(hc);
   }
 
 

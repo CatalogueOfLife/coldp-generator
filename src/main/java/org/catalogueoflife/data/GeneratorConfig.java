@@ -21,6 +21,9 @@ public class GeneratorConfig {
   @NotNull
   public String source;
 
+  @Parameter(names = {"-k", "--key"})
+  public String key; // api key
+
   /**
    * Returns the directory with the decompressed archive folder created by the checklist builder
    */

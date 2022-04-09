@@ -1,0 +1,87 @@
+doi: 10.24436/2
+title: The World Spider Catalog
+alias: WSC
+description: |-
+  The current catalog is the first fully searchable online database covering spider taxonomy, but it has a longer history of predecessors which started with Pierre Bonnet (University of Toulouse, France) and Carl Friedrich Roewer (Bremen, Germany). Bonnet's seven scholarly books of his Bibliographia araneorum, published in three volumes 1945-1961, were fully comprehensive and covered literature on all aspects of spider biology through 1939, on more than 6400 pages. Roewer's Katalog der Araneae von 1758 bis 1940 (three books, published in two volumes, more than 2700 pages) were published 1942-1955 and covered the taxonomically useful literature through 1940 or 1954 (depending on the taxon).
+  
+  The next important step was performed by Paolo M. Brignoli (University of Aquila, Italy) with his Catalogue of the Araneae described between 1940 and 1981, published 1983. This 750 pages volume filled many of the post-Roewer gaps (through 1980, with scattered coverage of later papers as well). Brignoli intended to issue Catalogue supplements at periodic intervals but this stopped due to his untimely death in 1986. Fortunately, Brignoli’s idea could be continued because Norman I. Platnick (American Museum of Natural History, New York) accepted the challenge to take over the task of preparing supplements to Brignoli's volume. In the next decade, three supplement volumes (1989, 1993, 1997) of Advances in Spider Taxonomy with together 2500 pages were published, covering the literature from 1981 through 1995 and including all synonyms, transfers, and re-descriptions from 1940 to 1980.
+  
+  By the end of the 20th century it became obvious that the increasing quantity of taxonomic information could no longer be managed in the conventional way. So far more than 10’000 catalog pages and (currently) an annual influx of more than 300 taxonomic publications with descriptions of ca. 900 new species need an internet based solution. Platnick started this task with a first online version of his World Spider Catalog in 2000 and continued through 2014, with two updated versions per year, a total of 30 updates. The catalog was hosted at the American Museum of Natural History and served as HTML files per family. You can find a complete archive.
+  
+  With the retirement of Platnick in 2014, the Natural History Museum Bern (Switzerland) accepted to continue Platnick’s work and took over the World Spider Catalog. All data provided by the catalog version 14.5 has been processed in order to fit into a relational database. One of the major achievements of a true database is that it is fully searchable over the complete content of spider taxonomy since 1757 when the first now acknowledged 68 spider species were described by Carl Clerck. Another important novelty is the link to the World Spider Catalog Association (WSCA) which intends to provide access to more than 12’000 taxonomic publications which are behind this database information.
+  
+  The World Spider Catalog considers all taxonomically useful published work. Unpublished statements – even if correct – will not be taken over here. Also contents of websites that are not published elsewhere are not considered. Roewer and Platnick set standards for the Catalog that persist largely until today. Basically, this includes all descriptions of new species, transfers, synonymies and all taxonomically useful (i.e., illustrated) references to previously described taxa. Electronic supplements can be considered in combination with the corresponding main article. Not included are fossils (but see the separate fossil section), subfamilial or subgeneric divisions and allocations, or mentions of taxa in purely faunistic works (unless accompanied by useful illustrations).
+  
+  The catalog entries for literature prior to 1940 do not reflect a complete re-check of the classical literature. Roewer's listings based on the classical literature have largely been accepted, and only discrepancies detected between Roewer's and Bonnet's treatments have been re-checked and resolved. These listings are not intended to supplant either Roewer's or Bonnet's volumes, but rather to provide a quick, electronically searchable guide to the most important literature on spider systematics, worldwide. Investigators doing original research should still check the listings in Roewer and Bonnet; we hope that omissions are few, but no project of this magnitude could ever be error-free.
+
+  In certain cases, published nomenclatural or taxonomical changes will not be taken over by the catalog. This includes for example cases with violations of the provisions of the International Code of Zoological Nomenclature. In debatable cases (e.g. purely typological genus-splitting without phylogenetic reasons), an expert board will decide the case democratically. However, if some published alterations are not taken over by the catalog, the respective information and reference is given anyway.
+
+  The brief descriptions of geographic ranges are provided only as a general guide; no attempt has been made to ensure that they are comprehensive.
+issued: {issued}
+version: Version 23.0
+contact:
+  email: wsc@nmbe.ch
+  organisation: The World Spider Catalog Association WSCA
+creator:
+  -
+    city: Bern
+    country: CH
+    organisation: Natural History Museum Bern
+contributor:
+  -
+    orcid: 0000-0002-2104-9730
+    given: Christian
+    family: Kropf
+    city: Bern
+    country: CH
+    organisation: Natural History Museum of Bern
+  -
+    orcid: 0000-0001-9682-8483
+    given: Wolfgang
+    family: Nentwig
+    city: Bern
+    country: CH
+    organisation: University of Bern
+    department: Institute of Ecology and Evoloution
+  -
+    orcid: 0000-0003-0799-2674
+    given: Theo
+    family: Blick
+    city: Hummeltal
+    country: DE
+  -
+    orcid: 0000-0002-4584-5352
+    given: Daniel
+    family: Gloor
+  -
+    orcid: 0000-0001-7529-8962
+    given: Maria
+    family: Chatzaki
+    city: Alexandroupoli
+    country: GR
+  -
+    orcid: 0000-0003-1563-0147
+    given: Peter
+    family: Jäger
+    city: Frankfurt
+    country: DE
+  -
+    orcid: 0000-0002-8568-4549
+    given: Hirotsugu
+    family: Ono
+    city: Tokyo
+    country: JP
+  -
+    orcid: 0000-0003-4418-0552
+    given: Cristina
+    family: Rheims
+    city: São Paolo
+    country: BR
+
+geographicScope: Global
+taxonomicScope: Araneae
+taxonomicScopeInEnglish: Spiders
+confidence: 5
+completeness: 100
+license: cc by
+url: https://wsc.nmbe.ch/
