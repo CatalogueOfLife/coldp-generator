@@ -10,22 +10,15 @@ import org.apache.commons.lang3.StringUtils;
 import org.catalogueoflife.data.AbstractGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.client.WebTarget;
-import javax.ws.rs.core.MediaType;
 import java.io.IOException;
-import java.net.URI;
 import java.time.LocalDate;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Pattern;
 
 public class Generator extends AbstractGenerator {
-  private static final URI API = URI.create("https://wsc.nmbe.ch/api/lsid/");
+  private static final String API = "https://wsc.nmbe.ch/api/lsid/";
   private final String apiKey;
 
   private static final Pattern BRACKET_YEAR = Pattern.compile("\\(?([^()]+)\\)?");
@@ -125,11 +118,10 @@ public class Generator extends AbstractGenerator {
   }
 
   private Optional<NameUsage> fetch(String lsid) {
-    WebTarget target = client.target(API+lsid).queryParam("apiKey", apiKey);
     try {
-      return Optional.of(target.request(MediaType.APPLICATION_JSON).get(NameUsage.class));
-    } catch (WebApplicationException e) {
-      LOG.warn("Failed to fetch {}. HTTP {}", lsid, e.getResponse().getStatus(), e);
+      return Optional.of(fetchJson(API+lsid+"?apiKey="+apiKey, new HashMap<>(), NameUsage.class));
+    } catch (RuntimeException e) {
+      LOG.warn("Failed to fetch {}", lsid, e);
     }
     return Optional.empty();
   }

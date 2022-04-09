@@ -1,6 +1,7 @@
 package org.catalogueoflife.data;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import life.catalogue.api.model.Citation;
 import life.catalogue.api.model.DOI;
 import life.catalogue.coldp.ColdpTerm;
@@ -8,6 +9,9 @@ import life.catalogue.common.io.*;
 import life.catalogue.common.text.SimpleTemplate;
 import life.catalogue.metadata.DoiResolver;
 import life.catalogue.metadata.coldp.YamlMapper;
+import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.catalogueoflife.data.utils.HttpUtils;
@@ -16,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+import javax.ws.rs.core.MediaType;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -41,6 +46,8 @@ public abstract class AbstractGenerator implements Runnable {
   private int refCounter = 1;
   protected final CloseableHttpClient hc;
   private final DoiResolver doiResolver;
+  protected final ObjectMapper mapper = new ObjectMapper();
+
 
   public AbstractGenerator(GeneratorConfig cfg, boolean addMetadata) throws IOException {
     this(cfg, addMetadata, null);
@@ -100,6 +107,23 @@ public abstract class AbstractGenerator implements Runnable {
         LOG.error("Failed to close http client", e);
         throw new RuntimeException(e);
       }
+    }
+  }
+
+  protected <T> T fetchJson(String url, Map<String, String> header, Class<T> clazz) {
+    header.put("Accept", MediaType.APPLICATION_JSON);
+    return fetch(url, header, clazz);
+  }
+
+  protected <T> T fetch(String url, Map<String, String> header, Class<T> clazz) {
+    HttpGet get = new HttpGet(url);
+    header.forEach(get::addHeader);
+    try (CloseableHttpResponse resp = this.hc.execute(get)) {
+      HttpEntity entity = resp.getEntity();
+      return mapper.readValue(entity.getContent(), clazz);
+
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
   }
 

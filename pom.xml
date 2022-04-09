@@ -39,7 +39,7 @@
     <dwc-api.version>1.36-SNAPSHOT</dwc-api.version>
     <dwca-io.version>2.11</dwca-io.version>
     <httpcore.version>4.4.12</httpcore.version>
-    <jersey.version>2.33</jersey.version>
+    <jackson.version>2.13.0</jackson.version>
     <jbibtex.version>1.0.19</jbibtex.version>
     <jcommander.version>1.81</jcommander.version>
     <jsoup.version>1.14.3</jsoup.version>
@@ -78,6 +78,10 @@
       <snapshots>
         <updatePolicy>always</updatePolicy>
       </snapshots>
+    </repository>
+    <repository>
+      <id>gbif-thirdparty</id>
+      <url>https://repository.gbif.org/repository/thirdparty</url>
     </repository>
   </repositories>
 
@@ -278,21 +282,23 @@
       <artifactId>httpcore</artifactId>
       <version>${httpcore.version}</version>
     </dependency>
+    <!-- jackson -->
     <dependency>
-      <groupId>org.glassfish.jersey.core</groupId>
-      <artifactId>jersey-client</artifactId>
-      <version>${jersey.version}</version>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
+      <version>${jackson.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.glassfish.jersey.media</groupId>
-      <artifactId>jersey-media-json-jackson</artifactId>
-      <version>${jersey.version}</version>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.glassfish.jersey.inject</groupId>
-      <artifactId>jersey-hk2</artifactId>
-      <version>${jersey.version}</version>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-annotations</artifactId>
+      <version>${jackson.version}</version>
     </dependency>
+
     <!-- logging -->
     <dependency>
       <groupId>org.slf4j</groupId>
