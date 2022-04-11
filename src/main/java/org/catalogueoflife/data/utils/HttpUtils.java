@@ -1,14 +1,16 @@
 package org.catalogueoflife.data.utils;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.*;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.ws.rs.core.MediaType;
 import java.io.*;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -27,12 +29,6 @@ public class HttpUtils {
   private final HttpClient client;
   private final String username;
   private final String password;
-  private static final String LAST_MODIFIED = "Last-Modified";
-  private static final ObjectMapper MAPPER = new ObjectMapper();
-
-  static {
-    MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-  }
 
   public HttpUtils() {
     this(null, null);
@@ -55,45 +51,72 @@ public class HttpUtils {
     }
   }
 
-  public HttpResponse<InputStream> head(String url) throws Exception {
+  public HttpResponse<InputStream> head(String url) throws IOException {
     HttpRequest.Builder req = HttpRequest.newBuilder(URI.create(url))
         .method("HEAD", HttpRequest.BodyPublishers.noBody());
-    return send(req, HttpResponse.BodyHandlers.ofInputStream());
+    return send(req, new HashMap<>(), HttpResponse.BodyHandlers.ofInputStream());
   }
 
 
-  public String get(String url) throws Exception {
+  public String get(String url) throws IOException {
     return get(URI.create(url));
   }
-  public String get(URI url) throws Exception {
-    return send(HttpRequest.newBuilder(url), HttpResponse.BodyHandlers.ofString()).body();
+
+  public String get(URI url) throws IOException {
+    return get(url, new HashMap<>());
   }
 
-  public InputStream getStream(String url) throws Exception {
+  public String get(URI url, Map<String, String> header) throws IOException {
+    return send(HttpRequest.newBuilder(url), header, HttpResponse.BodyHandlers.ofString()).body();
+  }
+
+  public String getJSON(URI url) throws IOException {
+    return getJSON(url, new HashMap<>());
+  }
+
+  public String getJSON(URI url, Map<String, String> header) throws IOException {
+    header.put("Accept", MediaType.APPLICATION_JSON);
+    return get(url, header);
+  }
+
+  public InputStream getStream(String url) throws IOException {
     return getStream(URI.create(url));
   }
-  public InputStream getStream(URI url) throws Exception {
-    return send(HttpRequest.newBuilder(url), HttpResponse.BodyHandlers.ofInputStream()).body();
+  public InputStream getStream(URI url) throws IOException {
+    return getStream(url, new HashMap<>());
+  }
+  public InputStream getStream(URI url, Map<String, String> header) throws IOException {
+    return send(HttpRequest.newBuilder(url), header, HttpResponse.BodyHandlers.ofInputStream()).body();
   }
 
-  public void download(String url, File downloadTo) throws Exception {
+  public void download(String url, File downloadTo) throws IOException {
     download(URI.create(url), downloadTo);
   }
 
-  public void download(URI url, File downloadTo) throws Exception {
+
+  public void download(URI url, File downloadTo) throws IOException {
+
+  }
+
+  public void download(URI url, Map<String, String> header, File downloadTo) throws IOException {
     // execute
-    HttpResponse<Path> resp = send(HttpRequest.newBuilder(url), HttpResponse.BodyHandlers.ofFile(downloadTo.toPath()));
+    HttpResponse<Path> resp = send(HttpRequest.newBuilder(url), header, HttpResponse.BodyHandlers.ofFile(downloadTo.toPath()));
     LOG.info("Downloaded {} to {}", url, downloadTo.getAbsolutePath());
   }
 
-  public <T> HttpResponse<T> send(HttpRequest.Builder req, HttpResponse.BodyHandler<T> bodyHandler) throws Exception {
+  public <T> HttpResponse<T> send(HttpRequest.Builder req, Map<String, String> header, HttpResponse.BodyHandler<T> bodyHandler) throws IOException {
     basicAuth(req);
     req.header("User-Agent", "ColDP-Generator/1.0");
-    HttpResponse<T> resp = client.send(req.build(), bodyHandler);
-    if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
-      return resp;
+    header.forEach(req::header);
+    try {
+      HttpResponse<T> resp = client.send(req.build(), bodyHandler);
+      if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+        return resp;
+      }
+      throw new HttpException(resp);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
     }
-    throw new RuntimeException("HTTP Error " + resp.statusCode() + " for " + req);
   }
 
   private HttpRequest.Builder basicAuth(HttpRequest.Builder req) {
@@ -108,35 +131,6 @@ public class HttpUtils {
     return HttpRequest.newBuilder(URI.create(url))
           .header("Content-Type", "application/json")
           .header("Accept", "application/json");
-  }
-
-  public <T> T readJson(String url, Class<T> objClazz) throws Exception {
-    HttpResponse<InputStream> resp = send(json(url), HttpResponse.BodyHandlers.ofInputStream());
-    return MAPPER.readValue(resp.body(), objClazz);
-  }
-
-  /**
-   * Reads a JSON response containing a "results" property containing an array.
-   */
-  public <T> List<T> readJsonResult(String url, Class<T> objClazz) throws Exception {
-    HttpResponse<InputStream> resp = send(json(url), HttpResponse.BodyHandlers.ofInputStream());
-    JsonNode parent = new ObjectMapper().readTree(resp.body());
-    JavaType itemType = MAPPER.getTypeFactory().constructCollectionType(List.class, objClazz);
-    return MAPPER.readValue(parent.get("result").toString(), itemType);
-  }
-
-  private void saveToFile(HttpResponse<InputStream> response, File downloadTo) throws IOException {
-    // copy stream to local file
-    FileUtils.forceMkdir(downloadTo.getParentFile());
-    try (OutputStream fos = new FileOutputStream(downloadTo, false)){
-      IOUtils.copy(response.body(), fos);
-    }
-    // update last modified of file with http header date from server
-    Optional<String> modHeader = response.headers().firstValue(LAST_MODIFIED);
-    if (modHeader.isPresent()) {
-      Date date = parseHeaderDate(modHeader.get());
-      downloadTo.setLastModified(date.getTime());
-    }
   }
 
   /**

@@ -1,7 +1,11 @@
 package org.catalogueoflife.data;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DatabindException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import life.catalogue.api.model.Citation;
 import life.catalogue.api.model.DOI;
 import life.catalogue.coldp.ColdpTerm;
@@ -9,11 +13,14 @@ import life.catalogue.common.io.*;
 import life.catalogue.common.text.SimpleTemplate;
 import life.catalogue.metadata.DoiResolver;
 import life.catalogue.metadata.coldp.YamlMapper;
+import org.apache.commons.io.FileUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.util.EntityUtils;
+import org.apache.poi.xddf.usermodel.PresetPattern;
 import org.catalogueoflife.data.utils.HttpUtils;
 import org.gbif.dwc.terms.Term;
 import org.slf4j.Logger;
@@ -26,6 +33,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -46,8 +54,10 @@ public abstract class AbstractGenerator implements Runnable {
   private int refCounter = 1;
   protected final CloseableHttpClient hc;
   private final DoiResolver doiResolver;
-  protected final ObjectMapper mapper = new ObjectMapper();
-
+  protected final ObjectMapper mapper = new ObjectMapper()
+      .setSerializationInclusion(JsonInclude.Include.NON_EMPTY)
+      .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+      .enable(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT);
 
   public AbstractGenerator(GeneratorConfig cfg, boolean addMetadata) throws IOException {
     this(cfg, addMetadata, null);
@@ -107,23 +117,6 @@ public abstract class AbstractGenerator implements Runnable {
         LOG.error("Failed to close http client", e);
         throw new RuntimeException(e);
       }
-    }
-  }
-
-  protected <T> T fetchJson(String url, Map<String, String> header, Class<T> clazz) {
-    header.put("Accept", MediaType.APPLICATION_JSON);
-    return fetch(url, header, clazz);
-  }
-
-  protected <T> T fetch(String url, Map<String, String> header, Class<T> clazz) {
-    HttpGet get = new HttpGet(url);
-    header.forEach(get::addHeader);
-    try (CloseableHttpResponse resp = this.hc.execute(get)) {
-      HttpEntity entity = resp.getEntity();
-      return mapper.readValue(entity.getContent(), clazz);
-
-    } catch (IOException e) {
-      throw new RuntimeException(e);
     }
   }
 

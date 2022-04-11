@@ -1,37 +1,53 @@
 package org.catalogueoflife.data.wsc;
 
+import com.fasterxml.jackson.databind.DatabindException;
 import com.google.common.base.Preconditions;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
 import life.catalogue.api.vocab.Gazetteer;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
+import life.catalogue.common.io.UTF8IoUtils;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.SuffixFileFilter;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.http.HttpStatus;
 import org.catalogueoflife.data.AbstractGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
+import org.catalogueoflife.data.utils.HttpException;
 
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
+import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 public class Generator extends AbstractGenerator {
   private static final String API = "https://wsc.nmbe.ch/api/lsid/";
   private final String apiKey;
-
-  private static final Pattern BRACKET_YEAR = Pattern.compile("\\(?([^()]+)\\)?");
-  private final Client client;
+  private final File tmp;
+  private static int MAX = 61000;
+  private static String ERROR = "error: ";
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true, null);
-    client = ClientBuilder.newClient();
-    apiKey = Preconditions.checkNotNull(cfg.key, "API Key required");
+    apiKey = Preconditions.checkNotNull(cfg.apiKey, "API Key required");
+    tmp = new File("/tmp/colp-generator/wsc");
+    tmp.mkdirs();
   }
 
   @Override
   protected void addData() throws Exception {
+    for (int id=1; id<=MAX; id++) {
+      crawl(id);
+    }
+    parse();
+  }
+
+  private void parse() throws Exception {
     initRefWriter(List.of(
       ColdpTerm.ID,
       ColdpTerm.citation,
@@ -55,16 +71,17 @@ public class Generator extends AbstractGenerator {
         ColdpTerm.gazetteer,
         ColdpTerm.area
     ));
-    // loop over all taxa simply by int key ranges
+
+
     final IntSet refs = new IntOpenHashSet();
     final Set<String> higher = new HashSet<>();
-    for (int id=1; id<61000; id++) {
-      final String lsid = String.format("urn:lsid:nmbe.ch:spidersp:%06d", id);
-      var to = fetch(lsid);
+    // simply loop over all files
+    for (String fn : tmp.list(new SuffixFileFilter(".json"))) {
+      var to = read(fn);
       if (to.isPresent()) {
         var tax = to.get();
-        System.out.println(String.format("%06d: %s %s %s %s", id, tax.taxon.genus, tax.taxon.species, tax.taxon.subspecies, tax.taxon.author));
-        writer.set(ColdpTerm.ID, lsid);
+        System.out.println(String.format("%s: %s %s %s %s", tax.taxon.lsid, tax.taxon.genus, tax.taxon.species, tax.taxon.subspecies, tax.taxon.author));
+        writer.set(ColdpTerm.ID, tax.taxon.lsid);
         writer.set(ColdpTerm.rank, tax.taxon.taxonRank);
         writer.set(ColdpTerm.genericName, tax.taxon.genus);
         writer.set(ColdpTerm.specificEpithet, tax.taxon.species);
@@ -82,17 +99,18 @@ public class Generator extends AbstractGenerator {
           }
         }
 
-        if (tax.taxon.referenceObject != null) {
+        if (tax.taxon.referenceObject != null && !StringUtils.isBlank(tax.taxon.referenceObject.reference)) {
           // seen reference before?
           int rid = tax.taxon.referenceObject.reference.hashCode();
           if (!refs.contains(rid)) {
             tax.taxon.referenceObject.write(rid, refWriter);
+            refs.add(rid);
           }
           writer.set(ColdpTerm.nameReferenceID, rid);
           writer.set(ColdpTerm.publishedInPage, tax.taxon.referenceObject.pageDescription);
         }
         if (!StringUtils.isBlank(tax.taxon.distribution)) {
-          dWriter.set(ColdpTerm.taxonID, id);
+          dWriter.set(ColdpTerm.taxonID, tax.taxon.lsid);
           dWriter.set(ColdpTerm.area, tax.taxon.distribution);
           dWriter.set(ColdpTerm.gazetteer, Gazetteer.TEXT);
           dWriter.next();
@@ -102,12 +120,24 @@ public class Generator extends AbstractGenerator {
         // new higher taxa?
         if (!higher.contains(tax.taxon.genusObject.genLsid)) {
           if (!higher.contains(tax.taxon.familyObject.famLsid)) {
-            tax.taxon.genusObject.write(tax.taxon.familyObject.famLsid, null, false, writer, higher);
+            tax.taxon.familyObject.write(tax.taxon.familyObject.famLsid, null, false, writer, higher);
           }
-          tax.taxon.familyObject.write(tax.taxon.familyObject.genLsid, tax.taxon.familyObject.famLsid, true, writer, higher);
+          tax.taxon.genusObject.write(tax.taxon.genusObject.genLsid, tax.taxon.familyObject.famLsid, true, writer, higher);
         }
       }
     }
+  }
+
+  private Optional<NameUsage> read(String fn) throws IOException {
+    String content = UTF8IoUtils.readString(new File(tmp, fn));
+    if (!content.startsWith(ERROR)) {
+      try {
+        return Optional.of(mapper.readValue(content, NameUsage.class));
+      } catch (DatabindException e) {
+        LOG.error("Jackson exception >{}< for content: {}", e.getMessage(), content);
+      }
+    }
+    return Optional.empty();
   }
 
   @Override
@@ -117,18 +147,42 @@ public class Generator extends AbstractGenerator {
     super.addMetadata();
   }
 
-  private Optional<NameUsage> fetch(String lsid) {
-    try {
-      return Optional.of(fetchJson(API+lsid+"?apiKey="+apiKey, new HashMap<>(), NameUsage.class));
-    } catch (RuntimeException e) {
-      LOG.warn("Failed to fetch {}", lsid, e);
+  private void crawl(int id) throws IOException {
+    final String lsid = String.format("urn:lsid:nmbe.ch:spidersp:%06d", id);
+    // keep local files so we can reuse them - the API is limits number of requests
+    File f = new File(tmp, id+".json");
+    URI uri = URI.create(API+lsid+"?apiKey="+apiKey);
+    // we will try eternally as there are daily request limits
+    while (true) {
+      try {
+        var x = http.getJSON(uri);
+        FileUtils.write(f, x, StandardCharsets.UTF_8);
+        System.out.println(String.format("Crawled %06d", id));
+        return;
+
+      } catch (HttpException e) {
+        // WSC uses 403 to limit number of daily requests
+        if (e.status == HttpStatus.SC_FORBIDDEN) {
+          try {
+            LOG.warn("Max daily limit reached. Go to sleep...", e);
+            TimeUnit.HOURS.wait(1);
+          } catch (InterruptedException ex) {
+            return;
+          }
+        } else {
+          LOG.warn("Failed to fetch {}", id, e);
+          FileUtils.write(f, ERROR+String.format("%d - %s - %s", e.status, e.uri, e.getMessage()), StandardCharsets.UTF_8);
+          return;
+        }
+      }
     }
-    return Optional.empty();
   }
 
   static class NameUsage {
     public Taxon taxon;
     public Synonym validTaxon;
+    public Object error;
+    public Object message;
   }
   static class Taxon {
     public String species;

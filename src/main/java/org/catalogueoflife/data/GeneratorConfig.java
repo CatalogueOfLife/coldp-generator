@@ -21,8 +21,11 @@ public class GeneratorConfig {
   @NotNull
   public String source;
 
-  @Parameter(names = {"-k", "--key"})
-  public String key; // api key
+  @Parameter(names = {"--apiKey"})
+  public String apiKey;
+
+  @Parameter(names = {"--wsc-max-key"})
+  public int wscMaxKey = 61000;
 
   /**
    * Returns the directory with the decompressed archive folder created by the checklist builder
