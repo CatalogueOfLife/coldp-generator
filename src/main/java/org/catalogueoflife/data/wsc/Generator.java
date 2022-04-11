@@ -152,28 +152,23 @@ public class Generator extends AbstractGenerator {
     final String lsid = String.format("urn:lsid:nmbe.ch:spidersp:%06d", id);
     // keep local files so we can reuse them - the API is limits number of requests
     File f = new File(tmp, id+".json");
+    // only load from API if it's not yet existing
+    if (!f.exists()) {
     URI uri = URI.create(API+lsid+"?apiKey="+apiKey);
-    // we will try eternally as there are daily request limits
-    while (true) {
       try {
         var x = http.getJSON(uri);
         FileUtils.write(f, x, StandardCharsets.UTF_8);
         System.out.println(String.format("Crawled %06d", id));
-        return;
 
       } catch (HttpException e) {
-        // WSC uses 403 to limit number of daily requests
+        // WSC uses 403 to limit number of daily requests - abort in that case, we cant get any further today
         if (e.status == HttpStatus.SC_FORBIDDEN) {
-          try {
-            LOG.warn("Max daily limit reached. Go to sleep...", e);
-            TimeUnit.HOURS.sleep(1);
-          } catch (InterruptedException ex) {
-            return;
-          }
+          LOG.error("Max daily limit reached. Good bye!", e);
+          throw new IllegalStateException("Max daily API usage limit reached");
+
         } else {
           LOG.warn("Failed to fetch {}", id, e);
           FileUtils.write(f, ERROR+String.format("%d - %s - %s", e.status, e.uri, e.getMessage()), StandardCharsets.UTF_8);
-          return;
         }
       }
     }
