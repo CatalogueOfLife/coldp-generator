@@ -41,9 +41,9 @@ public class Generator extends AbstractGenerator {
 
   @Override
   protected void addData() throws Exception {
-    for (int id=1; id<=MAX; id++) {
-      crawl(id);
-    }
+    //for (int id=1; id<=MAX; id++) {
+    //  crawl(id);
+    //}
     parse();
   }
 
@@ -66,63 +66,64 @@ public class Generator extends AbstractGenerator {
       ColdpTerm.nameReferenceID,
       ColdpTerm.publishedInPage
     ));
-    var dWriter = additionalWriter(ColdpTerm.Distribution, List.of(
+
+    try (var dWriter = additionalWriter(ColdpTerm.Distribution, List.of(
         ColdpTerm.taxonID,
         ColdpTerm.gazetteer,
         ColdpTerm.area
-    ));
+    ))) {
+      final IntSet refs = new IntOpenHashSet();
+      final Set<String> higher = new HashSet<>();
+      // simply loop over all files
+      for (String fn : tmp.list(new SuffixFileFilter(".json"))) {
+        var to = read(fn);
+        if (to.isPresent()) {
+          var tax = to.get();
+          System.out.println(String.format("%s: %s %s %s %s", tax.taxon.lsid, tax.taxon.genus, tax.taxon.species, tax.taxon.subspecies, tax.taxon.author));
+          writer.set(ColdpTerm.ID, tax.taxon.lsid);
+          writer.set(ColdpTerm.rank, tax.taxon.taxonRank);
+          writer.set(ColdpTerm.genericName, tax.taxon.genus);
+          writer.set(ColdpTerm.specificEpithet, tax.taxon.species);
+          writer.set(ColdpTerm.infraspecificEpithet, tax.taxon.subspecies);
+          writer.set(ColdpTerm.authorship, tax.taxon.author);
+          writer.set(ColdpTerm.status, tax.taxon.status);
 
-
-    final IntSet refs = new IntOpenHashSet();
-    final Set<String> higher = new HashSet<>();
-    // simply loop over all files
-    for (String fn : tmp.list(new SuffixFileFilter(".json"))) {
-      var to = read(fn);
-      if (to.isPresent()) {
-        var tax = to.get();
-        System.out.println(String.format("%s: %s %s %s %s", tax.taxon.lsid, tax.taxon.genus, tax.taxon.species, tax.taxon.subspecies, tax.taxon.author));
-        writer.set(ColdpTerm.ID, tax.taxon.lsid);
-        writer.set(ColdpTerm.rank, tax.taxon.taxonRank);
-        writer.set(ColdpTerm.genericName, tax.taxon.genus);
-        writer.set(ColdpTerm.specificEpithet, tax.taxon.species);
-        writer.set(ColdpTerm.infraspecificEpithet, tax.taxon.subspecies);
-        writer.set(ColdpTerm.authorship, tax.taxon.author);
-        writer.set(ColdpTerm.status, tax.taxon.status);
-
-        if (tax.validTaxon != null) {
-          writer.set(ColdpTerm.parentID, tax.validTaxon.getLSID());
-        } else {
-          if (tax.taxon.genusObject != null) {
-            writer.set(ColdpTerm.parentID, tax.taxon.genusObject.genLsid);
-          } else if (tax.taxon.familyObject != null) {
-            writer.set(ColdpTerm.parentID, tax.taxon.familyObject.famLsid);
+          if (tax.validTaxon != null) {
+            writer.set(ColdpTerm.parentID, tax.validTaxon.getLSID());
+          } else {
+            if (tax.taxon.genusObject != null) {
+              writer.set(ColdpTerm.parentID, tax.taxon.genusObject.genLsid);
+            } else if (tax.taxon.familyObject != null) {
+              writer.set(ColdpTerm.parentID, tax.taxon.familyObject.famLsid);
+            }
           }
-        }
 
-        if (tax.taxon.referenceObject != null && !StringUtils.isBlank(tax.taxon.referenceObject.reference)) {
-          // seen reference before?
-          int rid = tax.taxon.referenceObject.reference.hashCode();
-          if (!refs.contains(rid)) {
-            tax.taxon.referenceObject.write(rid, refWriter);
-            refs.add(rid);
+          if (tax.taxon.referenceObject != null && !StringUtils.isBlank(tax.taxon.referenceObject.reference)) {
+            // seen reference before?
+            int rid = tax.taxon.referenceObject.reference.hashCode();
+            if (!refs.contains(rid)) {
+              tax.taxon.referenceObject.write(rid, refWriter);
+              refs.add(rid);
+            }
+            writer.set(ColdpTerm.nameReferenceID, rid);
+            writer.set(ColdpTerm.publishedInPage, tax.taxon.referenceObject.pageDescription);
           }
-          writer.set(ColdpTerm.nameReferenceID, rid);
-          writer.set(ColdpTerm.publishedInPage, tax.taxon.referenceObject.pageDescription);
-        }
-        if (!StringUtils.isBlank(tax.taxon.distribution)) {
-          dWriter.set(ColdpTerm.taxonID, tax.taxon.lsid);
-          dWriter.set(ColdpTerm.area, tax.taxon.distribution);
-          dWriter.set(ColdpTerm.gazetteer, Gazetteer.TEXT);
-          dWriter.next();
-        }
-        writer.next();
+          writer.next();
 
-        // new higher taxa?
-        if (!higher.contains(tax.taxon.genusObject.genLsid)) {
-          if (!higher.contains(tax.taxon.familyObject.famLsid)) {
-            tax.taxon.familyObject.write(tax.taxon.familyObject.famLsid, null, false, writer, higher);
+          if (!StringUtils.isBlank(tax.taxon.distribution)) {
+            dWriter.set(ColdpTerm.taxonID, tax.taxon.lsid);
+            dWriter.set(ColdpTerm.area, tax.taxon.distribution);
+            dWriter.set(ColdpTerm.gazetteer, Gazetteer.TEXT);
+            dWriter.next();
           }
-          tax.taxon.genusObject.write(tax.taxon.genusObject.genLsid, tax.taxon.familyObject.famLsid, true, writer, higher);
+
+          // new higher taxa?
+          if (!higher.contains(tax.taxon.genusObject.genLsid)) {
+            if (!higher.contains(tax.taxon.familyObject.famLsid)) {
+              tax.taxon.familyObject.write(tax.taxon.familyObject.famLsid, null, false, writer, higher);
+            }
+            tax.taxon.genusObject.write(tax.taxon.genusObject.genLsid, tax.taxon.familyObject.famLsid, true, writer, higher);
+          }
         }
       }
     }
