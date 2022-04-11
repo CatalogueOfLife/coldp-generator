@@ -15,3 +15,4 @@ Currently the project supports ColDP generators for the following sources:
  - [ICTV](https://talk.ictvonline.org/taxonomy/w/ictv-taxonomy): ICTV Master Species List (MSL)
  - [LPSN](https://lpsn.dsmz.de/): List of Prokaryotic names with Standing in Nomenclature
  - [WCVP](https://wcvp.science.kew.org): The World Checklist of Vascular Plants (WCVP)
+ - [WSC](https://wsc.nmbe.ch/): The World Spider Catalog (WSC)
