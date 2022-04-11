@@ -22,4 +22,8 @@ public class HttpException extends IOException {
     this.status = status;
   }
 
+  @Override
+  public String toString() {
+    return "HttpException{" + status + " " + uri + '}';
+  }
 }
