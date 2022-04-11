@@ -41,9 +41,9 @@ public class Generator extends AbstractGenerator {
 
   @Override
   protected void addData() throws Exception {
-    //for (int id=1; id<=MAX; id++) {
-    //  crawl(id);
-    //}
+    for (int id=1; id<=MAX; id++) {
+      crawl(id);
+    }
     parse();
   }
 
