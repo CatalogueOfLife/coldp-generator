@@ -166,7 +166,7 @@ public class Generator extends AbstractGenerator {
         if (e.status == HttpStatus.SC_FORBIDDEN) {
           try {
             LOG.warn("Max daily limit reached. Go to sleep...", e);
-            TimeUnit.HOURS.wait(1);
+            TimeUnit.HOURS.sleep(1);
           } catch (InterruptedException ex) {
             return;
           }
@@ -182,21 +182,19 @@ public class Generator extends AbstractGenerator {
   static class NameUsage {
     public Taxon taxon;
     public Synonym validTaxon;
-    public Object error;
-    public Object message;
   }
   static class Taxon {
+    public String lsid;
     public String species;
     public String subspecies;
     public String author;
     public String taxonRank;
     public String status;
     public String genus;
-    public TaxonObject genusObject;
     public String family;
+    public TaxonObject genusObject;
     public TaxonObject familyObject;
     public String distribution;
-    public String lsid;
     public ReferenceObject referenceObject;
   }
   static class Synonym {
