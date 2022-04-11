@@ -36,7 +36,10 @@ public class Generator extends AbstractGenerator {
     super(cfg, true, null);
     apiKey = Preconditions.checkNotNull(cfg.apiKey, "API Key required");
     tmp = new File("/tmp/colp-generator/wsc");
-    tmp.mkdirs();
+    if (!tmp.exists()) {
+      tmp.mkdirs();
+    }
+    LOG.info("Keep WSC API responses at {}", tmp);
   }
 
   @Override
@@ -151,10 +154,13 @@ public class Generator extends AbstractGenerator {
   private void crawl(int id) throws IOException {
     final String lsid = String.format("urn:lsid:nmbe.ch:spidersp:%06d", id);
     // keep local files so we can reuse them - the API is limits number of requests
-    File f = new File(tmp, id+".json");
+    File f = new File(tmp, String.format("%06d.json", id));
     // only load from API if it's not yet existing
-    if (!f.exists()) {
-    URI uri = URI.create(API+lsid+"?apiKey="+apiKey);
+    if (f.exists()) {
+      System.out.println(String.format("Reuse %s", f.getName()));
+
+    } else {
+      URI uri = URI.create(API+lsid+"?apiKey="+apiKey);
       try {
         var x = http.getJSON(uri);
         FileUtils.write(f, x, StandardCharsets.UTF_8);
@@ -167,7 +173,7 @@ public class Generator extends AbstractGenerator {
           throw new IllegalStateException("Max daily API usage limit reached");
 
         } else {
-          LOG.warn("Failed to fetch {}", id, e);
+          System.out.println(String.format("Crawl error %06d: %s", id, e.status));
           FileUtils.write(f, ERROR+String.format("%d - %s - %s", e.status, e.uri, e.getMessage()), StandardCharsets.UTF_8);
         }
       }

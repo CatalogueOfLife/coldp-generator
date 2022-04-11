@@ -8,6 +8,6 @@ public class ManualCli {
   public static void main(String[] args) throws Exception {
     //GeneratorCLI.main( new String[]{"-s", "wcvp", "-r", "/tmp/coldp/archives"} );
     //GeneratorCLI.main( new String[]{"-s", "lpsn", "-r", "/tmp/coldp/archives"} );
-    GeneratorCLI.main( new String[]{"-s", "wsc", "-r", "/tmp/coldp/archives", "--apiKey", "xxx"} );
+    GeneratorCLI.main( new String[]{"-s", "wsc", "-r", "/tmp/coldp/archives", "--apiKey", "68c5577ea6595902d89c2ef937fb6eb0Gw39vGkiY3"} );
   }
 }
