@@ -35,7 +35,7 @@ public class Generator extends AbstractGenerator {
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true, null);
     apiKey = Preconditions.checkNotNull(cfg.apiKey, "API Key required");
-    tmp = new File("/tmp/colp-generator/wsc");
+    tmp = new File(cfg.repository, "wsc-api");
     if (!tmp.exists()) {
       tmp.mkdirs();
     }
