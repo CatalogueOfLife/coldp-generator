@@ -1,17 +1,12 @@
 package org.catalogueoflife.data.utils;
 
-import com.fasterxml.jackson.databind.*;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.apache.http.HttpEntity;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.core.MediaType;
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -22,7 +17,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 /**
- *
+ * Utilities to work with the native java http client.
  */
 public class HttpUtils {
   private static Logger LOG = LoggerFactory.getLogger(HttpUtils.class);
@@ -51,6 +46,11 @@ public class HttpUtils {
     }
   }
 
+  private static Map<String, String> acceptJson(Map<String, String> header) {
+    header.put("Accept", MediaType.APPLICATION_JSON);
+    return header;
+  }
+
   public HttpResponse<InputStream> head(String url) throws IOException {
     HttpRequest.Builder req = HttpRequest.newBuilder(URI.create(url))
         .method("HEAD", HttpRequest.BodyPublishers.noBody());
@@ -75,8 +75,7 @@ public class HttpUtils {
   }
 
   public String getJSON(URI url, Map<String, String> header) throws IOException {
-    header.put("Accept", MediaType.APPLICATION_JSON);
-    return get(url, header);
+    return get(url, acceptJson(header));
   }
 
   public InputStream getStream(String url) throws IOException {
@@ -88,32 +87,54 @@ public class HttpUtils {
   public InputStream getStream(URI url, Map<String, String> header) throws IOException {
     return send(HttpRequest.newBuilder(url), header, HttpResponse.BodyHandlers.ofInputStream()).body();
   }
+  public InputStream getStreamJSON(URI url) throws IOException {
+    return send(HttpRequest.newBuilder(url), acceptJson(new HashMap<>()), HttpResponse.BodyHandlers.ofInputStream()).body();
+  }
+  public InputStream getStreamJSON(URI url, Map<String, String> header) throws IOException {
+    return send(HttpRequest.newBuilder(url), acceptJson(header), HttpResponse.BodyHandlers.ofInputStream()).body();
+  }
 
   public void download(String url, File downloadTo) throws IOException {
     download(URI.create(url), downloadTo);
   }
 
-
   public void download(URI url, File downloadTo) throws IOException {
-
+    download(url, new HashMap<>(), downloadTo);
   }
 
   public void download(URI url, Map<String, String> header, File downloadTo) throws IOException {
     // execute
-    HttpResponse<Path> resp = send(HttpRequest.newBuilder(url), header, HttpResponse.BodyHandlers.ofFile(downloadTo.toPath()));
-    LOG.info("Downloaded {} to {}", url, downloadTo.getAbsolutePath());
+    send(HttpRequest.newBuilder(url), header, HttpResponse.BodyHandlers.ofFile(downloadTo.toPath()));
+  }
+
+  public void downloadJSON(URI url, Map<String, String> header, File downloadTo) throws IOException {
+    download(url, acceptJson(header), downloadTo);
   }
 
   public <T> HttpResponse<T> send(HttpRequest.Builder req, Map<String, String> header, HttpResponse.BodyHandler<T> bodyHandler) throws IOException {
     basicAuth(req);
     req.header("User-Agent", "ColDP-Generator/1.0");
     header.forEach(req::header);
+    HttpResponse<T> resp = send(req, bodyHandler, 1);
+    if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+      return resp;
+    }
+    throw new HttpException(resp);
+  }
+
+  /**
+   * Recursive method retrying to issue the request once in case we receive an http/w GOAWAY exception.
+   */
+  private  <T> HttpResponse<T> send(HttpRequest.Builder req, HttpResponse.BodyHandler<T> bodyHandler, int attempt) throws IOException {
     try {
-      HttpResponse<T> resp = client.send(req.build(), bodyHandler);
-      if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
-        return resp;
+      return client.send(req.build(), bodyHandler);
+    } catch (IOException e) {
+      // handle http/2 GOAWAY exceptions
+      if (e.getMessage().contains("GOAWAY") && attempt <2) {
+        LOG.info("GOAWAY received. Retry for {}: {}", req.build().uri(), e.getMessage());
+        return send(req, bodyHandler, attempt+1);
       }
-      throw new HttpException(resp);
+      throw e;
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     }
@@ -125,12 +146,6 @@ public class HttpUtils {
       req.header("Authorization", auth);
     }
     return req;
-  }
-
-  private HttpRequest.Builder json(String url) {
-    return HttpRequest.newBuilder(URI.create(url))
-          .header("Content-Type", "application/json")
-          .header("Accept", "application/json");
   }
 
   /**

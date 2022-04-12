@@ -6,6 +6,7 @@ import com.google.common.base.Joiner;
 
 import javax.validation.constraints.NotNull;
 import java.io.File;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -26,6 +27,9 @@ public class GeneratorConfig {
 
   @Parameter(names = {"--wsc-max-key"})
   public int wscMaxKey = 61000;
+
+  @Parameter(names = {"--date"})
+  public String date;
 
   /**
    * Returns the directory with the decompressed archive folder created by the checklist builder
