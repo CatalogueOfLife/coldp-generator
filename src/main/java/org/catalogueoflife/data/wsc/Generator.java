@@ -30,7 +30,7 @@ public class Generator extends AbstractGenerator {
   private static final String API = "https://wsc.nmbe.ch/api/";
   private static final Pattern LSID_PATTERN = Pattern.compile("nmbe.ch:spider(sp|gen|fam):([0-9]+)");
   private static final String ERROR = "error: ";
-  private static int MAX_DEFAULT = 61000;
+  private static int MAX_DEFAULT = 56000;
   private final String apiKey;
   private final File tmp;
   private final Set<String> higherLSIDs = new HashSet<>();
@@ -120,21 +120,25 @@ public class Generator extends AbstractGenerator {
           var to = read(new File(tmp, fn));
           if (to.isPresent()) {
             var tax = to.get();
-            System.out.println(String.format("%s: %s %s %s %s %s", tax.taxon.lsid, tax.taxon.family, tax.taxon.genus, tax.taxon.species, tax.taxon.subspecies, tax.taxon.author));
             writer.set(ColdpTerm.ID, tax.taxon.lsid);
             writer.set(ColdpTerm.rank, tax.taxon.taxonRank);
             writer.set(ColdpTerm.authorship, tax.taxon.author);
-            writer.set(ColdpTerm.status, tax.taxon.status);
             if (tax.taxon.taxonRank.equalsIgnoreCase("family")) {
+              System.out.println(String.format("%s: %s %s", tax.taxon.lsid, tax.taxon.family, tax.taxon.author));
               writer.set(ColdpTerm.uninomial, tax.taxon.family);
             } else if (tax.taxon.taxonRank.equalsIgnoreCase("genus")) {
+              System.out.println(String.format("%s: %s %s - %s", tax.taxon.lsid, tax.taxon.genus, tax.taxon.author, tax.taxon.family));
               writer.set(ColdpTerm.uninomial, tax.taxon.genus);
             } else {
+              String subsp = StringUtils.isBlank(tax.taxon.subspecies) ? "" : " "+tax.taxon.subspecies;
+              System.out.println(String.format("%s: %s %s%s %s", tax.taxon.lsid, tax.taxon.genus, tax.taxon.species, subsp, tax.taxon.author));
               writer.set(ColdpTerm.genericName, tax.taxon.genus);
               writer.set(ColdpTerm.specificEpithet, tax.taxon.species);
               writer.set(ColdpTerm.infraspecificEpithet, tax.taxon.subspecies);
             }
 
+            writer.set(ColdpTerm.status, tax.taxon.status);
+            writer.set(ColdpTerm.nameStatus, tax.taxon.status);
             if (tax.validTaxon != null) {
               writer.set(ColdpTerm.parentID, tax.validTaxon.getLSID());
             } else {
