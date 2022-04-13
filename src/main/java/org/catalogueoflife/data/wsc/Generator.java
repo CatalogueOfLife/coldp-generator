@@ -98,6 +98,7 @@ public class Generator extends AbstractGenerator {
         ColdpTerm.ID,
         ColdpTerm.parentID,
         ColdpTerm.status,
+        ColdpTerm.nameStatus,
         ColdpTerm.rank,
         ColdpTerm.uninomial,
         ColdpTerm.genericName,
