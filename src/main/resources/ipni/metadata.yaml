@@ -1,0 +1,49 @@
+---
+alias: IPNI
+title: International Plant Names Index (IPNI)
+description: |-
+  The International Plant Names Index (IPNI) is a nomenclatural index of names of vascular plants published under the Code of Nomenclature for algae, fungi and plants (ICN).
+  
+  The records in IPNI originally came from three sources in 2000, the Index Kewensis (IK), the Gray Card Index (GCI) and the Australian Plant Names Index (APNI). 
+  Index Filicum, covering the ferns (and incorporating lycophytes published after 1960), was added in 2004. 
+  Since then various other smaller datasets have been incorporated, details can be found on the acknowledgments page.
+  
+  IK included only the genus and species of seed plants. 
+  The Gray Card Index names included vascular plants of the New World. 
+  The Australian Plant Name Index records names for all Australian plants but its contribution to IPNI is restricted to the vascular plants.
+  
+  An automated deduplication process was applied to the data in 2016 and the current website search results display only the ‘top’ copy of duplicated entries from one of the three sources mentioned above. 
+  Links to the duplicate records from the other data sources are shown in the full record view and the data are still visible when clicked.
+  
+  Since appearing online in 2000, IPNI has been continuously curated: editors screen available literature and publications daily and add newly published names to the database, 
+  along with their rank, type information, authors, place of publication and exact publication dates. 
+  Authors publishing in journals or books to which there is limited access are encouraged to send copies of their publications to the editors in order to ensure their new names are included. 
+
+issued: {issued}
+version: {version}
+contact:
+  email: ipnifeedback@kew.org
+  organisation: The Royal Botanic Gardens, Kew
+  rorid: https://ror.org/00ynnr806
+creator:
+ - organisation: The Royal Botanic Gardens, Kew
+   rorid: https://ror.org/00ynnr806
+   country: UK
+   city: London
+   url: https://www.kew.org/
+ - organisation: Harvard University Herbaria & Libraries
+   rorid: https://ror.org/03vek6s52
+   country: USA
+   state: MA
+   city: Cambridge
+   url: http://www.huh.harvard.edu/
+ - organisation: Australian National Botanic Gardens
+   rorid: https://ror.org/00bx52076
+   country: Australia
+   city: Canberra
+   url: https://www.anbg.gov.au/cpbr/herbarium/
+license: CC-BY
+taxonomicScope: Plantae
+taxonomicScopeInEnglish: Plants
+geographicScope: global
+url: https://www.ipni.org
