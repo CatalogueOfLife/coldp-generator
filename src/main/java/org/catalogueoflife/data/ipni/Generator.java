@@ -18,6 +18,7 @@ package org.catalogueoflife.data.ipni;
 import life.catalogue.api.util.ObjectUtils;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
+import life.catalogue.common.text.StringUtils;
 import org.catalogueoflife.data.AbstractGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.gbif.dwc.terms.DwcTerm;
@@ -46,7 +47,7 @@ public class Generator extends AbstractGenerator {
   static final Pattern COLLATION = Pattern.compile("^(\\d+)(?:\\s*[(-]\\s*(\\d+(?:\\s*[,-]\\s*\\d+)?)\\s*\\)?)?\\s*$");
   static final Pattern DOI_REMARK = Pattern.compile("doi:10\\.(\\d+)/([^ ]+)");
   static final Pattern LSID = Pattern.compile("lsid:ipni.org:names:(\\d+-\\d)$");
-  static final Pattern TYPE_LOC = Pattern.compile("^([a-z]+)\\s+([A-Z]+)(?:\\s*[\\s-]\\s*(.+))?$");
+  static final Pattern TYPE_LOC = Pattern.compile("^([a-z]+)\\s+([A-Z/]+)(?:\\s*[\\s-]\\s*(.+))?$");
   private static final int MIN_YEAR = 1750; //1750;
   private static final int PAGESIZE = 500;
   private TermWriter taxWriter;
@@ -100,11 +101,14 @@ public class Generator extends AbstractGenerator {
         ColdpTerm.ID,
         ColdpTerm.nameID,
         ColdpTerm.status,
+        DwcTerm.institutionCode,
+        DwcTerm.catalogNumber,
         ColdpTerm.locality,
         ColdpTerm.collector,
         ColdpTerm.date,
         ColdpTerm.latitude,
-        ColdpTerm.longitude
+        ColdpTerm.longitude,
+        ColdpTerm.remarks
     ));
     nameRelWriter = additionalWriter(ColdpTerm.NameRelation, List.of(
         ColdpTerm.nameID,
@@ -213,7 +217,7 @@ public class Generator extends AbstractGenerator {
       Collation collation = new Collation();
       if (n.reference != null) {
         // references are tricky in IPNI. The refID takes you to the journal, not the individual article or even issue!!!
-        // instead we use a) the DOI if known, b) referenceID + the collation without the pages or c) just the plain referenceID as last resort
+        // instead we use a) the DOI if known, b) referenceID + authors + the collation without the pages or c) just the plain referenceID as last resort
         String  doi = null;
         if (n.remarks != null) {
           var m = DOI_REMARK.matcher(n.remarks);
@@ -222,7 +226,7 @@ public class Generator extends AbstractGenerator {
           }
         }
         parseCollation(collation, n.referenceCollation);
-        refID = ObjectUtils.coalesce(doi, buildRefId(n.publicationId, collation));
+        refID = ObjectUtils.coalesce(doi, buildRefId(n.publicationId, n.publishingAuthor, collation));
         // only write once
         if (!refIds.contains(refID)) {
           refIds.add(refID);
@@ -311,14 +315,28 @@ public class Generator extends AbstractGenerator {
     }
   }
 
-  private static String buildRefId(String ipniID, Collation collation) {
-    if (collation != null && collation.volume != null) {
-      if (collation.issue != null) {
-        return String.format("%s-%s(%s)", ipniID, collation.volume, collation.issue);
+  private static String buildRefId(String ipniID, String authors, Collation collation) {
+    StringBuilder sb = new StringBuilder();
+    sb.append(ipniID);
+    if (collation != null) {
+      if (collation.volume != null) {
+        sb.append("-");
+        sb.append(collation.volume);
       }
-      return String.format("%s-%s", ipniID, collation.volume);
+      if (collation.issue != null) {
+        sb.append("(");
+        sb.append(collation.issue);
+        sb.append(")");
+      }
     }
-    return ipniID;
+    if (authors != null) {
+      sb.append("-");
+      sb.append(
+        StringUtils.foldToAscii(authors)
+                   .replaceAll("[\\s;:,.?-]", "")
+      );
+    }
+    return sb.toString();
   }
   URI buildPageUri(int year, IpniWrapper prev) throws UnsupportedEncodingException {
     String cursor = prev == null ? "*" : URLEncoder.encode(prev.cursor, StandardCharsets.UTF_8.toString());
