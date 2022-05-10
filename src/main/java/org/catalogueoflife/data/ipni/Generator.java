@@ -15,21 +15,14 @@
  */
 package org.catalogueoflife.data.ipni;
 
-import com.github.scribejava.apis.KeycloakApi;
-import com.github.scribejava.core.builder.ServiceBuilder;
-import com.github.scribejava.core.model.OAuth2AccessToken;
-import com.github.scribejava.core.model.OAuthRequest;
-import com.github.scribejava.core.model.Response;
-import com.github.scribejava.core.model.Verb;
-import com.github.scribejava.core.oauth.OAuth20Service;
-import life.catalogue.api.model.DOI;
+import life.catalogue.api.util.ObjectUtils;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
-import org.apache.commons.io.Charsets;
-import org.apache.commons.io.IOUtils;
 import org.catalogueoflife.data.AbstractGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
-import org.gbif.nameparser.api.NomCode;
+import org.gbif.dwc.terms.DwcTerm;
+import org.gbif.dwc.terms.Term;
+import org.gbif.dwc.terms.UnknownTerm;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -37,21 +30,29 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
-import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
+import java.util.Objects;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * ColDP generator for IPNI using their public API.
  * All search terms are found at https://github.com/RBGKew/pykew/blob/master/pykew/ipni_terms.py
  */
 public class Generator extends AbstractGenerator {
-  private static final String API = "http://beta.ipni.org/api/1/";
-  private static final int MIN_YEAR = 2000; //1750;
+  private static final String API = "https://beta.ipni.org/api/1/";
+  static final Pattern PAGES = Pattern.compile("\\s*:\\s*");
+  static final Pattern COLLATION = Pattern.compile("^(\\d+)(?:\\s*[(-]\\s*(\\d+(?:\\s*[,-]\\s*\\d+)?)\\s*\\)?)?\\s*$");
+  static final Pattern DOI_REMARK = Pattern.compile("doi:10\\.(\\d+)/([^ ]+)");
+  static final Pattern LSID = Pattern.compile("lsid:ipni.org:names:(\\d+-\\d)$");
+  static final Pattern TYPE_LOC = Pattern.compile("^([a-z]+)\\s+([A-Z]+)(?:\\s*[\\s-]\\s*(.+))?$");
+  private static final int MIN_YEAR = 1750; //1750;
   private static final int PAGESIZE = 500;
   private TermWriter taxWriter;
   private TermWriter typeWriter;
   private TermWriter nameRelWriter;
+  private Set<String> refIds = new HashSet();
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
@@ -61,26 +62,44 @@ public class Generator extends AbstractGenerator {
   protected void addData() throws Exception {
     newWriter(ColdpTerm.Name, List.of(
       ColdpTerm.ID,
+      ColdpTerm.basionymID,
       ColdpTerm.rank,
       ColdpTerm.scientificName,
       ColdpTerm.authorship,
-      ColdpTerm.code,
+      ColdpTerm.status,
       ColdpTerm.referenceID,
       ColdpTerm.publishedInYear,
+      ColdpTerm.publishedInPage,
+      ColdpTerm.publishedInPageLink,
       ColdpTerm.remarks
     ));
     refWriter = additionalWriter(ColdpTerm.Reference, List.of(
         ColdpTerm.ID,
-        ColdpTerm.publishedInYear,
+        ColdpTerm.doi,
+        ColdpTerm.type,
+        ColdpTerm.citation,
+        ColdpTerm.title,
+        ColdpTerm.containerTitle,
+        ColdpTerm.author,
+        ColdpTerm.issued,
+        ColdpTerm.volume,
+        ColdpTerm.issue,
+        ColdpTerm.issn,
+        ColdpTerm.isbn,
+        ColdpTerm.page,
         ColdpTerm.remarks
     ));
     taxWriter = additionalWriter(ColdpTerm.Taxon, List.of(
         ColdpTerm.ID,
-        ColdpTerm.parentID
+        ColdpTerm.parentID,
+        ColdpTerm.nameID,
+        ColdpTerm.status,
+        ColdpTerm.family
     ));
     typeWriter = additionalWriter(ColdpTerm.TypeMaterial, List.of(
         ColdpTerm.ID,
         ColdpTerm.nameID,
+        ColdpTerm.status,
         ColdpTerm.locality,
         ColdpTerm.collector,
         ColdpTerm.date,
@@ -118,40 +137,189 @@ public class Generator extends AbstractGenerator {
     }
   }
 
+  static String idFromLsid(String lsid) {
+    if (lsid != null) {
+      var m = LSID.matcher(lsid);
+      if (m.find()) {
+        return m.group(1);
+      }
+    }
+    return lsid;
+  }
+
+  static class Collation {
+    public String volume;
+    public String issue;
+    public String pages;
+
+    public Collation() {
+    }
+
+    public Collation(String volume, String issue, String pages) {
+      this.volume = volume;
+      this.issue = issue;
+      this.pages = pages;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (!(o instanceof Collation)) return false;
+      Collation collation = (Collation) o;
+      return Objects.equals(volume, collation.volume)
+             && Objects.equals(issue, collation.issue)
+             && Objects.equals(pages, collation.pages);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(volume, issue, pages);
+    }
+  }
+  static Collation parseCollation (String collation) {
+    Collation c = new Collation();
+    parseCollation(c, collation);
+    return c;
+  }
+  static void parseCollation (Collation c, String collation) {
+    if (collation != null) {
+      var parts = PAGES.split(collation, 2);
+      if (parts.length > 0) {
+        c.pages = parts.length > 1 ? parts[1] : null;
+        // try with flat int first
+        try {
+          Integer.parseInt(collation.trim());
+          c.volume = collation.trim();
+
+        } catch (IllegalArgumentException e) {
+          var m = COLLATION.matcher(parts[0]);
+          if (m.find()) {
+            c.volume=m.group(1);
+            c.issue=m.group(2);
+          } else {
+            c.volume=parts[0];
+          }
+        }
+      } else {
+        LOG.info("Unparsable reference collation >>{}<<", collation);
+      }
+    }
+  }
   void write(List<IpniName> results) throws IOException {
     if (results == null) return;
 
     for (IpniName n : results) {
+      String refID = null;
+      Collation collation = new Collation();
+      if (n.reference != null) {
+        // references are tricky in IPNI. The refID takes you to the journal, not the individual article or even issue!!!
+        // instead we use a) the DOI if known, b) referenceID + the collation without the pages or c) just the plain referenceID as last resort
+        String  doi = null;
+        if (n.remarks != null) {
+          var m = DOI_REMARK.matcher(n.remarks);
+          if (m.find()) {
+            doi = m.group();
+          }
+        }
+        parseCollation(collation, n.referenceCollation);
+        refID = ObjectUtils.coalesce(doi, buildRefId(n.publicationId, collation));
+        // only write once
+        if (!refIds.contains(refID)) {
+          refIds.add(refID);
+          refWriter.set(ColdpTerm.ID, refID);
+          if (collation.issue != null) {
+            refWriter.set(ColdpTerm.type, "ARTICLE_JOURNAL");
+          }
+          refWriter.set(ColdpTerm.doi, doi);
+          //refWriter.set(ColdpTerm.citation, n.reference); dont use it - the page is in it
+          refWriter.set(ColdpTerm.author, n.publishingAuthor);
+          refWriter.set(ColdpTerm.volume, collation.volume);
+          refWriter.set(ColdpTerm.issue, collation.issue);
+          refWriter.set(ColdpTerm.containerTitle, n.publication);
+          if (n.linkedPublication != null) {
+            writer.set(ColdpTerm.publishedInPageLink, n.linkedPublication.bhlPageLink);
+            refWriter.set(ColdpTerm.containerTitle, ObjectUtils.coalesce(n.linkedPublication.title, n.linkedPublication.abbreviation));
+            refWriter.set(ColdpTerm.issn, n.linkedPublication.issn);
+            refWriter.set(ColdpTerm.isbn, n.linkedPublication.isbn);
+            refWriter.set(ColdpTerm.remarks, n.linkedPublication.remarks);
+          }
+          refWriter.set(ColdpTerm.issued, ObjectUtils.coalesce(n.publicationYearNote, n.publicationYear));
+          refWriter.set(ColdpTerm.remarks, n.publicationYearNote);
+          refWriter.next();
+        }
+      }
+
       writer.set(ColdpTerm.ID, n.id);
       writer.set(ColdpTerm.rank, n.rank);
       writer.set(ColdpTerm.scientificName, n.name);
       writer.set(ColdpTerm.authorship, n.authors);
-      writer.set(ColdpTerm.referenceID, n.publicationId);
-      writer.set(ColdpTerm.publishedInYear, n.publicationYear);
+      writer.set(ColdpTerm.referenceID, refID);
+      writer.set(ColdpTerm.publishedInPage, collation.pages);
+      writer.set(ColdpTerm.basionymID, idFromLsid(n.basionymId));
+      writer.set(ColdpTerm.status, n.nameStatusType);
+      writer.set(ColdpTerm.remarks, n.nameStatus); // citationType contains "comb.nov."
       writer.next();
 
-      //TODO: track ids so we only write it once!
-      refWriter.set(ColdpTerm.ID, n.publicationId);
-      refWriter.set(ColdpTerm.publishedInYear, n.publicationYear);
-      refWriter.set(ColdpTerm.remarks, n.publicationYearNote);
-      refWriter.next();
+      taxWriter.set(ColdpTerm.ID, n.id);
+      taxWriter.set(ColdpTerm.nameID, n.id);
+      taxWriter.set(ColdpTerm.status, "provisionally accepted");
+      taxWriter.set(ColdpTerm.family, n.family);
+      taxWriter.next();
 
-      if (n.hasTypeData) {
-        typeWriter.set(ColdpTerm.ID, n.collectionNumber);
-        typeWriter.set(ColdpTerm.nameID, n.id);
-        typeWriter.set(ColdpTerm.locality, n.typeLocations);
-        typeWriter.set(ColdpTerm.collector, n.collectorTeam);
-        typeWriter.set(ColdpTerm.date, n.collectionDate1);
-        if (n.typeCoordinates != null) {
-          // should be decimal - TODO: convert !
-          typeWriter.set(ColdpTerm.latitude, n.typeCoordinates.formattedLatitude);
-          typeWriter.set(ColdpTerm.longitude, n.typeCoordinates.formattedLongitude);
+      if (n.isonymOf != null) {
+        nameRelWriter.set(ColdpTerm.nameID, n.id);
+        nameRelWriter.set(ColdpTerm.relatedNameID, n.isonymOf.id);
+        nameRelWriter.set(ColdpTerm.type, "isonymOf");
+        nameRelWriter.next();
+      }
+      if (n.replacedSynonymOf != null) {
+        for (var syn : n.replacedSynonymOf) {
+          nameRelWriter.set(ColdpTerm.nameID, n.id);
+          nameRelWriter.set(ColdpTerm.relatedNameID, syn.id);
+          nameRelWriter.set(ColdpTerm.type, "replacedSynonymOf");
+          nameRelWriter.next();
         }
-        typeWriter.next();
+      }
+
+      if (n.suppressed) {
+        //writer.set(ColdpTerm.status, );
+      }
+
+      if (n.hasTypeData && n.typeLocations != null) {
+        for (String tl : n.typeLocations.split(";")) {
+          typeWriter.set(ColdpTerm.nameID, n.id);
+          var m = TYPE_LOC.matcher(tl.trim());
+          if (m.find()) {
+            typeWriter.set(ColdpTerm.status, m.group(1));
+            typeWriter.set(DwcTerm.institutionCode, m.group(2));
+            typeWriter.set(DwcTerm.catalogNumber, m.group(3));
+          } else {
+            typeWriter.set(ColdpTerm.status, tl);
+          }
+          typeWriter.set(ColdpTerm.remarks, n.collectionNumber);// TODO: remove?
+          typeWriter.set(ColdpTerm.locality, n.locality);
+          typeWriter.set(ColdpTerm.collector, n.collectorTeam);
+          typeWriter.set(ColdpTerm.date, n.collectionDate1);
+          if (n.typeCoordinates != null) {
+            // should be decimal - TODO: convert !
+            typeWriter.set(ColdpTerm.latitude, n.typeCoordinates.formattedLatitude);
+            typeWriter.set(ColdpTerm.longitude, n.typeCoordinates.formattedLongitude);
+          }
+          typeWriter.next();
+        }
       }
     }
   }
 
+  private static String buildRefId(String ipniID, Collation collation) {
+    if (collation != null && collation.volume != null) {
+      if (collation.issue != null) {
+        return String.format("%s-%s(%s)", ipniID, collation.volume, collation.issue);
+      }
+      return String.format("%s-%s", ipniID, collation.volume);
+    }
+    return ipniID;
+  }
   URI buildPageUri(int year, IpniWrapper prev) throws UnsupportedEncodingException {
     String cursor = prev == null ? "*" : URLEncoder.encode(prev.cursor, StandardCharsets.UTF_8.toString());
     return URI.create(API + String.format("search?published=%s&perPage=%s&cursor=%s", year, PAGESIZE, cursor));
@@ -180,6 +348,12 @@ public class Generator extends AbstractGenerator {
     public String authors;
     public String publishingAuthor;
     public List<IpniAuthor> authorTeam;
+    public String nameStatus;
+    public String nameStatusType;
+    public IpniName isonymOf;
+    public List<IpniName> replacedSynonymOf;
+    public List<IpniName> sameCitationAs;
+    public List<IpniName> parent;
     public String rank;
     public String url;
     public String family;
@@ -216,6 +390,7 @@ public class Generator extends AbstractGenerator {
     public boolean hasLinks;
 
     public IpniCoordinate typeCoordinates;
+    public String locality;
     public String typeLocations;
     public String remarks;
   }
@@ -234,6 +409,8 @@ public class Generator extends AbstractGenerator {
     public String fqId;
     public String lcNumber;
     public String recordType;
+    public String issn;
+    public String isbn;
     public String remarks;
     public boolean suppressed;
     public String title;
@@ -241,6 +418,8 @@ public class Generator extends AbstractGenerator {
     public boolean hasBhlLinks;
     public boolean hasBhlTitleLink;
     public boolean hasBhlPageLink;
+    public String bhlPageLink;
+    public String bhlTitleLink;
   }
   static class IpniCoordinate {
     public String eastOrWest;
