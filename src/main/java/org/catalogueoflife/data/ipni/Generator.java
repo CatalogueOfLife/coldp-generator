@@ -45,7 +45,7 @@ public class Generator extends AbstractGenerator {
   private static final String API = "https://beta.ipni.org/api/1/";
   static final Pattern PAGES = Pattern.compile("\\s*:\\s*");
   static final Pattern COLLATION = Pattern.compile("^(\\d+)(?:\\s*[(-]\\s*(\\d+(?:\\s*[,-]\\s*\\d+)?)\\s*\\)?)?\\s*$");
-  static final Pattern DOI_REMARK = Pattern.compile("doi:10\\.(\\d+)/([^ ]+)");
+  static final Pattern DOI_REMARK = Pattern.compile("(?:doi:|doi.org/)(10\\.\\d+/[^ ]+?)(?:\\.? |$)");
   static final Pattern LSID = Pattern.compile("lsid:ipni.org:names:(\\d+-\\d)$");
   static final Pattern TYPE_LOC = Pattern.compile("^([a-z]+)\\s+([A-Z/]+)(?:\\s*[\\s-]\\s*(.+))?$");
   private static final int MIN_YEAR = 1750; //1750;
@@ -218,13 +218,7 @@ public class Generator extends AbstractGenerator {
       if (n.reference != null) {
         // references are tricky in IPNI. The refID takes you to the journal, not the individual article or even issue!!!
         // instead we use a) the DOI if known, b) referenceID + authors + the collation without the pages or c) just the plain referenceID as last resort
-        String  doi = null;
-        if (n.remarks != null) {
-          var m = DOI_REMARK.matcher(n.remarks);
-          if (m.find()) {
-            doi = m.group();
-          }
-        }
+        String  doi = extractDOI(n.remarks);
         parseCollation(collation, n.referenceCollation);
         refID = ObjectUtils.coalesce(doi, buildRefId(n.publicationId, n.publishingAuthor, collation));
         // only write once
@@ -313,6 +307,16 @@ public class Generator extends AbstractGenerator {
         }
       }
     }
+  }
+
+  static String extractDOI(String remarks) {
+    if (remarks != null) {
+      var m = DOI_REMARK.matcher(remarks);
+      if (m.find()) {
+        return m.group(1);
+      }
+    }
+    return null;
   }
 
   private static String buildRefId(String ipniID, String authors, Collation collation) {
