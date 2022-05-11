@@ -22,8 +22,6 @@ import life.catalogue.common.text.StringUtils;
 import org.catalogueoflife.data.AbstractGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.gbif.dwc.terms.DwcTerm;
-import org.gbif.dwc.terms.Term;
-import org.gbif.dwc.terms.UnknownTerm;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -40,6 +38,10 @@ import java.util.regex.Pattern;
 /**
  * ColDP generator for IPNI using their public API.
  * All search terms are found at https://github.com/RBGKew/pykew/blob/master/pykew/ipni_terms.py
+ *
+ * Currently we only use the search results to generate the archive.
+ * More details are available when resolving every name detail through the API.
+ * This brings back better classification and name relations!
  */
 public class Generator extends AbstractGenerator {
   private static final String API = "https://beta.ipni.org/api/1/";
@@ -49,6 +51,7 @@ public class Generator extends AbstractGenerator {
   static final Pattern LSID = Pattern.compile("lsid:ipni.org:names:(\\d+-\\d)$");
   static final Pattern TYPE_LOC = Pattern.compile("^([a-z]+)\\s+([A-Z/]+)(?:\\s*[\\s-]\\s*(.+))?$");
   private static final int MIN_YEAR = 1750; //1750;
+  private static final List<Integer> TEST_YEARS = List.of(); //List.of(1828,1829,1836,1753);
   private static final int PAGESIZE = 500;
   private TermWriter taxWriter;
   private TermWriter typeWriter;
@@ -117,9 +120,16 @@ public class Generator extends AbstractGenerator {
     ));
 
     try {
-      int currYear = LocalDate.now().getYear();
-      for (int year = currYear; year > MIN_YEAR; year--) {
-        addYear(year);
+      if (TEST_YEARS.isEmpty()) {
+        int currYear = LocalDate.now().getYear();
+        for (int year = currYear; year > MIN_YEAR; year--) {
+          addYear(year);
+        }
+
+      } else {
+        for (int year : TEST_YEARS) {
+          addYear(year);
+        }
       }
     } finally {
       taxWriter.close();
@@ -234,15 +244,16 @@ public class Generator extends AbstractGenerator {
           refWriter.set(ColdpTerm.volume, collation.volume);
           refWriter.set(ColdpTerm.issue, collation.issue);
           refWriter.set(ColdpTerm.containerTitle, n.publication);
+          String linkedPublicationRemarks = null;
           if (n.linkedPublication != null) {
             writer.set(ColdpTerm.publishedInPageLink, n.linkedPublication.bhlPageLink);
             refWriter.set(ColdpTerm.containerTitle, ObjectUtils.coalesce(n.linkedPublication.title, n.linkedPublication.abbreviation));
             refWriter.set(ColdpTerm.issn, n.linkedPublication.issn);
             refWriter.set(ColdpTerm.isbn, n.linkedPublication.isbn);
-            refWriter.set(ColdpTerm.remarks, n.linkedPublication.remarks);
+            linkedPublicationRemarks = n.linkedPublication.remarks;
           }
           refWriter.set(ColdpTerm.issued, ObjectUtils.coalesce(n.publicationYearNote, n.publicationYear));
-          refWriter.set(ColdpTerm.remarks, n.publicationYearNote);
+          refWriter.set(ColdpTerm.remarks, StringUtils.concat("; ", n.referenceRemarks, linkedPublicationRemarks));
           refWriter.next();
         }
       }
@@ -255,7 +266,7 @@ public class Generator extends AbstractGenerator {
       writer.set(ColdpTerm.publishedInPage, collation.pages);
       writer.set(ColdpTerm.basionymID, idFromLsid(n.basionymId));
       writer.set(ColdpTerm.status, n.nameStatusType);
-      writer.set(ColdpTerm.remarks, n.nameStatus); // citationType contains "comb.nov."
+      writer.set(ColdpTerm.remarks, StringUtils.concat("; ", n.remarks, n.nameStatus, valueLabel("Type", n.typeName))); // citationType contains "comb.nov."
       writer.next();
 
       taxWriter.set(ColdpTerm.ID, n.id);
@@ -309,6 +320,12 @@ public class Generator extends AbstractGenerator {
     }
   }
 
+  static String valueLabel(String label, String value) {
+    if (!org.apache.commons.lang3.StringUtils.isBlank(value)) {
+      return label + ": " + value;
+    }
+    return null;
+  }
   static String extractDOI(String remarks) {
     if (remarks != null) {
       var m = DOI_REMARK.matcher(remarks);
@@ -372,10 +389,15 @@ public class Generator extends AbstractGenerator {
     public List<IpniAuthor> authorTeam;
     public String nameStatus;
     public String nameStatusType;
+    // the following IpniName properties are only populated when requesting the name detail, not through the search we use!
     public IpniName isonymOf;
+    public List<IpniName> basionymOf;
+
+    public List<IpniName> nomenclaturalSynonym;
     public List<IpniName> replacedSynonymOf;
     public List<IpniName> sameCitationAs;
     public List<IpniName> parent;
+    public List<IpniName> child;
     public String rank;
     public String url;
     public String family;
@@ -384,7 +406,7 @@ public class Generator extends AbstractGenerator {
     public String basionymStr;
     public String basionymAuthorStr;
     public String basionymId;
-    public String citationType;
+    public String citationType; // stat. nov.
     public boolean hybrid;
     public boolean hybridGenus;
     public boolean inPowo;
@@ -414,6 +436,7 @@ public class Generator extends AbstractGenerator {
     public IpniCoordinate typeCoordinates;
     public String locality;
     public String typeLocations;
+    public String typeName; // A. alba P. Miller (Pinus picea Linnaeus, non Abies picea P. Miller, l.c.)
     public String remarks;
   }
   static class IpniAuthor {
