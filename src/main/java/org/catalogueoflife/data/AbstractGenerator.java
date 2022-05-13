@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import life.catalogue.api.model.Citation;
 import life.catalogue.api.model.DOI;
+import life.catalogue.api.model.IssueContainer;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.*;
 import life.catalogue.common.text.SimpleTemplate;
@@ -76,9 +77,8 @@ public abstract class AbstractGenerator implements Runnable {
     this.download = new DownloadUtil(hc);
     this.http = new HttpUtils();
     this.srcUri = downloadUri;
-    doiResolver = null; //new DoiResolver(hc);
+    doiResolver = new DoiResolver(hc);
   }
-
 
   @Override
   public void run() {
@@ -199,9 +199,13 @@ public abstract class AbstractGenerator implements Runnable {
    * @param doi
    */
   protected void addSource(DOI doi) throws IOException {
-    var data = doiResolver.resolve(doi);
+    IssueContainer issues = IssueContainer.simple();
+    var data = doiResolver.resolve(doi, issues);
     if (data != null) {
       sources.add(data);
+    }
+    for (var iss : issues.getIssues()) {
+      LOG.warn("Resolution of DOI {} caused {}", doi, iss);
     }
   }
 }
