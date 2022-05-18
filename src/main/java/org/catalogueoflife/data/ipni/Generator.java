@@ -45,6 +45,7 @@ import java.util.regex.Pattern;
  */
 public class Generator extends AbstractGenerator {
   private static final String API = "https://beta.ipni.org/api/1/";
+  private static final String LINK_BASE = "https://www.ipni.org";
   static final Pattern PAGES = Pattern.compile("\\s*:\\s*");
   static final Pattern COLLATION = Pattern.compile("^(\\d+)(?:\\s*[(-]\\s*(\\d+(?:\\s*[,-]\\s*\\d+)?)\\s*\\)?)?\\s*$");
   static final Pattern DOI_REMARK = Pattern.compile("(?:doi:|doi.org/)(10\\.\\d+/[^ ]+?)(?:\\.? |$)");
@@ -75,6 +76,7 @@ public class Generator extends AbstractGenerator {
       ColdpTerm.publishedInYear,
       ColdpTerm.publishedInPage,
       ColdpTerm.publishedInPageLink,
+      ColdpTerm.link,
       ColdpTerm.remarks
     ));
     refWriter = additionalWriter(ColdpTerm.Reference, List.of(
@@ -91,6 +93,7 @@ public class Generator extends AbstractGenerator {
         ColdpTerm.issn,
         ColdpTerm.isbn,
         ColdpTerm.page,
+        ColdpTerm.link,
         ColdpTerm.remarks
     ));
     taxWriter = additionalWriter(ColdpTerm.Taxon, List.of(
@@ -98,7 +101,8 @@ public class Generator extends AbstractGenerator {
         ColdpTerm.parentID,
         ColdpTerm.nameID,
         ColdpTerm.status,
-        ColdpTerm.family
+        ColdpTerm.family,
+        ColdpTerm.link
     ));
     typeWriter = additionalWriter(ColdpTerm.TypeMaterial, List.of(
         ColdpTerm.ID,
@@ -253,11 +257,15 @@ public class Generator extends AbstractGenerator {
             linkedPublicationRemarks = n.linkedPublication.remarks;
           }
           refWriter.set(ColdpTerm.issued, ObjectUtils.coalesce(n.publicationYearNote, n.publicationYear));
+          if (n.publicationId != null) {
+            refWriter.set(ColdpTerm.link, LINK_BASE+"/r/"+n.publicationId);
+          }
           refWriter.set(ColdpTerm.remarks, StringUtils.concat("; ", n.referenceRemarks, linkedPublicationRemarks));
           refWriter.next();
         }
       }
 
+      String nameLink = LINK_BASE+"/n/"+n.id;
       writer.set(ColdpTerm.ID, n.id);
       writer.set(ColdpTerm.rank, n.rank);
       writer.set(ColdpTerm.scientificName, n.name);
@@ -266,6 +274,7 @@ public class Generator extends AbstractGenerator {
       writer.set(ColdpTerm.publishedInPage, collation.pages);
       writer.set(ColdpTerm.basionymID, idFromLsid(n.basionymId));
       writer.set(ColdpTerm.status, n.nameStatusType);
+      writer.set(ColdpTerm.link, nameLink);
       writer.set(ColdpTerm.remarks, StringUtils.concat("; ", n.remarks, n.nameStatus, valueLabel("Type", n.typeName))); // citationType contains "comb.nov."
       writer.next();
 
@@ -273,6 +282,7 @@ public class Generator extends AbstractGenerator {
       taxWriter.set(ColdpTerm.nameID, n.id);
       taxWriter.set(ColdpTerm.status, "provisionally accepted");
       taxWriter.set(ColdpTerm.family, n.family);
+      taxWriter.set(ColdpTerm.link, nameLink);
       taxWriter.next();
 
       if (n.isonymOf != null) {
@@ -300,8 +310,8 @@ public class Generator extends AbstractGenerator {
           var m = TYPE_LOC.matcher(tl.trim());
           if (m.find()) {
             typeWriter.set(ColdpTerm.status, m.group(1));
-            typeWriter.set(DwcTerm.institutionCode, m.group(2));
-            typeWriter.set(DwcTerm.catalogNumber, m.group(3));
+            typeWriter.set(ColdpTerm.institutionCode, m.group(2));
+            typeWriter.set(ColdpTerm.catalogNumber, m.group(3));
           } else {
             typeWriter.set(ColdpTerm.status, tl);
           }
