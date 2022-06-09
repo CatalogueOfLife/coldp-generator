@@ -2,10 +2,8 @@ package org.catalogueoflife.data;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import life.catalogue.api.model.Citation;
 import life.catalogue.api.model.DOI;
 import life.catalogue.api.model.IssueContainer;
@@ -14,27 +12,19 @@ import life.catalogue.common.io.*;
 import life.catalogue.common.text.SimpleTemplate;
 import life.catalogue.metadata.DoiResolver;
 import life.catalogue.metadata.coldp.YamlMapper;
-import org.apache.commons.io.FileUtils;
-import org.apache.http.HttpEntity;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.util.EntityUtils;
-import org.apache.poi.xddf.usermodel.PresetPattern;
 import org.catalogueoflife.data.utils.HttpUtils;
 import org.gbif.dwc.terms.Term;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
-import javax.ws.rs.core.MediaType;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 

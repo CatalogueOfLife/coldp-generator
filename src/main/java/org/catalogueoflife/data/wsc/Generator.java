@@ -1,6 +1,6 @@
 package org.catalogueoflife.data.wsc;
 
-import com.fasterxml.jackson.databind.DatabindException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.base.Preconditions;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
@@ -182,7 +182,7 @@ public class Generator extends AbstractGenerator {
     if (!content.startsWith(ERROR)) {
       try {
         return Optional.of(mapper.readValue(content, NameUsage.class));
-      } catch (DatabindException e) {
+      } catch (JsonProcessingException e) {
         LOG.error("Jackson exception >{}< for content: {}", e.getMessage(), content);
       }
     }
