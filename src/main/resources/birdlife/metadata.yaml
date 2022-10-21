@@ -1,0 +1,79 @@
+---
+alias: BirdLife
+title: Handbook of the Birds of the World and BirdLife International Digital Checklist of the Birds of the World
+description: |-
+  The Handbook of the Birds of the World (HBW) and BirdLife International digital checklist reflects the taxonomy published in the two volumes of 
+  the HBW and BirdLife International Illustrated Checklist of the Birds of the World (non-passerines: del Hoyo and Collar 2014; passerines: del Hoyo and Collar 2016) and subsequent updates resulting from the ongoing work of the HBW/BirdLife International Taxonomic Working Group. 
+  BirdLife uses this digital checklist as the basis for much of its global, regional and national conservation work. 
+  It also sets the taxonomic basis of BirdLife’s assessment of all birds for the IUCN Red List, which is widely used by conservationists, scientists, governments, policy instruments and the private sector across the world, and also underpins the identification of Key Biodiversity Areas (KBAs).
+
+  This version of the checklist includes the scientific and common names used, 
+  the authority (for the original description of the taxon), 
+  the latest global IUCN Red List category (e.g. Extinct, Vulnerable, Least Concern, etc.), 
+  the currently recognised subspecies of each taxon, and a record ID number unique to the taxonomic entity used in the IUCN Species Information Service (SIS). 
+  Previously recognised taxa are also included and distinguished as ‘Not Recognised’ (NR): this includes concepts recognised prior to a split or lump and those taxa shown to no longer be valid. 
+  Taxonomic notes have now been completed for all species and are available in a separate document, as are details and results of the acoustic analyses undertaken and the morphometric measurements taken from hundreds of museum specimens to support many of these decisions. 
+  These documents can be downloaded from the BirdLife taxonomy page (http://datazone.birdlife.org/species/taxonomy).
+
+issued: {issued}
+version: {version}
+contact:
+  email: taxonomy@birdlife.org
+  organisation: The BirdLife Taxonomic Working Group
+creator:
+ -
+   organisation: The HBW/BirdLife International Taxonomic Working Group
+license: CC-BY
+taxonomicScope: Aves
+taxonomicScopeInEnglish: Birds
+geographicScope: global
+confidence: 5
+completeness: 100
+url: http://datazone.birdlife.org/species/taxonomy
+logo:
+source:
+  - id: Hoyo2014
+    type: BOOK
+    author:
+      - given: Josep
+        family: del Hoyo
+      - given: Nigel J.
+        family: Collar
+    title: "HBW and BirdLife International Illustrated Checklist of the Birds of the World. Volume 1: Non-passerines"
+    issued: 2014-07
+    volume: 1
+    isbn: 978-84-96553-94-1
+    publisher: Lynx Edicions
+    publisherPlace: Barcelona
+
+  - id: Hoyo2016
+    type: BOOK
+    author:
+      - given: Josep
+        family: del Hoyo
+      - given: Nigel J.
+        family: Collar
+    title: "HBW and BirdLife International Illustrated Checklist of the Birds of the World. Volume 2: Passerines"
+    issued: 2016-12
+    volume: 2
+    isbn: 978-84-96553-98-9
+    publisher: Lynx Edicions
+    publisherPlace: Barcelona
+
+  - id: Tobias2010
+    doi: https://doi.org/10.1111/j.1474-919X.2010.01051.x
+    type: ARTICLE-JOURNAL
+    author:
+      - Tobias, Joseph A.
+      - Seddon, Nathalie
+      - Spottiswoode, Claire N.
+      - Pilgrim, John D.
+      - Fishpool, Lincoln D. C.
+      - Collar, Nigel J.
+    title: Quantitative criteria for species delimitation
+    issued: 2010
+    volume: 152
+    issue: 4
+    page: 724-746
+    containerTitle: Ibis
+    issn: 0019-1019
