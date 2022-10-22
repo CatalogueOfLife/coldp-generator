@@ -93,6 +93,7 @@ public class Generator extends AbstractXlsSrcGenerator {
     ));
 
     final Pattern REF_LINK_PATTERN = Pattern.compile("(?:Available at)? ?:? ?#(http.+)# ?\\.?", Pattern.CASE_INSENSITIVE);
+    final Pattern NO_AUTHOR = Pattern.compile("[\\d():]");
     final Map<String, Integer> refs = new HashMap<>();
     int refID = 1;
 
@@ -137,9 +138,21 @@ public class Generator extends AbstractXlsSrcGenerator {
       String sources = col(row, COL_SOURCES);
       List<String> refIDs = new ArrayList<>();
       if (sources != null) {
-        for (String ref : sources.split(";")) {
+        var srcs = sources.split(";");
+        StringBuilder refBuilder = new StringBuilder();
+        for (String ref : srcs) {
           ref = StringUtils.trimToNull(ref);
           if (ref != null) {
+            //  some authors are concatenated by semicolon :( we merge them with the next bits
+            //  Baker, A. J.
+            //  Dekker, R. W. R. J.
+            refBuilder.append(ref);
+            if (!NO_AUTHOR.matcher(ref).find()) {
+              refBuilder.append("; ");
+              continue;
+            }
+            ref = refBuilder.toString();
+            refBuilder = new StringBuilder();
             String link = null;
             // Available at: #http://www.aerc.eu/DOCS/Bird_taxa_of _the_WP15.xls#.
             var m = REF_LINK_PATTERN.matcher(ref);
