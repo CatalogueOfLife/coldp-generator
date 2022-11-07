@@ -36,7 +36,7 @@
     <commons-compress.version>1.19</commons-compress.version>
     <commons-io.version>2.11.0</commons-io.version>
     <col.version>1.0-SNAPSHOT</col.version>
-    <dwc-api.version>1.36-SNAPSHOT</dwc-api.version>
+    <dwc-api.version>1.36</dwc-api.version>
     <dwca-io.version>2.11</dwca-io.version>
     <httpcore.version>4.4.12</httpcore.version>
     <jackson.version>2.10.5</jackson.version>
