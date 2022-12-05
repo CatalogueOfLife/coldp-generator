@@ -15,6 +15,7 @@
  */
 package org.catalogueoflife.data.otl;
 
+import com.google.common.annotations.VisibleForTesting;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import life.catalogue.api.model.SimpleName;
@@ -46,7 +47,8 @@ public class Generator extends org.catalogueoflife.data.ott.Generator {
   private static final LocalDate ISSUED = LocalDate.of(2021,6,18);
   private static final URI DOWNLOAD = URI.create("http://files.opentreeoflife.org/synthesis/opentree" + VERSION + "/opentree" + VERSION + ".tgz");
   private static final Pattern OTT_PATTERN = Pattern.compile("ott(\\d+)");
-  private final Int2ObjectMap<OttName> ott = new Int2ObjectOpenHashMap<>();
+  @VisibleForTesting
+  protected final Int2ObjectMap<OttName> ott = new Int2ObjectOpenHashMap<>();
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, DOWNLOAD, VERSION, ISSUED);
@@ -92,19 +94,22 @@ public class Generator extends org.catalogueoflife.data.ott.Generator {
     return ott.getOrDefault(id, new OttName("OTT"+id, "unranked"));
   }
 
-  private void writeNode(SimpleNode n, @Nullable SimpleNode parent) throws IOException {
+  @VisibleForTesting
+  protected void writeNode(SimpleNode n, @Nullable SimpleNode parent) throws IOException {
     OttName sn = null;
     if (n.getLabel().startsWith("mrc")) {
       StringBuilder name = new StringBuilder();
+      name.append("[");
       var m = OTT_PATTERN.matcher(n.getLabel());
       while (m.find()) {
-        int ott = Integer.parseInt(m.group(1));
-        var ottSN = lookupOTT(ott);
-        if (name.length()>0) {
-          name.append(" - ");
+        int id = Integer.parseInt(m.group(1));
+        var ottSN = lookupOTT(id);
+        if (name.length()>1) {
+          name.append(" + ");
         }
         name.append(ottSN.name);
       }
+      name.append("]");
       sn = new OttName(name.toString(), "clade");
 
     } else if (n.getLabel().startsWith("ott")) {

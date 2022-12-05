@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import life.catalogue.api.model.Citation;
 import life.catalogue.api.model.DOI;
 import life.catalogue.api.model.IssueContainer;
@@ -130,7 +131,7 @@ public abstract class AbstractGenerator implements Runnable {
     return id;
   }
 
-  protected void newWriter(ColdpTerm rowType) throws IOException {
+  public void newWriter(ColdpTerm rowType) throws IOException {
     newWriter(rowType, ColdpTerm.RESOURCES.get(rowType));
   }
 
