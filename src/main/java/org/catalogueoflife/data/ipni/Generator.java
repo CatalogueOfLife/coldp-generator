@@ -22,6 +22,7 @@ import life.catalogue.common.text.StringUtils;
 import org.catalogueoflife.data.AbstractGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.gbif.dwc.terms.DwcTerm;
+import org.gbif.nameparser.util.UnicodeUtils;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -363,8 +364,8 @@ public class Generator extends AbstractGenerator {
     if (authors != null) {
       sb.append("-");
       sb.append(
-        StringUtils.foldToAscii(authors)
-                   .replaceAll("[\\s;:,.?-]", "")
+        UnicodeUtils.ascii(authors)
+                    .replaceAll("[\\s;:,.?-]", "")
       );
     }
     return sb.toString();

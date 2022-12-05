@@ -37,7 +37,7 @@ public abstract class AbstractGenerator implements Runnable {
   protected final Map<String, Object> metadata = new HashMap<>();
   protected final List<Citation> sources = new ArrayList<>();
   protected final String name;
-  private final File dir; // working directory
+  protected final File dir; // working directory
   protected final File src; // optional download
   protected final URI srcUri;
   protected TermWriter writer;

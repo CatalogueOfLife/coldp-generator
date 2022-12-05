@@ -1,0 +1,61 @@
+---
+alias: OTL
+title: Open Tree of Life Synthetic Tree
+description: |-
+  Open Tree of Life aims to construct a comprehensive, dynamic and digitally-available tree of life 
+  by synthesizing published phylogenetic trees along with taxonomic data. 
+  The project is a collaborative effort between 11 PIs across 10 institutions. 
+  Funded by NSF ABI #1759838, NSF AVAToL #1208809. More information and tutorials at opentreeoflife.org
+
+issued: {issued}
+version: {version}
+creator:
+ - given: Jonathan
+   family: Rees
+ - given: Karen
+   family: Cranston
+contributor:
+  - given: Ben
+    family: Redelings
+    note: Postdoc
+  - given: Luna Luisa Sanchez
+    family: Reyes
+    note: Postdoc
+
+  - given: Jim
+    family: Allman
+    note: Developer
+  - given: Karen
+    family: Cranston
+    note: Developer
+  - given: Mark
+    family: Holder
+    note: Developer
+  - given: Emily Jane
+    family: McTavish
+    note: Developer
+  - given: Ben
+    family: Redelings
+    note: Developer
+  - given: Luna Luisa Sanchez
+    family: Reyes
+    note: Developer
+
+  - given: Karen
+    family: Cranston
+    note: Principal investigator
+  - given: Mark
+    family: Holder
+    note: Principal investigator
+  - given: Emily Jane
+    family: McTavish
+    note: Principal investigator
+
+license: CC0
+taxonomicScope: Biota
+geographicScope: global
+url: https://tree.opentreeoflife.org/about/open-tree-of-life
+logo: https://tree.opentreeoflife.org/opentree/static/images/mini-opentree-logo.png
+source:
+
+
