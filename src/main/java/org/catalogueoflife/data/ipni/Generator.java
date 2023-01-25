@@ -364,7 +364,7 @@ public class Generator extends AbstractGenerator {
     if (authors != null) {
       sb.append("-");
       sb.append(
-        UnicodeUtils.ascii(authors)
+        UnicodeUtils.foldToAscii(authors)
                     .replaceAll("[\\s;:,.?-]", "")
       );
     }
