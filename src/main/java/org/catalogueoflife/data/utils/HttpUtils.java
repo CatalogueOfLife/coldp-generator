@@ -14,6 +14,7 @@ import java.net.http.HttpResponse;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Utilities to work with the native java http client.
@@ -89,6 +90,9 @@ public class HttpUtils {
   public InputStream getStreamJSON(URI url) throws IOException {
     return send(HttpRequest.newBuilder(url), acceptJson(new HashMap<>()), HttpResponse.BodyHandlers.ofInputStream()).body();
   }
+  public InputStream getStreamJSON(URI url, int retry) throws IOException {
+    return send(HttpRequest.newBuilder(url), acceptJson(new HashMap<>()), HttpResponse.BodyHandlers.ofInputStream(), retry).body();
+  }
   public InputStream getStreamJSON(URI url, Map<String, String> header) throws IOException {
     return send(HttpRequest.newBuilder(url), acceptJson(header), HttpResponse.BodyHandlers.ofInputStream()).body();
   }
@@ -111,12 +115,27 @@ public class HttpUtils {
   }
 
   public <T> HttpResponse<T> send(HttpRequest.Builder req, Map<String, String> header, HttpResponse.BodyHandler<T> bodyHandler) throws IOException {
+    return sendInternal(req, header, bodyHandler, 0);
+  }
+
+  public <T> HttpResponse<T> send(HttpRequest.Builder req, Map<String, String> header, HttpResponse.BodyHandler<T> bodyHandler, int retry) throws IOException {
+    return sendInternal(req, header, bodyHandler, retry);
+  }
+
+  private <T> HttpResponse<T> sendInternal(HttpRequest.Builder req, Map<String, String> header, HttpResponse.BodyHandler<T> bodyHandler, int retry) throws IOException {
     basicAuth(req);
     req.header("User-Agent", "ColDP-Generator/1.0");
     header.forEach(req::header);
     HttpResponse<T> resp = send(req, bodyHandler, 1);
     if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
       return resp;
+    } else if (retry > 0) {
+      try {
+        LOG.info("Failed http request: {}. Retry {}", resp.statusCode(), req);
+        TimeUnit.SECONDS.sleep(1);
+        return sendInternal(req, header, bodyHandler, retry-1);
+      } catch (InterruptedException e) {
+      }
     }
     throw new HttpException(resp);
   }

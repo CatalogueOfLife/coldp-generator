@@ -15,6 +15,7 @@ import life.catalogue.metadata.DoiResolver;
 import life.catalogue.metadata.coldp.YamlMapper;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.catalogueoflife.data.utils.HttpException;
 import org.catalogueoflife.data.utils.HttpUtils;
 import org.gbif.dwc.terms.Term;
 import org.slf4j.Logger;
@@ -98,9 +99,12 @@ public abstract class AbstractGenerator implements Runnable {
       CompressionUtil.zipDir(dir, zip);
       LOG.info("ColDP archive completed at {} !", zip);
 
+    } catch (HttpException e) {
+
     } catch (Exception e) {
       LOG.error("Error building ColDP archive for {}", cfg.source, e);
       throw new RuntimeException(e);
+
     } finally {
       try {
         hc.close();

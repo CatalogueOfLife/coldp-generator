@@ -1,0 +1,20 @@
+---
+alias: AntCat
+title: An Online Catalog of the Ants of the World
+description: |-
+  AntCat is a catalog and bibliography of the taxonomy of the world's ants.
+issued: {issued}
+version: {version}
+contact:
+  email: bfisher@calacademy.org
+  family: Fisher
+  given: Brian
+creator:
+ - family: Bolton
+   given: Barry
+   country: US
+license: CC-BY
+taxonomicScope: Formicidae
+taxonomicScopeInEnglish: Ants
+geographicScope: global
+url: https://antcat.org/
