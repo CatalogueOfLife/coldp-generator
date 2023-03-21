@@ -12,6 +12,7 @@ java -jar coldp-generator/target/coldp-generator-1.0-SNAPSHOT.jar -s wcvp
 
 Currently the project supports ColDP generators for the following sources:
 
+ - [AntCat](https://antcat.org): An Online Catalog of the Ants of the World
  - [Birdlife](http://datazone.birdlife.org/species/taxonomy): Handbook of the Birds of the World and BirdLife International Digital Checklist of the Birds of the World
  - [ICTV](https://talk.ictvonline.org/taxonomy/w/ictv-taxonomy): ICTV Master Species List (MSL)
  - [IPNI](https://www.ipni.org): The International Plant Names Index (IPNI)
