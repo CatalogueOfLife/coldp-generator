@@ -13,6 +13,7 @@ import life.catalogue.common.io.*;
 import life.catalogue.common.text.SimpleTemplate;
 import life.catalogue.metadata.DoiResolver;
 import life.catalogue.metadata.coldp.YamlMapper;
+import org.apache.commons.io.FileUtils;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.catalogueoflife.data.utils.HttpException;
@@ -47,7 +48,7 @@ public abstract class AbstractGenerator implements Runnable {
   private int refCounter = 1;
   protected final CloseableHttpClient hc;
   private final DoiResolver doiResolver;
-  protected final ObjectMapper mapper = new ObjectMapper()
+  protected final static ObjectMapper mapper = new ObjectMapper()
       .setSerializationInclusion(JsonInclude.Include.NON_EMPTY)
       .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
       .enable(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT);
@@ -61,6 +62,8 @@ public abstract class AbstractGenerator implements Runnable {
     this.addMetadata = addMetadata;
     this.dir = cfg.archiveDir();
     dir.mkdirs();
+    LOG.info("Build archive at {}", dir);
+    FileUtils.cleanDirectory(dir);
     name = getClass().getPackageName().replaceFirst(AbstractGenerator.class.getPackageName(), "");
     src = new File("/tmp/" + name + ".src");
     src.deleteOnExit();
@@ -80,7 +83,7 @@ public abstract class AbstractGenerator implements Runnable {
         LOG.info("Downloading latest data from {}", srcUri);
         download.download(srcUri, src);
       } else if (srcUri == null) {
-        LOG.warn("Reuse data from {}", src);
+        LOG.info("Reuse data from {}", src);
       }
 
       prepare();

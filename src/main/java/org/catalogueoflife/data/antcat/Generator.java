@@ -16,30 +16,38 @@
 package org.catalogueoflife.data.antcat;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.univocity.parsers.tsv.TsvWriter;
-import com.univocity.parsers.tsv.TsvWriterSettings;
+import com.google.common.base.Preconditions;
+import com.univocity.parsers.common.IterableResult;
+import com.univocity.parsers.common.ParsingContext;
+import com.univocity.parsers.tsv.TsvParser;
+import com.univocity.parsers.tsv.TsvParserSettings;
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import life.catalogue.api.model.Taxon;
 import life.catalogue.api.util.ObjectUtils;
+import life.catalogue.api.vocab.NomStatus;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
-import org.apache.commons.io.FileUtils;
+import life.catalogue.parser.RankParser;
+import life.catalogue.parser.UnparsableException;
 import org.apache.commons.lang3.StringUtils;
 import org.catalogueoflife.data.AbstractGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.gbif.dwc.terms.Term;
 import org.gbif.dwc.terms.UnknownTerm;
+import org.gbif.nameparser.api.NomCode;
+import org.gbif.nameparser.api.Rank;
 
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.net.URI;
-import java.sql.Ref;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -52,6 +60,7 @@ import java.util.stream.Collectors;
 public class Generator extends AbstractGenerator {
   private static final String API = "https://antcat.org/v1/";
   private static final String LINK_BASE = "https://antcat.org/";
+  private static final File ANTWEB_FILE = new File("/Users/markus/Downloads/antcat/antcat.tsv");
   private static final TypeReference<List<Map<String, Taxon>>> taxaTYPE = new TypeReference<>() {};
   private static final TypeReference<List<Map<String, Name>>> namesTYPE = new TypeReference<>() {};
   private static final TypeReference<List<Map<String, Protonym>>> protonymsTYPE = new TypeReference<>() {};
@@ -59,21 +68,17 @@ public class Generator extends AbstractGenerator {
   private static final TypeReference<List<Map<String, Publisher>>> publisherTYPE = new TypeReference<>() {};
   private static final TypeReference<List<Map<String, Journal>>> journalTYPE = new TypeReference<>() {};
 
-  private TermWriter taxWriter;
-  private TermWriter synWriter;
   private TermWriter typeWriter;
-  private TermWriter nameRelWriter;
-  Pattern refPattern = Pattern.compile("\\{ref (\\d+)\\}");
+  Pattern refPattern = Pattern.compile("\\{(ref|tax|pro)(?:tt)?(?:ac)? (\\d+)\\}");
   private static final Term fossil = UnknownTerm.build("fossil", false);
   private static final Term gender = UnknownTerm.build("gender", false);
-  private TsvWriter tsvWriter;
-  private List<Field> columns;
-  private File tmp = new File("/tmp/antcat");
-  private Int2ObjectMap<Name> names = new Int2ObjectOpenHashMap<>();
   private Int2ObjectMap<Publisher> publisher = new Int2ObjectOpenHashMap<>();
   private Int2ObjectMap<Journal> journals = new Int2ObjectOpenHashMap<>();
   private Int2ObjectMap<String> refs = new Int2ObjectOpenHashMap<>();
-  private Int2IntMap protonym2nameID = new Int2IntOpenHashMap();
+  private Int2ObjectMap<Taxon> taxa = new Int2ObjectOpenHashMap<>();
+  private Int2ObjectMap<CsvName> csvNames = new Int2ObjectOpenHashMap<>();
+  private Int2ObjectMap<Protonym> protonyms = new Int2ObjectOpenHashMap<>();
+  private Int2IntMap protonym2taxonID = new Int2IntOpenHashMap();
   private Map<String, String> forms = Map.ofEntries(
       Map.entry("aq", "alate queen"),
       Map.entry("dq", "dealate queen"),
@@ -88,25 +93,44 @@ public class Generator extends AbstractGenerator {
       Map.entry("w", "worker")
   );
 
+  private static final int FAMILY_ID = 429011; // Formicidae	Latreille, 1809
+
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
   }
 
-  String link(Integer id) {
+  String link(String id) {
     return id == null ? null : LINK_BASE + "catalog/" + id;
   }
 
   @Override
   protected void addData() throws Exception {
-    newWriter(ColdpTerm.Name, List.of(
+    newWriter(ColdpTerm.NameUsage, List.of(
       ColdpTerm.ID,
+      ColdpTerm.parentID,
       ColdpTerm.basionymID,
       ColdpTerm.rank,
       ColdpTerm.scientificName,
       ColdpTerm.authorship,
+      ColdpTerm.uninomial,
+      ColdpTerm.genericName,
+      ColdpTerm.infragenericEpithet,
+      ColdpTerm.specificEpithet,
+      ColdpTerm.infraspecificEpithet,
       ColdpTerm.status,
-      ColdpTerm.referenceID,
+      ColdpTerm.nameStatus,
+      gender,
+      fossil,
+      ColdpTerm.nameReferenceID,
+      ColdpTerm.publishedInYear,
+      ColdpTerm.family,
+      ColdpTerm.subfamily,
+      ColdpTerm.tribe,
+      ColdpTerm.genus,
+      ColdpTerm.subgenus,
+      ColdpTerm.species,
+      ColdpTerm.link,
       ColdpTerm.remarks
     ));
     refWriter = additionalWriter(ColdpTerm.Reference, List.of(
@@ -126,20 +150,6 @@ public class Generator extends AbstractGenerator {
         ColdpTerm.link,
         ColdpTerm.remarks
     ));
-    taxWriter = additionalWriter(ColdpTerm.Taxon, List.of(
-        ColdpTerm.ID,
-        ColdpTerm.parentID,
-        ColdpTerm.nameID,
-        ColdpTerm.status,
-        ColdpTerm.link
-    ));
-    synWriter = additionalWriter(ColdpTerm.Synonym, List.of(
-        ColdpTerm.ID,
-        ColdpTerm.taxonID,
-        ColdpTerm.nameID,
-        ColdpTerm.status,
-        ColdpTerm.link
-    ));
     typeWriter = additionalWriter(ColdpTerm.TypeMaterial, List.of(
         ColdpTerm.nameID,
         ColdpTerm.locality,
@@ -147,150 +157,280 @@ public class Generator extends AbstractGenerator {
         fossil,
         ColdpTerm.remarks
     ));
-    nameRelWriter = additionalWriter(ColdpTerm.NameRelation, List.of(
-        ColdpTerm.nameID,
-        ColdpTerm.relatedNameID,
-        ColdpTerm.type
-    ));
 
-    if (tmp.exists()) {
-      FileUtils.cleanDirectory(tmp);
+    LOG.info("Use antcat csv file at {}", ANTWEB_FILE);
+    Preconditions.checkArgument(ANTWEB_FILE.exists());
+
+    // dump all taxa, protonyms and references
+    load(Taxon.class, "taxa", this::readTaxa, this::cacheTaxon);
+    load(Protonym.class, "protonyms", this::readProtonyms, this::cacheProtonym);
+    load(Publisher.class, "publishers", this::readPublishers, this::cachePublisher);
+    load(Journal.class, "journals", this::readJournal, this::cacheJournal);
+    load(Reference.class, "references", this::readReferences, this::writeReference);
+    // now release memory for publisher and journals - we used them in refs
+    journals.clear();
+    publisher.clear();
+
+    // use tsv file for taxa/synonyms
+    var settings = new TsvParserSettings();
+    settings.setMaxCharsPerColumn(1256000);
+    TsvParser parser = new TsvParser(settings);
+
+    // parse taxa once to just full the lookup cache
+    boolean first = true;
+    IterableResult<String[], ParsingContext> it = parser.iterate(new FileReader(ANTWEB_FILE, StandardCharsets.UTF_8));
+    for (var row : it) {
+      if (first) {
+        first = false;
+        continue; // skip header row
+      }
+      int key = Integer.parseInt(row[0]);
+      csvNames.put(key, new CsvName(row));
     }
-    dump(Publisher.class, "publishers", this::readPublishers, this::writePublisher);
-    dump(Journal.class, "journals", this::readJournal, this::writeJournal);
-    dump(Reference.class, "references", this::readReferences, this::writeReference);
-    dump(Taxon.class, "taxa", this::readTaxa, this::writeTaxon);
-    dump(Protonym.class, "protonyms", this::readProtonyms, this::writeProtonym);
-    dump(Name.class, "names", this::readName, this::writeName);
 
-    taxWriter.close();
+    // now 2nd pass for real
+    first = true;
+    parser = new TsvParser(settings);
+    it = parser.iterate(new FileReader(ANTWEB_FILE, StandardCharsets.UTF_8));
+    for (var row : it) {
+      if (first) {
+        first = false;
+        continue; // skip header row
+      }
+      process(row);
+    }
+
     typeWriter.close();
-    nameRelWriter.close();
   }
 
-  private void initTsvDumper(Class<? extends IDBase> clazz) {
-    List<Field> fields = new ArrayList<>();
-    fields.addAll(List.of(clazz.getSuperclass().getDeclaredFields()));
-    fields.addAll(List.of(clazz.getDeclaredFields()));
-    tsvWriter = new TsvWriter(new File(tmp, "raw/" + clazz.getSimpleName()+".tsv"), new TsvWriterSettings());
-    // headers
-    tsvWriter.writeHeaders(fields.stream().map(Field::getName).toArray(String[]::new));
-    // columns
-    this.columns = List.copyOf(fields);// immutable
-  }
+  static class CsvName {
+    public final String subfamily;
+    public final String tribe;
+    public final String genus;
+    public final String subgenus;
+    public final String specificEpithet;
+    public final String infraspecificEpithet;
+    public final String authorship;
+    public final String rank;
 
-  private void writeTaxon(Taxon t) {
-    try {
-      if (!names.containsKey(t.name_id)) {
-        Name n = new Name();
-        n.id = t.name_id;
-        n.type = t.type;
-        n.name = t.name_cache;
-        n.authorship = t.author_citation;
-        n.protonymID = t.protonym_id;
-        names.put(n.id, n);
-      }
-      if (t.current_taxon_id != null) {
-        synWriter.set(ColdpTerm.ID, t.id);
-        synWriter.set(ColdpTerm.nameID, t.name_id);
-        synWriter.set(ColdpTerm.status, "synonym");
-        synWriter.set(ColdpTerm.taxonID, t.current_taxon_id);
-        synWriter.set(ColdpTerm.link, link(t.id));
-        synWriter.next();
+    /**
+     * 		<field index="0" term="http://rs.tdwg.org/dwc/terms/taxonID"/>
+     * 		<field index="1" term="http://rs.tdwg.org/dwc/terms/subfamily"/>
+     * 		<field index="2" term="http://rs.tdwg.org/dwc/terms/tribe"/>
+     * 		<field index="3" term="http://rs.tdwg.org/dwc/terms/genus"/>
+     * 		<field index="4" term="http://rs.tdwg.org/dwc/terms/subgenus"/>
+     * 		<field index="5" term="http://rs.tdwg.org/dwc/terms/specificEpithet"/>
+     * 		<field index="6" term="http://rs.tdwg.org/dwc/terms/infraspecificEpithet"/>
+     * 		<field index="7" term="http://rs.tdwg.org/dwc/terms/scientificNameAuthorship"/>
+     */
+    public CsvName(String[] row) {
+      this.subfamily = row[1];
+      this.tribe = row[2];
+      this.genus = row[3];
+      this.subgenus = row[4];
+      this.specificEpithet = row[5];
+      this.infraspecificEpithet = row[6];
+      this.authorship = row[7];
+      this.rank = row[21];
+    }
+
+    boolean hasBinomenOrInfrageneric() {
+      return specificEpithet != null || subgenus != null;
+    }
+
+    String name() {
+      life.catalogue.api.model.Name n = new life.catalogue.api.model.Name();
+      if (hasBinomenOrInfrageneric()) {
+        n.setGenus(genus);
+        n.setSpecificEpithet(specificEpithet);
+        n.setInfragenericEpithet(subgenus);
+        n.setInfraspecificEpithet(infraspecificEpithet);
+
       } else {
-        taxWriter.set(ColdpTerm.ID, t.id);
-        taxWriter.set(ColdpTerm.nameID, t.name_id);
-        taxWriter.set(ColdpTerm.parentID, t.getParentID());
-        taxWriter.set(ColdpTerm.link, link(t.id));
-        taxWriter.next();
+        n.setUninomial(ObjectUtils.coalesce(genus, tribe, subfamily));
       }
-    } catch (IOException e) {
-      throw new RuntimeException(e);
+      n.setAuthorship(authorship);
+      try {
+        RankParser.PARSER.parse(NomCode.ZOOLOGICAL, rank).ifPresent(n::setRank);
+      } catch (UnparsableException e) {
+      }
+      n.rebuildScientificName();
+      return n.getLabel();
     }
   }
-  private void writeName(Name name) {
-    try {
-      writer.set(ColdpTerm.ID, name.id);
-      writer.set(gender, name.gender);
-      writer.set(ColdpTerm.scientificName, ObjectUtils.coalesce(name.name, name.epithet));
-      var n = names.remove(name.id);
-      if (n == null) {
-        LOG.warn("No taxon exists for name {}", name.id);
-      } else {
-        writer.set(ColdpTerm.scientificName, n.name);
-        writer.set(ColdpTerm.authorship, n.authorship);
-        writer.set(ColdpTerm.rank, n.type);
-        //writer.set(ColdpTerm.status, );
-        if (n.protonymID != null) {
-          var pnid = protonym2nameID.get((int)n.protonymID);
-          if (pnid != n.id) {
-            writer.set(ColdpTerm.basionymID, pnid);
-          }
-        }
-      }
-      writer.next();
 
-    } catch (IOException e) {
-      throw new RuntimeException(e);
+  /**
+   * 		<id index="0" />
+   * 		<field index="10" term="http://rs.tdwg.org/dwc/terms/namePublishedInYear"/>
+   * 		<field index="11" term="http://rs.tdwg.org/dwc/terms/taxonomicStatus"/>
+   * 		<field index="12" term="http://rs.tdwg.org/dwc/terms/nomenclaturalStatus"/>
+   * 		<field index="13" term="http://rs.tdwg.org/dwc/terms/acceptedNameUsage"/>
+   * 		<field index="15" term="http://rs.tdwg.org/dwc/terms/originalNameUsage"/>
+   * 		<field index="16" term="http://rs.tdwg.org/dwc/terms/fossil"/>
+   * 		<field index="17" term="http://rs.tdwg.org/dwc/terms/taxonRemarks"/>
+   * 		<field index="18" term="http://rs.tdwg.org/dwc/terms/namePublishedInID"/>
+   * 		<field index="21" term="http://rs.tdwg.org/dwc/terms/taxonRank"/>
+   * 		<field index="23" term="http://rs.tdwg.org/dwc/terms/parentNameUsage"/>
+   */
+  private void process(String[] row) throws IOException {
+    int key = Integer.parseInt(row[0]);
+    CsvName n = csvNames.get(key);
+    Taxon t = taxa.get(key);
+
+    writer.set(ColdpTerm.ID, key);
+    writer.set(ColdpTerm.family, "Formicidae");
+    writer.set(ColdpTerm.subfamily, n.subfamily);
+    writer.set(ColdpTerm.tribe, n.tribe);
+    writer.set(ColdpTerm.genus, n.genus);
+    writer.set(ColdpTerm.subgenus, n.subgenus);
+
+    if (n.hasBinomenOrInfrageneric() || n.subgenus != null) {
+      writer.set(ColdpTerm.genericName, n.genus);
+      writer.set(ColdpTerm.specificEpithet, n.specificEpithet);
+      writer.set(ColdpTerm.infragenericEpithet, n.subgenus);
+      writer.set(ColdpTerm.infraspecificEpithet, n.infraspecificEpithet);
+    } else {
+      writer.set(ColdpTerm.uninomial, ObjectUtils.coalesce(n.genus, n.tribe, n.subfamily));
     }
+    writer.set(ColdpTerm.scientificName, n.name());
+    writer.set(ColdpTerm.authorship, n.authorship);
+    writer.set(ColdpTerm.publishedInYear, row[10]);
+    writer.set(ColdpTerm.nameReferenceID, row[18]);
+    writer.set(ColdpTerm.status, row[11]);
+    boolean available = Boolean.parseBoolean(row[12]);
+    if (available) {
+      writer.set(ColdpTerm.nameStatus, NomStatus.ESTABLISHED);
+    } else {
+      writer.set(ColdpTerm.nameStatus, NomStatus.NOT_ESTABLISHED);
+    }
+    boolean synonym = row[13] != null;
+    // synoynms lack an accepted ID, so we must look them up in the API
+    if (synonym) {
+      if (!csvNames.containsKey(t.current_taxon_id)) {
+        LOG.warn("Accepted taxon ID for syn {} not existing: {}", n.name(), t.current_taxon_id);
+      }
+      writer.set(ColdpTerm.parentID, t.current_taxon_id);
+    }
+    boolean original = Boolean.parseBoolean(row[14]);
+    if (original != t.original_combination) {
+      LOG.warn("Taxon {} is listed as original={} in CSV, but original={} in Taxon from API", t.id, original, t.original_combination);
+    }
+    if (t.protonym_id != null) {
+      Protonym p = protonyms.get(t.protonym_id);
+      if (p == null) {
+        LOG.warn("Protonym {} not found", t.protonym_id);
+      } else if (original) {
+        writeTypeMaterial(key, p);
+      } else if (protonym2taxonID.containsKey(p.id)) {
+        writer.set(ColdpTerm.basionymID, protonym2taxonID.get(p.id));
+      } else {
+        LOG.warn("Taxon not found for protonym {}", t.protonym_id);
+      }
+    }
+    writer.set(fossil, row[16]);
+    writer.set(ColdpTerm.remarks, row[17]);
+    writer.set(ColdpTerm.rank, row[21]);
+    writer.set(ColdpTerm.link, link(row[0]));
+    writer.next();
   }
-  private void writeProtonym(Protonym p) {
-    try {
-      protonym2nameID.put(p.id, p.name_id);
 
-      typeWriter.set(ColdpTerm.nameID, p.name_id);
-      typeWriter.set(ColdpTerm.citation, p.primary_type_information_taxt);
-      typeWriter.set(ColdpTerm.locality, p.locality);
-      typeWriter.set(fossil, p.fossil);
-      // remarks
+
+
+  /**
+   * https://antcat.org/wiki/6
+   */
+  String replVars(String x) {
+    if (x != null) {
+      var m = refPattern.matcher(x);
       StringBuilder sb = new StringBuilder();
-      if (!StringUtils.isBlank(p.bioregion)) {
-        sb.append(p.bioregion);
-        sb.append(".");
-      }
-      if (!StringUtils.isBlank(p.forms)) {
-        if (sb.length()>0) {
-          sb.append(" ");
-        }
-        sb.append("Forms: ");
-        boolean first = true;
-        for (String f : p.forms.split("\\.")) {
-          if (!first) {
-            sb.append(", ");
-          } else {
-            first = false;
+      while (m.find()) {
+        int id = Integer.parseInt(m.group(2));
+        String val = null;
+        if (m.group(1).equalsIgnoreCase("ref")) {
+          if (refs.containsKey(id)) {
+            val = refs.get(id);
           }
-          var val = forms.get(f.toLowerCase());
-          if (val != null) {
-            sb.append(val);
-          } else {
-            sb.append(f);
+        } else if (m.group(1).equalsIgnoreCase("tax")) {
+          if (csvNames.containsKey(id)) {
+            val = csvNames.get(id).name();
           }
         }
-        sb.append(".");
+        m.appendReplacement(sb, ObjectUtils.coalesce(val, "???"));
       }
-      if (!StringUtils.isBlank(p.notes_taxt)) {
-        if (sb.length()>0) {
-          sb.append(" ");
+      m.appendTail(sb);
+      return sb.toString();
+    }
+    return null;
+  }
+
+  private void writeTypeMaterial(int nameID, Protonym p) {
+    try {
+      // protonyms can be a type specimen or a type species/genus
+      if (p.isSpecimen()) {
+        typeWriter.set(ColdpTerm.nameID, nameID);
+        typeWriter.set(ColdpTerm.citation, replVars(p.primary_type_information_taxt));
+        typeWriter.set(ColdpTerm.locality, p.locality);
+        typeWriter.set(fossil, p.fossil);
+        // remarks
+        StringBuilder sb = new StringBuilder();
+        if (!StringUtils.isBlank(p.bioregion)) {
+          sb.append(p.bioregion);
+          sb.append(".");
         }
-        sb.append(p.notes_taxt);
-      }
-      if (!StringUtils.isBlank(p.secondary_type_information_taxt)) {
-        if (sb.length()>0) {
-          sb.append(" ");
+        if (!StringUtils.isBlank(p.forms)) {
+          if (sb.length()>0) {
+            sb.append(" ");
+          }
+          sb.append("Forms: ");
+          boolean first = true;
+          for (String f : p.forms.split("\\.")) {
+            if (!first) {
+              sb.append(", ");
+            } else {
+              first = false;
+            }
+            var val = forms.get(f.toLowerCase());
+            if (val != null) {
+              sb.append(val);
+            } else {
+              sb.append(f);
+            }
+          }
+          sb.append(".");
         }
-        sb.append(p.secondary_type_information_taxt);
+        if (!StringUtils.isBlank(replVars(p.notes_taxt))) {
+          if (sb.length()>0) {
+            sb.append(" ");
+          }
+          sb.append(p.notes_taxt);
+        }
+        if (!StringUtils.isBlank(p.secondary_type_information_taxt)) {
+          if (sb.length()>0) {
+            sb.append(" ");
+          }
+          sb.append(replVars(p.secondary_type_information_taxt));
+        }
+        typeWriter.set(ColdpTerm.remarks, sb.toString());
+        typeWriter.next();
       }
-      typeWriter.set(ColdpTerm.remarks, sb.toString());
-      typeWriter.next();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
-  private void writePublisher(Publisher p) {
+
+  private void cacheTaxon(Taxon t) {
+    taxa.put(t.id, t);
+    if (t.original_combination && t.protonym_id != null) {
+      protonym2taxonID.put((int)t.protonym_id, t.id);
+    }
+  }
+  private void cacheProtonym(Protonym p) {
+    protonyms.put(p.id, p);
+  }
+  private void cachePublisher(Publisher p) {
     publisher.put(p.id, p);
   }
-  private void writeJournal(Journal j) {
+  private void cacheJournal(Journal j) {
     journals.put(j.id, j);
   }
   private void writeReference(Reference r) {
@@ -332,19 +472,8 @@ public class Generator extends AbstractGenerator {
       throw new RuntimeException(e);
     }
   }
-  private List<Taxon> readTaxa(URI uri) {
-    return read(uri, taxaTYPE);
-  }
-  private List<Name> readName(URI uri) {
-    var names = read(uri, namesTYPE);
-    names.forEach(n -> n.type = n.type.replaceAll("_name$", ""));
-    return names;
-  }
   private List<Reference> readReferences(URI uri) {
     return read(uri, referencesTYPE);
-  }
-  private List<Protonym> readProtonyms(URI uri) {
-    return read(uri, protonymsTYPE);
   }
   private List<Publisher> readPublishers(URI uri) {
     return read(uri, publisherTYPE);
@@ -352,6 +481,18 @@ public class Generator extends AbstractGenerator {
   private List<Journal> readJournal(URI uri) {
     return read(uri, journalTYPE);
   }
+  private List<Taxon> readTaxa(URI uri) {
+    return read(uri, taxaTYPE);
+  }
+  private List<Name> readName(URI uri) {
+    List<Name> names = read(uri, namesTYPE);
+    names.forEach(n -> n.type = n.type.replaceAll("_name$", ""));
+    return names;
+  }
+  private List<Protonym> readProtonyms(URI uri) {
+    return read(uri, protonymsTYPE);
+  }
+
   private <T extends IDBase> List<T> read(URI uri, TypeReference<List<Map<String, T>>> typeRef) {
     try {
       var resp = mapper.readValue(http.getStreamJSON(uri), typeRef);
@@ -369,31 +510,17 @@ public class Generator extends AbstractGenerator {
     }
   }
 
-  private <T extends IDBase> void dump(Class<T> clazz, String path, Function<URI, List<T>> readFunc, Consumer<T> writeFunc) throws IllegalAccessException {
-    initTsvDumper(clazz);
-    try {
-      int startID = 0;
-      LOG.info("Dump {}", clazz.getSimpleName());
-      var resp = readFunc.apply(buildURI(path, startID));
-      while (!resp.isEmpty()) {
-        for (T obj : resp) {
-          // write to CSV generically
-          String[] row = new String[columns.size()];
-          int idx = 0;
-          for (var f : columns) {
-            row[idx++] = String.valueOf(f.get(obj));
-          }
-          tsvWriter.writeRow(row);
-          // write to coldp writers
-          writeFunc.accept(obj);
-        }
-        tsvWriter.flush();
-        startID = resp.stream().map(t -> t.id).max(Integer::compare).get() + 1;
-        LOG.info("Crawl {} starting with {}", clazz.getSimpleName(), startID);
-        resp = readFunc.apply(buildURI(path, startID));
+  private <T extends IDBase> void load(Class<T> clazz, String path, Function<URI, List<T>> readFunc, Consumer<T> writeFunc) throws IllegalAccessException {
+    int startID = 0;
+    LOG.info("Load {}", clazz.getSimpleName());
+    var resp = readFunc.apply(buildURI(path, startID));
+    while (!resp.isEmpty()) {
+      for (T obj : resp) {
+        writeFunc.accept(obj);
       }
-    } finally {
-      tsvWriter.close();
+      startID = resp.stream().map(t -> t.id).max(Integer::compare).get() + 1;
+      LOG.info("Crawl {} starting with {}", clazz.getSimpleName(), startID);
+      resp = readFunc.apply(buildURI(path, startID));
     }
   }
 
@@ -430,15 +557,10 @@ public class Generator extends AbstractGenerator {
     public Integer subspecies_id;
 
     Integer getParentID() {
-      return ObjectUtils.coalesce(subspecies_id,species_id,subgenus_id,genus_id,tribe_id,subfamily_id,family_id);
+      // place all names ultimately into Formicidae unless status says so:
+      Integer rootID = status.equalsIgnoreCase("excluded from Formicidae") ? null : FAMILY_ID;
+      return ObjectUtils.coalesce(subspecies_id,species_id,subgenus_id,genus_id,tribe_id,subfamily_id,family_id, rootID);
     }
-  }
-  static class Name extends IDBase {
-    public String name;
-    public String authorship;
-    public String epithet;
-    public String gender;
-    public Integer protonymID;
   }
   static class Protonym extends IDBase {
     public int authorship_id;
@@ -455,6 +577,18 @@ public class Generator extends AbstractGenerator {
     public String bioregion;
     public String forms;
     public String notes_taxt;
+
+    boolean isSpecimen() {
+      return primary_type_information_taxt != null || locality != null;
+    }
+  }
+  static class Name extends IDBase {
+    public String name;
+    public String authorship;
+    public String epithet;
+    public String gender;
+    public String status;
+    public Integer protonymID;
   }
   static class Reference extends IDBase {
     public Integer year;
