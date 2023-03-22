@@ -1,5 +1,7 @@
 package org.catalogueoflife.data.antcat;
 
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.junit.Assert;
 import org.junit.Test;
@@ -10,6 +12,25 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
 public class GeneratorTest {
+
+  @Test
+  public void testRefLabel() {
+    var r = new Generator.Reference();
+    r.year = 2017;
+    r.title = "The Diary of a Young Girl and children's literature of atrocity.";
+    r.author_names_string_cache = "S. Minslow";
+    r.nesting_reference_id = 999;
+    r.pagination = "60-75";
+
+    var book = new Generator.Reference();
+    book.year = 2017;
+    book.title = "Critical Insights: The Diary of a Young Girl";
+    book.author_names_string_cache = "M. Döring";
+    Int2ObjectMap<Generator.Reference> refs = new Int2ObjectOpenHashMap<>();
+    refs.put(999, book);
+
+    Assert.assertEquals("S. Minslow (2017) The Diary of a Young Girl and children's literature of atrocity. In M. Döring, Critical Insights: The Diary of a Young Girl", r.label(refs));
+  }
 
   @Test
   public void testRefDate() {

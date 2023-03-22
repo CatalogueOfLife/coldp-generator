@@ -34,6 +34,7 @@ import life.catalogue.parser.UnparsableException;
 import org.apache.commons.lang3.StringUtils;
 import org.catalogueoflife.data.AbstractGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
+import org.catalogueoflife.data.utils.HtmlUtils;
 import org.gbif.dwc.terms.Term;
 import org.gbif.dwc.terms.UnknownTerm;
 import org.gbif.nameparser.api.NomCode;
@@ -45,9 +46,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -74,8 +73,9 @@ public class Generator extends AbstractGenerator {
   private static final Term gender = UnknownTerm.build("gender", false);
   private Int2ObjectMap<Publisher> publisher = new Int2ObjectOpenHashMap<>();
   private Int2ObjectMap<Journal> journals = new Int2ObjectOpenHashMap<>();
-  private Int2ObjectMap<String> refs = new Int2ObjectOpenHashMap<>();
+  private Int2ObjectMap<Reference> refs = new Int2ObjectOpenHashMap<>();
   private Int2ObjectMap<Taxon> taxa = new Int2ObjectOpenHashMap<>();
+  private Int2ObjectMap<Name> names = new Int2ObjectOpenHashMap<>();
   private Int2ObjectMap<CsvName> csvNames = new Int2ObjectOpenHashMap<>();
   private Int2ObjectMap<Protonym> protonyms = new Int2ObjectOpenHashMap<>();
   private Int2IntMap protonym2taxonID = new Int2IntOpenHashMap();
@@ -92,7 +92,12 @@ public class Generator extends AbstractGenerator {
       Map.entry("s", "soldier"),
       Map.entry("w", "worker")
   );
-
+  private Map<String, String> refTypes = Map.ofEntries(
+      Map.entry("nested_reference", "chapter"),
+      Map.entry("book_reference", "book"),
+      Map.entry("article_reference", "article_journal")
+  );
+  private Set<String> allRefTypes = new HashSet<>();
   private static final int FAMILY_ID = 429011; // Formicidae	Latreille, 1809
 
 
@@ -102,6 +107,9 @@ public class Generator extends AbstractGenerator {
 
   String link(String id) {
     return id == null ? null : LINK_BASE + "catalog/" + id;
+  }
+  String reflink(int id) {
+    return id > 0 ? LINK_BASE + "references/" + id : null;
   }
 
   @Override
@@ -141,6 +149,7 @@ public class Generator extends AbstractGenerator {
         ColdpTerm.author,
         ColdpTerm.issued,
         ColdpTerm.title,
+        ColdpTerm.containerAuthor,
         ColdpTerm.containerTitle,
         ColdpTerm.volume,
         ColdpTerm.issue,
@@ -162,14 +171,22 @@ public class Generator extends AbstractGenerator {
     Preconditions.checkArgument(ANTWEB_FILE.exists());
 
     // dump all taxa, protonyms and references
-    load(Taxon.class, "taxa", this::readTaxa, this::cacheTaxon);
-    load(Protonym.class, "protonyms", this::readProtonyms, this::cacheProtonym);
     load(Publisher.class, "publishers", this::readPublishers, this::cachePublisher);
     load(Journal.class, "journals", this::readJournal, this::cacheJournal);
-    load(Reference.class, "references", this::readReferences, this::writeReference);
+    load(Reference.class, "references", this::readReferences, this::cacheReference);
+    System.out.println("REF TYPES:");
+    for (var rt : allRefTypes) {
+      System.out.println(rt);
+    }
+    for (var ref : refs.values()) {
+      writeReference(ref);
+    }
     // now release memory for publisher and journals - we used them in refs
     journals.clear();
     publisher.clear();
+    load(Name.class, "names", this::readName, this::cacheName);
+    load(Taxon.class, "taxa", this::readTaxa, this::cacheTaxon);
+    load(Protonym.class, "protonyms", this::readProtonyms, this::cacheProtonym);
 
     // use tsv file for taxa/synonyms
     var settings = new TsvParserSettings();
@@ -327,8 +344,14 @@ public class Generator extends AbstractGenerator {
         LOG.warn("Taxon not found for protonym {}", t.protonym_id);
       }
     }
+    if (t.name_id > 0) {
+      var name = names.get(t.name_id);
+      if (name != null) {
+        writer.set(gender, name.gender);
+      }
+    }
     writer.set(fossil, row[16]);
-    writer.set(ColdpTerm.remarks, row[17]);
+    writer.set(ColdpTerm.remarks, HtmlUtils.replaceHtml(row[17], true));
     writer.set(ColdpTerm.rank, row[21]);
     writer.set(ColdpTerm.link, link(row[0]));
     writer.next();
@@ -348,7 +371,7 @@ public class Generator extends AbstractGenerator {
         String val = null;
         if (m.group(1).equalsIgnoreCase("ref")) {
           if (refs.containsKey(id)) {
-            val = refs.get(id);
+            val = refs.get(id).label(refs);
           }
         } else if (m.group(1).equalsIgnoreCase("tax")) {
           if (csvNames.containsKey(id)) {
@@ -433,40 +456,40 @@ public class Generator extends AbstractGenerator {
   private void cacheJournal(Journal j) {
     journals.put(j.id, j);
   }
+  private void cacheReference(Reference r) {
+    refs.put(r.id, r);
+  }
+  private void cacheName(Name n) {
+    names.put(n.id, n);
+  }
   private void writeReference(Reference r) {
     try {
       refWriter.set(ColdpTerm.ID, r.id);
-      refWriter.set(ColdpTerm.type, r.type);
+      refWriter.set(ColdpTerm.link, reflink(r.id));
+      allRefTypes.add(r.type);
+      refWriter.set(ColdpTerm.type, refTypes.getOrDefault(r.type, r.type));
       refWriter.set(ColdpTerm.title, r.title);
       refWriter.set(ColdpTerm.author, r.author_names_string_cache);
       refWriter.set(ColdpTerm.issued, r.getDate());
       refWriter.set(ColdpTerm.doi, r.doi);
       refWriter.set(ColdpTerm.page, r.pagination);
       refWriter.set(ColdpTerm.volume, r.series_volume_issue);
-      refWriter.set(ColdpTerm.remarks, r.public_notes);
-      if (r.journal_id != null && journals.containsKey(r.journal_id)) {
-        var j = journals.get(r.journal_id);
+      refWriter.set(ColdpTerm.remarks, HtmlUtils.replaceHtml(r.public_notes, true));
+      if (r.journal_id != null && journals.containsKey((int)r.journal_id)) {
+        var j = journals.get((int)r.journal_id);
         refWriter.set(ColdpTerm.containerTitle, j.name);
       }
-      if (r.publisher_id != null && publisher.containsKey(r.publisher_id)) {
-        var pub = publisher.get(r.publisher_id);
+      if (r.publisher_id != null && publisher.containsKey((int)r.publisher_id)) {
+        var pub = publisher.get((int)r.publisher_id);
         refWriter.set(ColdpTerm.publisher, pub.name);
         refWriter.set(ColdpTerm.publisherPlace, pub.place);
       }
-      // keep citation cache for replacing placeholders later on
-      StringBuilder sb = new StringBuilder();
-      if (r.author_names_string_cache != null) {
-        sb.append(r.author_names_string_cache);
+      if (r.nesting_reference_id != null && refs.containsKey((int)r.nesting_reference_id)) {
+        var book = refs.get((int)r.nesting_reference_id);
+        refWriter.set(ColdpTerm.containerTitle, book.title);
+        refWriter.set(ColdpTerm.containerAuthor, book.author_names_string_cache);
       }
-      if (r.year != null) {
-        if (sb.length()>0) sb.append(" ");
-        sb.append(r.year);
-      }
-      if (r.title != null) {
-        if (sb.length()>0) sb.append(" ");
-        sb.append(r.title);
-      }
-      refs.put(r.id, sb.toString());
+      refs.put(r.id, r);
       refWriter.next();
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -602,7 +625,7 @@ public class Generator extends AbstractGenerator {
     public String public_notes;
     public String taxonomic_notes;
     public String title;
-    public String nesting_reference_id;
+    public Integer nesting_reference_id;
     public String author_names_suffix;
     public String review_state;
     public String doi;
@@ -610,6 +633,7 @@ public class Generator extends AbstractGenerator {
     public Boolean online_early;
     public String stated_year;
     public String year_suffix;
+
     String getDate() {
       if (date != null) {
         if (date.length()==6) {
@@ -621,6 +645,41 @@ public class Generator extends AbstractGenerator {
         }
       }
       return null;
+    }
+
+    public String label(Int2ObjectMap<Reference> references) {
+      return label(references, true);
+    }
+
+    private String label(Int2ObjectMap<Reference> references, boolean inclYear) {
+      // keep citation cache for replacing placeholders later on
+      StringBuilder sb = new StringBuilder();
+      if (author_names_string_cache != null) {
+        sb.append(author_names_string_cache);
+      }
+      if (inclYear) {
+        if (year != null) {
+          if (sb.length() > 0) sb.append(" ");
+          sb.append("(");
+          sb.append(year);
+          sb.append(")");
+        }
+      } else {
+        if (sb.length() > 0) sb.append(",");
+      }
+      if (title != null) {
+        if (sb.length()>0) sb.append(" ");
+        sb.append(title);
+      }
+      if (nesting_reference_id != null && references.containsKey((int)nesting_reference_id)) {
+        var book = references.get((int)nesting_reference_id);
+        if (sb.length() > 1 && sb.charAt(sb.length() - 1) != '.') {
+          sb.append(".");
+        }
+        sb.append(" In ");
+        sb.append(book.label(references, false));
+      }
+      return sb.toString();
     }
   }
   static class Publisher extends IDBase {

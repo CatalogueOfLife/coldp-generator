@@ -13,6 +13,9 @@ creator:
  - family: Bolton
    given: Barry
    country: US
+ - family: Fisher
+   given: Brian
+   country: US
 license: CC-BY
 taxonomicScope: Formicidae
 taxonomicScopeInEnglish: Ants
