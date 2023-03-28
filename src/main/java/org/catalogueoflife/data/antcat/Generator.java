@@ -35,14 +35,13 @@ import org.apache.commons.lang3.StringUtils;
 import org.catalogueoflife.data.AbstractGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.catalogueoflife.data.utils.HtmlUtils;
+import org.catalogueoflife.data.utils.HttpUtils;
 import org.gbif.dwc.terms.Term;
 import org.gbif.dwc.terms.UnknownTerm;
 import org.gbif.nameparser.api.NomCode;
 import org.gbif.nameparser.api.Rank;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -59,7 +58,7 @@ import java.util.stream.Collectors;
 public class Generator extends AbstractGenerator {
   private static final String API = "https://antcat.org/v1/";
   private static final String LINK_BASE = "https://antcat.org/";
-  private static final File ANTWEB_FILE = new File("/Users/markus/Downloads/antcat/antcat.tsv");
+  private static final URI ANTWEB_FILE = URI.create("https://www.antweb.org/web/workingdir/worldants_speciesList.txt");
   private static final TypeReference<List<Map<String, Taxon>>> taxaTYPE = new TypeReference<>() {};
   private static final TypeReference<List<Map<String, Name>>> namesTYPE = new TypeReference<>() {};
   private static final TypeReference<List<Map<String, Protonym>>> protonymsTYPE = new TypeReference<>() {};
@@ -168,7 +167,6 @@ public class Generator extends AbstractGenerator {
     ));
 
     LOG.info("Use antcat csv file at {}", ANTWEB_FILE);
-    Preconditions.checkArgument(ANTWEB_FILE.exists());
 
     // dump all taxa, protonyms and references
     load(Publisher.class, "publishers", this::readPublishers, this::cachePublisher);
@@ -195,7 +193,9 @@ public class Generator extends AbstractGenerator {
 
     // parse taxa once to just full the lookup cache
     boolean first = true;
-    IterableResult<String[], ParsingContext> it = parser.iterate(new FileReader(ANTWEB_FILE, StandardCharsets.UTF_8));
+    List<String[]> data = new ArrayList<>();
+    Reader reader = new InputStreamReader(http.getStream(ANTWEB_FILE), StandardCharsets.UTF_8);
+    IterableResult<String[], ParsingContext> it = parser.iterate(reader);
     for (var row : it) {
       if (first) {
         first = false;
@@ -203,13 +203,12 @@ public class Generator extends AbstractGenerator {
       }
       int key = Integer.parseInt(row[0]);
       csvNames.put(key, new CsvName(row));
+      data.add(row);
     }
 
     // now 2nd pass for real
     first = true;
-    parser = new TsvParser(settings);
-    it = parser.iterate(new FileReader(ANTWEB_FILE, StandardCharsets.UTF_8));
-    for (var row : it) {
+    for (var row : data) {
       if (first) {
         first = false;
         continue; // skip header row
