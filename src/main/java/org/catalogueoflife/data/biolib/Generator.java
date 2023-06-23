@@ -26,8 +26,8 @@ public class Generator extends AbstractTextTreeGenerator {
   private static Logger LOG = LoggerFactory.getLogger(Generator.class);
   private static final URI TAXON = URI.create("https://www.biolib.cz/en/taxon/id");
   private static final URI NAME = URI.create("https://www.biolib.cz/en/taxonnames/id");
-  //private static final Integer root = 10713; // Coccinellidae
-  private static final Integer root = 10726; // small test group
+  private static final Integer root = 10713; // Coccinellidae
+  //private static final Integer root = 10726; // small test group
   private static final Pattern idPattern = Pattern.compile("/id(\\d+)/?$", Pattern.CASE_INSENSITIVE);
   private int counter = 0;
   private long synID = -1;
