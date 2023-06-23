@@ -79,8 +79,6 @@ public abstract class AbstractGenerator implements Runnable {
       CompressionUtil.zipDir(dir, zip);
       LOG.info("{} archive completed at {} !", archiveType, zip);
 
-    } catch (HttpException e) {
-
     } catch (Exception e) {
       LOG.error("Error building {} archive for {}", archiveType, cfg.source, e);
       throw new RuntimeException(e);
