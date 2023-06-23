@@ -37,10 +37,10 @@ public class GeneratorConfig {
     return new File(repository, source);
   }
 
-  public Class<? extends AbstractGenerator> builderClass() {
+  public Class<? extends AbstractColdpGenerator> builderClass() {
     try {
       String classname = GeneratorConfig.class.getPackage().getName() + "." + source.toLowerCase() + ".Generator";
-      return (Class<? extends AbstractGenerator>) GeneratorConfig.class.getClassLoader().loadClass(classname);
+      return (Class<? extends AbstractColdpGenerator>) GeneratorConfig.class.getClassLoader().loadClass(classname);
 
     } catch (ClassNotFoundException e) {
       List<String> sources = Lists.newArrayList();

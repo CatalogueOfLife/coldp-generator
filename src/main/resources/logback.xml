@@ -11,6 +11,8 @@
         </encoder>
     </appender>
 
+    <logger name="org.catalogueoflife.data.biolib" level="DEBUG"/>
+
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
     </root>

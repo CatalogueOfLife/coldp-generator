@@ -7,7 +7,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 
-public abstract class AbstractZipSrcGenerator extends AbstractGenerator {
+public abstract class AbstractZipSrcGenerator extends AbstractColdpGenerator {
   protected final File srcDir; // working directory for
 
   public AbstractZipSrcGenerator(GeneratorConfig cfg, boolean addMetadata, @Nullable URI downloadUri) throws IOException {

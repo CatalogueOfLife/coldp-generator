@@ -13,7 +13,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.filefilter.SuffixFileFilter;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpStatus;
-import org.catalogueoflife.data.AbstractGenerator;
+import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.catalogueoflife.data.utils.HttpException;
 
@@ -26,7 +26,7 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.regex.Pattern;
 
-public class Generator extends AbstractGenerator {
+public class Generator extends AbstractColdpGenerator {
   private static final String API = "https://wsc.nmbe.ch/api/";
   private static final Pattern LSID_PATTERN = Pattern.compile("nmbe.ch:spider(sp|gen|fam):([0-9]+)");
   private static final String ERROR = "error: ";

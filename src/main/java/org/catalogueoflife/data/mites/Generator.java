@@ -1,7 +1,7 @@
 package org.catalogueoflife.data.mites;
 
 import life.catalogue.coldp.ColdpTerm;
-import org.catalogueoflife.data.AbstractGenerator;
+import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -12,7 +12,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.regex.Pattern;
 
-public class Generator extends AbstractGenerator {
+public class Generator extends AbstractColdpGenerator {
   private static final URI BASE = URI.create("http://www.miteresearch.org/");
   private static final URI INDEX = BASE.resolve("/genusindex.php");
   private static final URI GENUS = BASE.resolve("/db/main.php?genus=445");

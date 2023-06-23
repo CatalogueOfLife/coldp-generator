@@ -16,7 +16,6 @@
 package org.catalogueoflife.data.antcat;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.google.common.base.Preconditions;
 import com.univocity.parsers.common.IterableResult;
 import com.univocity.parsers.common.ParsingContext;
 import com.univocity.parsers.tsv.TsvParser;
@@ -32,14 +31,12 @@ import life.catalogue.common.io.TermWriter;
 import life.catalogue.parser.RankParser;
 import life.catalogue.parser.UnparsableException;
 import org.apache.commons.lang3.StringUtils;
-import org.catalogueoflife.data.AbstractGenerator;
+import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.catalogueoflife.data.utils.HtmlUtils;
-import org.catalogueoflife.data.utils.HttpUtils;
 import org.gbif.dwc.terms.Term;
 import org.gbif.dwc.terms.UnknownTerm;
 import org.gbif.nameparser.api.NomCode;
-import org.gbif.nameparser.api.Rank;
 
 import java.io.*;
 import java.net.URI;
@@ -55,7 +52,7 @@ import java.util.stream.Collectors;
  * ColDP generator for AntCat using their public API.
  * https://antcat.org/api_docs#!/taxa/getTaxa
  */
-public class Generator extends AbstractGenerator {
+public class Generator extends AbstractColdpGenerator {
   private static final String API = "https://antcat.org/v1/";
   private static final String LINK_BASE = "https://antcat.org/";
   private static final URI ANTWEB_FILE = URI.create("https://www.antweb.org/web/workingdir/worldants_speciesList.txt");

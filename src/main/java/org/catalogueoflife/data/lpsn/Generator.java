@@ -24,7 +24,7 @@ import com.github.scribejava.core.model.Verb;
 import com.github.scribejava.core.oauth.OAuth20Service;
 import life.catalogue.api.model.DOI;
 import life.catalogue.coldp.ColdpTerm;
-import org.catalogueoflife.data.AbstractGenerator;
+import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ import java.util.concurrent.ExecutionException;
  *
  * Please register at https://api.lpsn.dsmz.de/login.
  */
-public class Generator extends AbstractGenerator {
+public class Generator extends AbstractColdpGenerator {
   private static final String SSO = "https://sso.dsmz.de/auth/";
   private static final String API = "https://api.lpsn.dsmz.de";
   private static final String client_id = "api.lpsn.public";

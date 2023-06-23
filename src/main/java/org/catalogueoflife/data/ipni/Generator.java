@@ -19,9 +19,8 @@ import life.catalogue.api.util.ObjectUtils;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
 import life.catalogue.common.text.StringUtils;
-import org.catalogueoflife.data.AbstractGenerator;
+import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
-import org.gbif.dwc.terms.DwcTerm;
 import org.gbif.nameparser.util.UnicodeUtils;
 
 import java.io.IOException;
@@ -44,7 +43,7 @@ import java.util.regex.Pattern;
  * More details are available when resolving every name detail through the API.
  * This brings back better classification and name relations!
  */
-public class Generator extends AbstractGenerator {
+public class Generator extends AbstractColdpGenerator {
   private static final String API = "https://beta.ipni.org/api/1/";
   private static final String LINK_BASE = "https://www.ipni.org";
   static final Pattern PAGES = Pattern.compile("\\s*:\\s*");

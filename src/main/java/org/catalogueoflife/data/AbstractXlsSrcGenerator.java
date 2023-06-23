@@ -9,7 +9,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Locale;
 
-public abstract class AbstractXlsSrcGenerator extends AbstractGenerator {
+public abstract class AbstractXlsSrcGenerator extends AbstractColdpGenerator {
   protected Workbook wb;
   private DataFormatter formatter;
   private FormulaEvaluator evaluator;

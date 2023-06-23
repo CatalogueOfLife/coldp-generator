@@ -20,9 +20,8 @@ import life.catalogue.common.io.CompressionUtil;
 import life.catalogue.common.io.UTF8IoUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.catalogueoflife.data.AbstractGenerator;
+import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
-import org.gbif.nameparser.api.Rank;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -39,7 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Open Tree of Life Taxonomy transformer to ColDP
  * https://tree.opentreeoflife.org/about/taxonomy-version
  */
-public class Generator extends AbstractGenerator {
+public class Generator extends AbstractColdpGenerator {
   private static final String VERSION = "3.3";
   private static final LocalDate ISSUED = LocalDate.of(2021,6,1);
   private static final URI DOWNLOAD = URI.create("http://files.opentreeoflife.org/ott/ott" + VERSION + "/ott" + VERSION + ".tgz");

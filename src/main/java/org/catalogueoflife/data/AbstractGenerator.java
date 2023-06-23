@@ -1,15 +1,12 @@
 package org.catalogueoflife.data;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.annotations.VisibleForTesting;
 import life.catalogue.api.model.Citation;
 import life.catalogue.api.model.DOI;
 import life.catalogue.api.model.IssueContainer;
-import life.catalogue.coldp.ColdpTerm;
-import life.catalogue.common.io.*;
+import life.catalogue.common.io.CompressionUtil;
+import life.catalogue.common.io.Resources;
+import life.catalogue.common.io.UTF8IoUtils;
 import life.catalogue.common.text.SimpleTemplate;
 import life.catalogue.metadata.DoiResolver;
 import life.catalogue.metadata.coldp.YamlMapper;
@@ -18,167 +15,45 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.catalogueoflife.data.utils.HttpException;
 import org.catalogueoflife.data.utils.HttpUtils;
-import org.gbif.dwc.terms.Term;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nullable;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
-import java.net.URI;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public abstract class AbstractGenerator implements Runnable {
-  protected static Logger LOG = LoggerFactory.getLogger(AbstractGenerator.class);
+  protected static Logger LOG = LoggerFactory.getLogger(AbstractColdpGenerator.class);
   protected final GeneratorConfig cfg;
-  protected final DownloadUtil download;
   protected final HttpUtils http;
-  private final boolean addMetadata;
+  protected final boolean addMetadata;
   protected final Map<String, Object> metadata = new HashMap<>();
   protected final List<Citation> sources = new ArrayList<>();
   protected final String name;
   protected final File dir; // working directory
-  protected final File src; // optional download
-  protected final URI srcUri;
-  protected TermWriter writer;
-  protected TermWriter refWriter;
-  private int refCounter = 1;
   protected final CloseableHttpClient hc;
-  private final DoiResolver doiResolver;
-  protected final static ObjectMapper mapper = new ObjectMapper()
-      .setSerializationInclusion(JsonInclude.Include.NON_EMPTY)
-      .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-      .enable(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT);
+  protected final DoiResolver doiResolver;
+  private final String archiveType;
 
-  public AbstractGenerator(GeneratorConfig cfg, boolean addMetadata) throws IOException {
-    this(cfg, addMetadata, null);
-  }
-
-  public AbstractGenerator(GeneratorConfig cfg, boolean addMetadata, @Nullable URI downloadUri) throws IOException {
+  public AbstractGenerator(GeneratorConfig cfg, boolean addMetadata, String archiveType) throws IOException {
+    this.archiveType = archiveType;
     this.cfg = cfg;
+    this.http = new HttpUtils();
     this.addMetadata = addMetadata;
+    name = getClass().getPackageName().replaceFirst(AbstractColdpGenerator.class.getPackageName(), "");
     this.dir = cfg.archiveDir();
     dir.mkdirs();
     LOG.info("Build archive at {}", dir);
     FileUtils.cleanDirectory(dir);
-    name = getClass().getPackageName().replaceFirst(AbstractGenerator.class.getPackageName(), "");
-    src = new File("/tmp/" + name + ".src");
-    src.deleteOnExit();
     HttpClientBuilder htb = HttpClientBuilder.create();
     hc = htb.build();
-    this.download = new DownloadUtil(hc);
-    this.http = new HttpUtils();
-    this.srcUri = downloadUri;
     doiResolver = new DoiResolver(hc);
   }
 
-  @Override
-  public void run() {
-    try {
-      // get latest CSVs
-      if (!src.exists() && srcUri != null) {
-        LOG.info("Downloading latest data from {}", srcUri);
-        download.download(srcUri, src);
-      } else if (srcUri == null) {
-        LOG.info("Reuse data from {}", src);
-      }
-
-      prepare();
-      addData();
-      if (writer != null) {
-        writer.close();
-      }
-      if (refWriter != null) {
-        refWriter.close();
-      }
-      addMetadata();
-
-      // finish archive and zip it
-      LOG.info("Bundling archive at {}", dir.getAbsolutePath());
-      File zip = new File(dir.getParentFile(), dir.getName() + ".zip");
-      CompressionUtil.zipDir(dir, zip);
-      LOG.info("ColDP archive completed at {} !", zip);
-
-    } catch (HttpException e) {
-
-    } catch (Exception e) {
-      LOG.error("Error building ColDP archive for {}", cfg.source, e);
-      throw new RuntimeException(e);
-
-    } finally {
-      try {
-        hc.close();
-      } catch (IOException e) {
-        LOG.error("Failed to close http client", e);
-        throw new RuntimeException(e);
-      }
-    }
-  }
-
-  protected void prepare() throws IOException {
-    //nothing by default, override as needed
-  }
-
-  /**
-   * Finalizes the current ref record and creates a new ref id if not yet set.
-   * @return the ID of the previous record.
-   */
-  protected String nextRef() throws IOException {
-    String id;
-    if (refWriter.has(ColdpTerm.ID)) {
-      id = refWriter.get(ColdpTerm.ID);
-    } else {
-      id = "R" + refCounter++;
-      refWriter.set(ColdpTerm.ID, id);
-    }
-    refWriter.next();
-    return id;
-  }
-
-  public void newWriter(ColdpTerm rowType) throws IOException {
-    newWriter(rowType, ColdpTerm.RESOURCES.get(rowType));
-  }
-
-  protected void newWriter(Term rowType, List<? extends Term> columns) throws IOException {
-    if (writer != null) {
-      writer.close();
-    }
-    writer = additionalWriter(rowType, columns);
-  }
-
-  protected void initRefWriter(List<? extends Term> columns) throws IOException {
-    refWriter = additionalWriter(ColdpTerm.Reference, columns);
-  }
-
-  protected TermWriter additionalWriter(ColdpTerm rowType) throws IOException {
-    return new TermWriter.TSV(dir, rowType, ColdpTerm.RESOURCES.get(rowType));
-  }
-
-  protected TermWriter additionalWriter(Term rowType, List<? extends Term> columns) throws IOException {
-    return new TermWriter.TSV(dir, rowType, columns);
-  }
-
-  protected abstract void addData() throws Exception;
-
-  protected void addMetadata() throws Exception {
-    if (addMetadata) {
-      // do we have sources?
-      asYaml(sources).ifPresent(yaml -> {
-        metadata.put("sources", "source: \n" + yaml);
-      });
-
-      // use metadata to format
-      String template = UTF8IoUtils.readString(Resources.stream(cfg.source+"/metadata.yaml"));
-      try (var mw = UTF8IoUtils.writerFromFile(new File(dir, "metadata.yaml"))) {
-        mw.write(SimpleTemplate.render(template, metadata));
-      }
-    }
-  }
-
-  protected Optional<String> asYaml(List<?> items) throws JsonProcessingException {
+  protected static Optional<String> asYaml(List<?> items) throws JsonProcessingException {
     StringBuilder yaml = new StringBuilder();
     for (Object item : items) {
       yaml.append(" - \n");
@@ -189,7 +64,35 @@ public abstract class AbstractGenerator implements Runnable {
       yaml.append(indented);
       yaml.append("\n");
     }
-    return yaml.length()>0 ? Optional.of(yaml.toString()) : Optional.empty();
+    return yaml.length() > 0 ? Optional.of(yaml.toString()) : Optional.empty();
+  }
+
+  @Override
+  public void run() {
+    try {
+      addDataFiles();
+      addMetadata();
+
+      // finish archive and zip it
+      LOG.info("Bundling archive at {}", dir.getAbsolutePath());
+      File zip = new File(dir.getParentFile(), dir.getName() + ".zip");
+      CompressionUtil.zipDir(dir, zip);
+      LOG.info("{} archive completed at {} !", archiveType, zip);
+
+    } catch (HttpException e) {
+
+    } catch (Exception e) {
+      LOG.error("Error building {} archive for {}", archiveType, cfg.source, e);
+      throw new RuntimeException(e);
+
+    } finally {
+      try {
+        hc.close();
+      } catch (IOException e) {
+        LOG.error("Failed to close http client", e);
+        throw new RuntimeException(e);
+      }
+    }
   }
 
   /**
@@ -204,6 +107,23 @@ public abstract class AbstractGenerator implements Runnable {
     }
     for (var iss : issues.getIssues()) {
       LOG.warn("Resolution of DOI {} caused {}", doi, iss);
+    }
+  }
+
+  protected abstract void addDataFiles() throws Exception;
+
+  protected void addMetadata() throws Exception {
+    if (addMetadata) {
+      // do we have sources?
+      AbstractGenerator.asYaml(sources).ifPresent(yaml -> {
+        metadata.put("sources", "source: \n" + yaml);
+      });
+
+      // use metadata to format
+      String template = UTF8IoUtils.readString(Resources.stream(cfg.source + "/metadata.yaml"));
+      try (var mw = UTF8IoUtils.writerFromFile(new File(dir, "metadata.yaml"))) {
+        mw.write(SimpleTemplate.render(template, metadata));
+      }
     }
   }
 }

@@ -1,0 +1,62 @@
+title: BioLib Coccinellidae
+alias: ladybird
+description: |
+  Taxonomy of the Coccinellidae ladybird beetle family.
+  Based on information found in the BioLib.cz taxonomic database at https://www.biolib.cz/en/taxon/id10713/
+keyword:
+  - Coccinellidae
+  - beetle
+  - BioLib
+
+issued: 2023-06-23
+version:
+
+contact:
+  given: Markus
+  family: Döring
+  email: mdoering@gbif.org
+  organisation: Global Biodiversity Information Facility
+  city: Berlin
+  country: DE
+
+creator:
+  - given: Ondřej
+    family: Zicha
+    email: ondrej.zicha@gmail.com
+    orcid: 0000-0001-5309-7326
+    country: CZ
+  - given: Jaroslav
+    family: Hrb
+    email:
+    orcid: 0000-0001-6732-5609
+    country: CZ
+  - given: Michal
+    family: Maňas
+    email:
+    orcid: 0000-0003-2697-5140
+    country: CZ
+  - given: Jiří
+    family: Novák
+    email:
+    orcid:
+    country: CZ
+
+geographicScope: global
+taxonomicScope: Coccinellidae
+taxonomicScopeInEnglish: ladybird beetles
+temporalScope:
+license: CC-BY-1.0
+url: https://www.biolib.cz/en/taxon/id10713/
+logo: https://www.biolib.cz/IMG/bllogo.gif
+
+source:
+  - id: biolib
+    type: WEBPAGE
+    author:
+      - Ondřej Zicha
+      - Jaroslav Hrb
+      - Michal Maňas
+      - Jiří Novák
+    title: BioLib
+    accessed: 2023-06-23
+    url: https://www.biolib.cz/en/taxon/id10713/
