@@ -33,25 +33,25 @@
     <!-- project deps -->
     <citeproc.version>3.0.0-alpha.6</citeproc.version>
     <citeproc-styles.version>2.0.0</citeproc-styles.version>
-    <commons-compress.version>1.19</commons-compress.version>
-    <commons-io.version>2.11.0</commons-io.version>
+    <commons-compress.version>1.23.0</commons-compress.version>
+    <commons-io.version>2.13.0</commons-io.version>
     <col.version>1.0-SNAPSHOT</col.version>
-    <dwc-api.version>1.36</dwc-api.version>
+    <dwc-api.version>1.46</dwc-api.version>
     <dwca-io.version>2.11</dwca-io.version>
-    <httpcore.version>4.4.12</httpcore.version>
-    <jackson.version>2.10.5</jackson.version>
-    <jbibtex.version>1.0.19</jbibtex.version>
-    <jcommander.version>1.81</jcommander.version>
-    <jsoup.version>1.14.3</jsoup.version>
+    <httpcore.version>4.4.16</httpcore.version>
+    <jackson.version>2.13.5</jackson.version>
+    <jbibtex.version>1.0.20</jbibtex.version>
+    <jcommander.version>1.82</jcommander.version>
+    <jsoup.version>1.16.1</jsoup.version>
     <junit.version>4.12</junit.version>
-    <logback.version>1.2.9</logback.version>
+    <logback.version>1.4.8</logback.version>
     <name-parser.version>3.8.5</name-parser.version>
     <newick-io.version>1.0.6</newick-io.version>
-    <poi.version>5.1.0</poi.version>
-    <scribejava.version>8.3.1</scribejava.version>
+    <poi.version>5.2.3</poi.version>
+    <scribejava.version>8.3.3</scribejava.version>
     <slf4j.version>1.7.32</slf4j.version>
     <tika.version>1.22</tika.version>
-    <text-tree.version>1.1.4</text-tree.version>
+    <text-tree.version>1.1.5</text-tree.version>
     <univocity.version>2.9.1</univocity.version>
   </properties>
 

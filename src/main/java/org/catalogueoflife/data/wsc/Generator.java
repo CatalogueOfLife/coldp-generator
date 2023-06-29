@@ -203,7 +203,7 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   private void crawl(String lsid, boolean forceUpdate) throws IOException {
-    // keep local files so we can reuse them - the API is limits number of requests
+    // keep local files so we can reuse them - the API limits number of daily requests
     var m = LSID_PATTERN.matcher(lsid);
     if (!m.find()) {
       throw new IllegalArgumentException("Unexpected LSID " + lsid);

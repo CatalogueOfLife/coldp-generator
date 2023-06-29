@@ -101,6 +101,7 @@ public abstract class AbstractGenerator implements Runnable {
     IssueContainer issues = IssueContainer.simple();
     var data = doiResolver.resolve(doi, issues);
     if (data != null) {
+      LOG.info("Add source DOI {}: {}", doi, data.getCitationText());
       sources.add(data);
     }
     for (var iss : issues.getIssues()) {

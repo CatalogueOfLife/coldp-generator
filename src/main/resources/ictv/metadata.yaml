@@ -2,41 +2,20 @@
 alias: ICTV
 title: ICTV Master Species List (MSL)
 description: |-
-  This new release contains taxonomic changes approved by the ICTV Executive Committee in October, 2020 and ratified by the ICTV Membership in March, 2021. 
-  Official taxonomy proposals documenting these and all other taxonomic changes approved by the ICTV since the publication of the ICTV 8th Report 
-  can be found at https://ictv.global/Official_ICTV_Proposals.htm.
+  The Master Species List (MSL) provides access to the official, current virus taxonomy approved by the ICTV. 
+  A new MSL will be uploaded whenever a new, revised taxonomy is ratified by the ICTV membership. 
+  These Master Species Lists (MSL) provide the complete ICTV taxonomy as a downloadable spreadsheet. 
+  MSL files are available for each release of the virus taxonomy since 2008.
+  
+  Classification of viruses is based on the collection and comparison of various characters that describe the virus, and can then be used to distinguish one virus from another. Characters can consist of any property or feature of the virus, and include the molecular composition of the genome; the structure of the virus capsid and whether or not it is enveloped; the gene expression program used to produce virus proteins; host range; pathogenicity; and sequence similarity. While all characters are important in determining taxonomic relationships, sequence comparisons using both pairwise sequence similarity and phylogenetic relationships have become one of the primary sets of characters used to define and distinguish virus taxa.
+  Based on an assessment of characters, a hierarchical relationship is established that groups together viruses with similar properties. The properties that define higher-level taxa are shared with all lower-level taxa that belong to higher-level taxa. For example, viruses of the order Picornavirales are all non-enveloped, icosahedral particles containing one or two segments of positive-sense RNA. The family Picornaviridae is one of several families belonging to the order Picornavirales. Members of the family Picornaviridae contain a single monocistronic genome with conserved genome organization (arrangement of encoded polypeptides). Members of the genus Enterovirus (family Picornaviridae) share more than 42% amino acid identity across the length of their polyprotein. Finally, members of the species Enterovirus C, share a limited range of hosts and host receptors, have similar polyprotein processing programs, and share more than 70% amino acid identity in the polyprotein. Once these criteria for grouping similar viruses into common taxa are established, they are used as demarcation criteria to determine if newly discovered viruses are members of an existing species (and therefore also in existing higher-level taxa), or if the new viruses warrant creation of a new species (and potentially new higher-level taxa), if their properties are sufficiently distinct from the viruses in an existing species.
 
-  A notable change approved this year is the adoption of a uniform binomial format for naming of virus species. 
-  Previously, virologists have not been required to follow the convention of species naming that has been established in other fields of biology, 
-  whereby the species name consists of the genus name separated by a space from a species epithet that identifies the species within that genus. 
-  Over the last several decades, the case for a standardized nomenclature for virus species has been acknowledged by the ICTV and by many other virologists, 
-  but a uniform format of the species names had not been adopted (see references for an incomplete but relatively representative account of the opinion spectrum).
-  The case for a binomial nomenclature was presented by the ICTV Executive Committee in 2018 and 2020, 
-  and the advantages and disadvantages of different naming formats within the binomial framework were discussed. 
-  The EC then invited comments on this position from the virology community. 
-  Comments from ICTV SGs were also solicited and received by the EC SCs. 
-  Debates of the merits of various forms of binomial nomenclature took place in social media and in journal publications. 
-  Taking these discussions and comments into account, ICTV ratified the adoption of a standardized binomial system, 
-  which may follow either Latinized or free form formats. 
-  The ICTV SGs are now charged with conversion of all existing virus species names to the new binomial form; t
-  he process has started already and is expected to be completed in time to be considered by an EC meeting planned for 2023. 
-  It is worth emphasizing that this system concerns only the names of virus species but does not affect the names of viruses.
-
-  Another general proposal was the abolition of the requirement for a type species—a designated nomenclatural type for each genus. 
-  The ICTV noted that the requirement for type species in virus taxonomy was largely historical. 
-  Most importantly, the ICVCN defines virus species as follows: 
-  “A species is a monophyletic group of viruses whose properties can be distinguished from those of other species by multiple criteria", 
-  suggesting that the emphasis on “defining” a genus has been shifting from the properties of any particular member to the closeness of molecular 
-  and ecological relationships between all genus members. 
-  The ICTV concluded that the concept of a type species no longer serves a clear and useful purpose in virology and voted to abolish it.
-
-  One more proposal has clarified the remit of the ICTV. 
-  In addition to viruses, ICTV has been classifying viroids and virus satellites, though none of these mobile genetic elements, 
-  including viruses themselves, have been operationally defined, leaving the limits of the ICTV scope unclear. 
-  This has been clarified now by giving operational definitions of viruses sensu stricto, viriforms, viroids, and satellites. 
-  These entities together constitute the virosphere and are within the remit of the ICTV responsibilities for their classification, taxonomy and nomenclature. 
-  The historical name of the organization—the International Committee on Taxonomy of Viruses—remains unchanged.
-
+  The first internationally organized attempts to introduce order into the bewildering variety of viruses took place at the International Congress of Microbiology held in Moscow in 1966. A committee was created, later called the International Committee on Taxonomy of Viruses (ICTV), and was given the task of developing a single, universal taxonomic scheme for all the viruses infecting animals (vertebrates, invertebrates and protozoa), plants (higher plants and algae), fungi, bacteria and archaea. The ICTV was created as a committee of the Virology Division of the International Union of Microbiological Societies (IUMS) and is governed by Statutes approved by the Virology Division. The Statutes define the objectives of ICTV: (i) to develop an internationally agreed taxonomy for viruses (the term “viruses” for this purpose is taken to include viroids and some important groups of satellite viruses); (ii) to develop internationally agreed names for these taxa; (iii) to communicate taxonomic decisions to the international community of virologists; and (iv) to maintain an index of virus names. The Statutes also state that classification and nomenclature of viruses will be subject to rules set out in an International Code. Virus taxonomy differs from other types of biological classification because the ICTV not only regulates a Code of Nomenclature but also considers and approves the creation of virus taxa. Priority of publication is not the determining factor.
+  
+  The ICTV Executive Committee (EC) has established over 100 international Study Groups (SGs) covering all virus taxa. The Chair of each SG is appointed by the relevant Subcommittee Chair, who is a member of the EC. Each subcommittee is responsible for classes of viruses with different genome configurations infecting different hosts. The current subcommittees encompass Archaeal Viruses, Animal DNA Viruses and Retroviruses, Animal dsRNA and ssRNA- Viruses, Animal ssRNA+ Viruses, Bacterial Viruses, Fungal and Protist Viruses, and Plant Viruses. SG Chairs are responsible for (i) organizing discussions among SG members of emerging taxonomic issues in their field, (ii) overseeing the submission of proposals for new taxonomy, and (iii) preparing or revising relevant chapter(s) in ICTV Reports.
+  
+  The ICTV welcomes taxonomic proposals from any interested individual, although in practice, most are prepared by the relevant SG. A proposal template and guidance notes are available for downloading from https://ictv.global/taxonomy/templates. Proposals will be forwarded to the relevant SG and will also be made available on the ICTV website for public comment. Authors are then invited to respond to any comments made. Subcommittee Chairs then present taxonomic proposals to the EC for discussion and approval at the annual EC meeting. Straightforward proposals, such as those to create new species within existing genera for which species demarcation have been previously established, can normally be approved at a single meeting. More complex or controversial proposals are made available on the ICTV website for public comment before being re-considered by the EC.
+  Proposals approved by the EC do not become accepted taxonomy until they have been ratified by the full ICTV membership. As specified in the Statutes, this includes members of the various Subcommittees (mostly SG Chairs), National Members and Life Members. Lists of members are provided at https://ictv.global/members. Ratification proceeds by an email vote, after which the approved taxonomy is updated at https://ictv.global/taxonomy/. In general, new taxonomy approved by the EC in the summer, is ratified by ICTV Members in March-April of the next year, at which time it becomes official. This site should always be consulted for the most up-to-date ICTV taxonomic information. Summaries of the voting decisions are also prepared and published annually in an article in Archives of Virology within the  Virology Division News section, and approved taxonomic proposals are available from the ICTV web site.
 issued: {issued}
 version: {version}
 contact:
@@ -45,13 +24,12 @@ contact:
 creator:
  -
    organisation: International Committee on Taxonomy of Viruses (ICTV)
-{authors}
 license: CC-BY
 taxonomicScope: Viruses
 taxonomicScopeInEnglish: Viruses
 geographicScope: global
 confidence: 5
 completeness: 100
-url: https://talk.ictvonline.org/taxonomy/w/ictv-taxonomy
+url: https://ictv.global/taxonomy
 logo: https://raw.githubusercontent.com/mdoering/checklist_builder/master/src/main/resources/ictv/ictv-logo.png
 {sources}

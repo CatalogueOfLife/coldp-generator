@@ -32,18 +32,25 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public class Generator extends AbstractXlsSrcGenerator {
   // to be updated manually to current version !!!
   // https://talk.ictvonline.org/files/master-species-lists/
-  private static final int DOWNLOAD_KEY = 12314;
-  private static final URI DOWNLOAD = URI.create("http://talk.ictvonline.org/files/master-species-lists/m/msl/"+DOWNLOAD_KEY+"/download");
+  private static final URI DOWNLOAD = URI.create("https://ictv.global/msl/current");
   // manually curated data
-  private static final String ISSUED = "2021-05-18";
-  private static final String VERSION = "2020.v1";
-  private static final DOI SOURCE = new DOI("10.1007/s00705-021-05156-1");
+  private static final List<DOI> SOURCES = List.of(
+      new DOI("10.1093/nar/gkx932"),
+      new DOI("10.1038/nrmicro.2016.177"),
+      new DOI("10.1007/s00705-016-3215-y"),
+      new DOI("10.1038/s41564-020-0709-x"),
+      new DOI("10.1007/s00705-015-2376-4"),
+      new DOI("10.1007/s00705-021-05156-1")
+  );
   // SPREADSHEET FORMAT
-  private static final int SHEET_IDX = 2;
+  private static final int MD_SHEET_IDX = 0; // Version
+  private static final int MD_COL_IDX = 1;
+  private static final int SHEET_IDX = 1; // MSL
   private static final int SKIP_ROWS = 1;
   private static final int COL_SORT = 0;
   private static final int COL_REALM = 1;
@@ -75,8 +82,43 @@ public class Generator extends AbstractXlsSrcGenerator {
     super(cfg, true, DOWNLOAD);
   }
 
+  void extractMetadata() throws IOException {
+    // extract metadata
+    String baseversion = null;
+    String version = null;
+    String date = null;
+    Pattern MSL = Pattern.compile("MSL\\d+");
+    Sheet sheet = wb.getSheetAt(MD_SHEET_IDX);
+    Iterator<Row> iter = sheet.rowIterator();
+    while (iter.hasNext()) {
+      Row row = iter.next();
+      if (row.getRowNum() >= 60) break;
+      String x = col(row, MD_COL_IDX);
+      if (x != null) {
+        if (baseversion == null) {
+          var m = MSL.matcher(x);
+          if (m.find()) {
+            baseversion = m.group(0);
+          }
+        }
+        if (x.startsWith("Version")) {
+          x = col(row, MD_COL_IDX+1);
+          version = baseversion + ".v"+x;
+        }
+        if (x.startsWith("Date")) {
+          date = col(row, MD_COL_IDX+1);
+        }
+      }
+    }
+    if (version == null || date == null) {
+      throw new IllegalStateException("Unable to find version or date metadata");
+    }
+    metadata.put("issued", date);
+    metadata.put("version", version);
+  }
   @Override
   protected void addData() throws Exception {
+    extractMetadata();
 
     // write just the NameUsage file
     newWriter(ColdpTerm.NameUsage, List.of(
@@ -90,14 +132,15 @@ public class Generator extends AbstractXlsSrcGenerator {
       ColdpTerm.remarks
     ));
 
-    Sheet sheet = wb.getSheetAt(SHEET_IDX);
+    // data
+    var sheet = wb.getSheetAt(SHEET_IDX);
     int rows = sheet.getPhysicalNumberOfRows();
     LOG.info("{} rows found in excel sheet", rows);
 
     // first add a single root
     addUsageRecord(rootID, null, null, "Viruses", null);
 
-    Iterator<Row> iter = sheet.rowIterator();
+    var iter = sheet.rowIterator();
     while (iter.hasNext()) {
       Row row = iter.next();
       if (row.getRowNum()+1 <= SKIP_ROWS) continue;
@@ -152,15 +195,15 @@ public class Generator extends AbstractXlsSrcGenerator {
   @Override
   protected void addMetadata() throws Exception {
     //   Walker PJ, Siddell SG, Lefkowitz EJ, Mushegian AR, Adriaenssens EM, Alfenas-Zerbini P, Davison AJ, Dempsey DM, Dutilh BE, García ML, Harrach B, Harrison RL, Hendrickson RC, Junglen S, Knowles NJ, Krupovic M, Kuhn JH, Lambert AJ, Łobocka M, Nibert ML, Oksanen HM, Orton RJ, Robertson DL, Rubino L, Sabanadzovic S, Simmonds P, Smith DB, Suzuki N, Van Dooerslaer K, Vandamme AM, Varsani A, Zerbini FM. Changes to virus taxonomy and to the International Code of Virus Classification and Nomenclature ratified by the International Committee on Taxonomy of Viruses (2021). Arch Virol. 2021 Jul 6. doi: 10.1007/s00705-021-05156-1. PMID: 34231026.
-    addSource(SOURCE);
-    // now also use authors of the source as dataset authors!
-    if (!sources.isEmpty()) {
-      asYaml(sources.get(0).getAuthor()).ifPresent(yaml -> {
-        metadata.put("authors", yaml);
-      });
+    for (DOI doi : SOURCES) {
+      addSource(doi);
     }
-    metadata.put("issued", ISSUED);
-    metadata.put("version", VERSION);
+    // now also use authors of the source as dataset authors!
+    //if (!sources.isEmpty()) {
+    //  asYaml(sources.get(0).getAuthor()).ifPresent(yaml -> {
+    //    metadata.put("authors", yaml);
+    //  });
+    //}
     super.addMetadata();
   }
 
