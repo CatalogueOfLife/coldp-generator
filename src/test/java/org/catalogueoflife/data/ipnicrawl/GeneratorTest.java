@@ -1,4 +1,4 @@
-package org.catalogueoflife.data.ipni;
+package org.catalogueoflife.data.ipnicrawl;
 
 import org.junit.Test;
 
@@ -7,27 +7,20 @@ import static org.junit.Assert.*;
 public class GeneratorTest {
 
   @Test
-  public void lsid() {
-    assertEquals("17541030-1", Generator.idFromLsid("urn:lsid:ipni.org:names:17541030-1"));
+  public void collations() {
+    assertEquals(new Generator.Collation("23", "8", "123-145"), Generator.parseCollation("23(8): 123-145"));
+    assertEquals(new Generator.Collation("2020", "93", "1"), Generator.parseCollation("2020-93: 1"));
+    assertEquals(new Generator.Collation("75(4)-64", null, "6"), Generator.parseCollation("75(4)-64: 6"));
+    assertEquals(new Generator.Collation("52", "2-4", "339"), Generator.parseCollation("52(2-4): 339"));
+    assertEquals(new Generator.Collation("n.s., 107(1)", null, "26"), Generator.parseCollation("n.s., 107(1): 26"));
+    assertEquals(new Generator.Collation("74(4)-52", null, "9"), Generator.parseCollation("74(4)-52: 9"));
+    assertEquals(new Generator.Collation("176", null, null), Generator.parseCollation("176"));
+    assertEquals(new Generator.Collation("7(e6528)", null, "22"), Generator.parseCollation("7(e6528): 22"));
   }
 
   @Test
-  public void collations() {
-    assertRef("23", "8", "123-145", "23(8): 123-145");
-    assertRef("2020", "93", "1", "2020-93: 1");
-    assertRef("75(4)-64", null, "6", "75(4)-64: 6");
-    assertRef("52", "2-4", "339", "52(2-4): 339");
-    assertRef("n.s., 107(1)", null, "26", "n.s., 107(1): 26");
-    assertRef("74(4)-52", null, "9", "74(4)-52: 9");
-    assertRef("176", null, null, "176");
-    assertRef("7(e6528)", null, "22", "7(e6528): 22");
-  }
-
-  void assertRef(String vol, String issue, String pages, String collation) {
-    var ref = new Generator.Reference("1", collation);
-    assertEquals(vol, ref.volume);
-    assertEquals(issue, ref.issue);
-    assertEquals(pages, ref.pages);
+  public void lsid() {
+    assertEquals("17541030-1", Generator.idFromLsid("urn:lsid:ipni.org:names:17541030-1"));
   }
 
   @Test

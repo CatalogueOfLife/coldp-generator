@@ -52,6 +52,7 @@
     <slf4j.version>1.7.32</slf4j.version>
     <tika.version>1.22</tika.version>
     <text-tree.version>1.1.5</text-tree.version>
+    <tukaani-xz.version>1.9</tukaani-xz.version>
     <univocity.version>2.9.1</univocity.version>
   </properties>
 
@@ -277,6 +278,12 @@
       <artifactId>newick-io</artifactId>
       <version>${newick-io.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.tukaani</groupId>
+      <artifactId>xz</artifactId>
+      <version>${tukaani-xz.version}</version>
+    </dependency>
+
     <!-- templating -->
     <dependency>
       <groupId>com.beust</groupId>
