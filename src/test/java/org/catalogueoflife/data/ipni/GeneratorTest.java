@@ -43,4 +43,12 @@ public class GeneratorTest {
     assertNull(Generator.extractDOI("10.7"));
     assertNull(Generator.extractDOI("doi:gbif.org"));
   }
+
+  @Test
+  public void buildCollectionDate() {
+    assertEquals("1989-8-23", Generator.buildCollectionDate("1989", "8", "23"));
+    assertEquals("1989-8", Generator.buildCollectionDate("1989", "8", null));
+    assertEquals("1989", Generator.buildCollectionDate("1989", "", null));
+  }
+
 }

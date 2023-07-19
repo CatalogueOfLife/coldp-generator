@@ -32,6 +32,8 @@ import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.gbif.dwc.terms.DwcTerm.month;
+
 /**
  * ColDP generator for IPNI using their search dumps at:
  * https://storage.googleapis.com/ipni-data/ipniWebName.csv.xz
@@ -79,6 +81,7 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.status,
         ColdpTerm.referenceID,
         ColdpTerm.publishedInYear,
+        ColdpTerm.publishedInPage,
         ColdpTerm.link,
         ColdpTerm.remarks
     ));
@@ -155,6 +158,11 @@ public class Generator extends AbstractColdpGenerator {
         if (ref.ipniID != null) {
           refCollations.putIfAbsent(ref.ipniID, new HashSet<>());
           refCollations.get(ref.ipniID).add(ref);
+          // move single page pointers to name
+          if (ref.isSinglePage()) {
+            writer.set(ColdpTerm.publishedInPage, ref.pages);
+            ref.pages = null;
+          }
           writer.set(ColdpTerm.referenceID, ref.refId());
         }
         if (!StringUtils.isBlank(row[7])) {
@@ -248,14 +256,34 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   private static String buildCollectionDate(String[] row){
-    //TODO: implement
-    String day1 = row[9];
-    String day2 = row[10];
-    String month1 = row[11];
-    String month2 = row[12];
     String year1 = row[14];
     String year2 = row[15];
+    if (year1 != null) {
+      String month1 = row[11];
+      String day1 = row[9];
+      return buildCollectionDate(year1, month1, day1);
+    } else if (year2 != null) {
+      String month2 = row[12];
+      String day2 = row[10];
+      return buildCollectionDate(year2, month2, day2);
+    }
     return null;
+  }
+
+  static String buildCollectionDate(String year, String month, String day){
+    if (year == null) return null;
+
+    StringBuilder sb = new StringBuilder();
+    sb.append(year);
+    for (String x : new String[]{month, day}) {
+      if (!StringUtils.isBlank(x)) {
+        sb.append("-");
+        sb.append(x);
+      } else {
+        break;
+      }
+    }
+    return sb.toString();
   }
 
   static Double decimal(String degree, String min, String sec){
@@ -299,13 +327,13 @@ public class Generator extends AbstractColdpGenerator {
     refWriter.set(ColdpTerm.isbn, row[9]);
     refWriter.set(ColdpTerm.issn, row[10]);
     refWriter.set(ColdpTerm.issued, row[11]);
-    // alternaative ids
+    // alternative ids
     Map<String,String> altIDs = new HashMap<>();
     addAltID(altIDs, "bph", row[8]);
     addAltID(altIDs, "lc", row[12]);
     addAltID(altIDs, "tl2", row[15]);
     if (!altIDs.isEmpty()) {
-      String ids = altIDs.entrySet().stream().map(e -> e.getKey()+":"+e.getValue()).collect(Collectors.joining(","));
+      String ids = altIDs.entrySet().stream().map(e -> e.getKey()+":"+e.getValue()).collect(Collectors.joining(";"));
       refWriter.set(ColdpTerm.alternativeID, ids);
     }
 
@@ -373,11 +401,11 @@ public class Generator extends AbstractColdpGenerator {
 
   static class Reference {
     public final String ipniID;
-    public boolean parsed;
     public String volume;
     public String issue;
     public String authors;
     public String pages;
+    public boolean parsed;
 
     public Reference(String ipniID) {
       this.ipniID = ipniID;
@@ -415,6 +443,18 @@ public class Generator extends AbstractColdpGenerator {
       }
     }
 
+    boolean isSinglePage() {
+      if (pages != null) {
+        try {
+          Integer.parseInt(pages.trim());
+          return true;
+        } catch (NumberFormatException e) {
+          // no, just catch it
+        }
+      }
+      return false;
+    }
+
     private String refId() {
       StringBuilder sb = new StringBuilder();
       sb.append(ipniID);
@@ -426,6 +466,10 @@ public class Generator extends AbstractColdpGenerator {
         sb.append("(");
         sb.append(issue);
         sb.append(")");
+      }
+      if (pages != null) {
+        sb.append("p");
+        sb.append(pages);
       }
       if (authors != null) {
         sb.append("-");
@@ -442,17 +486,12 @@ public class Generator extends AbstractColdpGenerator {
       if (this == o) return true;
       if (!(o instanceof Reference)) return false;
       Reference reference = (Reference) o;
-      return parsed == reference.parsed
-             && Objects.equals(ipniID, reference.ipniID)
-             && Objects.equals(volume, reference.volume)
-             && Objects.equals(issue, reference.issue)
-             && Objects.equals(authors, reference.authors)
-             && Objects.equals(pages, reference.pages);
+      return Objects.equals(refId(), reference.refId());
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(ipniID, parsed, volume, issue, authors, pages);
+      return Objects.hash(refId());
     }
   }
 
