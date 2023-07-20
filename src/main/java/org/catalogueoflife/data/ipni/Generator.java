@@ -59,6 +59,8 @@ public class Generator extends AbstractColdpGenerator {
   private Map<String, Set<Reference>> refCollations = new HashMap<>(); // ref id to set of collations
   private File refSrc;
 
+  private Set<String> refIDs = new HashSet<>();
+
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true, DOWNLOAD);
   }
@@ -157,12 +159,12 @@ public class Generator extends AbstractColdpGenerator {
         Reference ref = new Reference(row[60], row[7]);
         if (ref.ipniID != null) {
           refCollations.putIfAbsent(ref.ipniID, new HashSet<>());
-          refCollations.get(ref.ipniID).add(ref);
           // move single page pointers to name
           if (ref.isSinglePage()) {
             writer.set(ColdpTerm.publishedInPage, ref.pages);
             ref.pages = null;
           }
+          refCollations.get(ref.ipniID).add(ref);
           writer.set(ColdpTerm.referenceID, ref.refId());
         }
         if (!StringUtils.isBlank(row[7])) {
@@ -245,6 +247,8 @@ public class Generator extends AbstractColdpGenerator {
           // write one record!
           Reference ref = new Reference(ipniID);
           addRefRecord(ref, row);
+          // keep an empty list so we dont accidently create the same record again
+          refCollations.put(ipniID, new HashSet<>());
         }
       }
 
@@ -318,6 +322,12 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   private void addRefRecord(Reference ref, String[] row) throws IOException {
+    if (!refIDs.add(ref.refId())) {
+      System.out.println("DUPLICATE REFERENCE ID: " + ref.refId());
+      return;
+    }
+    refIDs.add(ref.refId());
+
     refWriter.set(ColdpTerm.ID, ref.refId());
     refWriter.set(ColdpTerm.title, row[6]);
     String remarks = row[7];
@@ -386,7 +396,7 @@ public class Generator extends AbstractColdpGenerator {
         return m.group(1);
       }
     }
-    return lsid;
+    return StringUtils.trimToNull(lsid);
   }
 
   static String extractDOI(String remarks) {
@@ -458,27 +468,30 @@ public class Generator extends AbstractColdpGenerator {
     private String refId() {
       StringBuilder sb = new StringBuilder();
       sb.append(ipniID);
-      if (volume != null) {
-        sb.append("-");
-        sb.append(volume);
+      if (volume != null || issue != null || pages != null || authors != null) {
+        sb.append("$");
+        if (volume != null) {
+          sb.append("v");
+          sb.append(volume);
+        }
+        if (issue != null) {
+          sb.append("(");
+          sb.append(issue);
+          sb.append(")");
+        }
+        if (pages != null) {
+          sb.append("p");
+          sb.append(pages.replaceAll("[\\s;:,.?-]", ""));
+        }
+        if (authors != null) {
+          sb.append("!");
+          sb.append(
+              UnicodeUtils.foldToAscii(authors)
+                          .replaceAll("[\\s;:,.?-]", "")
+          );
+        }
       }
-      if (issue != null) {
-        sb.append("(");
-        sb.append(issue);
-        sb.append(")");
-      }
-      if (pages != null) {
-        sb.append("p");
-        sb.append(pages);
-      }
-      if (authors != null) {
-        sb.append("-");
-        sb.append(
-            UnicodeUtils.foldToAscii(authors)
-                        .replaceAll("[\\s;:,.?-]", "")
-        );
-      }
-      return sb.toString();
+      return sb.toString().replaceAll("\\s+", "");
     }
 
     @Override

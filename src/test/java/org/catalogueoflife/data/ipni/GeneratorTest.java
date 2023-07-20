@@ -2,6 +2,9 @@ package org.catalogueoflife.data.ipni;
 
 import org.junit.Test;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import static org.junit.Assert.*;
 
 public class GeneratorTest {
@@ -9,6 +12,25 @@ public class GeneratorTest {
   @Test
   public void lsid() {
     assertEquals("17541030-1", Generator.idFromLsid("urn:lsid:ipni.org:names:17541030-1"));
+  }
+
+  @Test
+  public void uniqueReference() {
+    Set<Generator.Reference> refs = new HashSet<>();
+    refs.add(new Generator.Reference("12345"));
+    refs.add(new Generator.Reference("12345"));
+    assertEquals(1, refs.size());
+
+    refs.add(new Generator.Reference("12345", "23(8): 123-145"));
+    assertEquals(2, refs.size());
+    refs.add(new Generator.Reference("12345", "23(8): 123-145"));
+    assertEquals(2, refs.size());
+    refs.add(new Generator.Reference("12345", "23(8): 33"));
+    assertEquals(3, refs.size());
+    refs.add(new Generator.Reference("12345", "21(8): 33"));
+    assertEquals(4, refs.size());
+    refs.add(new Generator.Reference("vcece", "21(8): 33"));
+    assertEquals(5, refs.size());
   }
 
   @Test
