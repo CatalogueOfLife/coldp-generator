@@ -131,6 +131,7 @@ public class Generator extends AbstractXlsSrcGenerator {
       ColdpTerm.ID,
       ColdpTerm.parentID,
       ColdpTerm.ordinal,
+      ColdpTerm.status,
       ColdpTerm.rank,
       ColdpTerm.scientificName,
       ColdpTerm.code,
@@ -218,9 +219,8 @@ public class Generator extends AbstractXlsSrcGenerator {
     // create new realm record
     writer.set(ColdpTerm.ID, id);
     writer.set(ColdpTerm.parentID, parentID);
-    if (rank != null) {
-      writer.set(ColdpTerm.rank, rank.name());
-    }
+    writer.set(ColdpTerm.status, status);
+    writer.set(ColdpTerm.rank, rank);
     writer.set(ColdpTerm.scientificName, name);
     writer.set(ColdpTerm.code, NomCode.VIRUS.getAcronym());
     writer.set(ColdpTerm.ordinal, sort);
