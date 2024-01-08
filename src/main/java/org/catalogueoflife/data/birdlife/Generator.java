@@ -68,7 +68,7 @@ public class Generator extends AbstractXlsSrcGenerator {
     newWriter(ColdpTerm.NameUsage, List.of(
       ColdpTerm.ID,
       ColdpTerm.parentID,
-      ColdpTerm.sequenceIndex,
+      ColdpTerm.ordinal,
       ColdpTerm.rank,
       ColdpTerm.status,
       ColdpTerm.scientificName,
@@ -116,7 +116,7 @@ public class Generator extends AbstractXlsSrcGenerator {
         id = col(row, COL_SISRecID);
         spID = id;
         rank = Rank.SPECIES;
-        writer.set(ColdpTerm.sequenceIndex, sort);
+        writer.set(ColdpTerm.ordinal, sort);
         writer.set(ColdpTerm.order, col(row, COL_ORDER));
         writer.set(ColdpTerm.family, col(row, COL_FAMILY));
         writer.set(ColdpTerm.subfamily, col(row, COL_SUBFAMILY));
@@ -125,7 +125,7 @@ public class Generator extends AbstractXlsSrcGenerator {
         id = col(row, COL_SubsppID);
         rank = Rank.SUBSPECIES;
         writer.set(ColdpTerm.parentID, spID);
-        writer.set(ColdpTerm.sequenceIndex, sort2);
+        writer.set(ColdpTerm.ordinal, sort2);
       }
       writer.set(ColdpTerm.ID, id);
       writer.set(ColdpTerm.status, TaxonomicStatus.ACCEPTED);

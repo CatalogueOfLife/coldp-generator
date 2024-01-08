@@ -15,8 +15,10 @@
  */
 package org.catalogueoflife.data.ictv;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import life.catalogue.api.model.DOI;
+import life.catalogue.api.vocab.TaxonomicStatus;
 import life.catalogue.coldp.ColdpTerm;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.Row;
@@ -28,10 +30,7 @@ import org.gbif.nameparser.api.Rank;
 
 import java.io.IOException;
 import java.net.URI;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Pattern;
 
 public class Generator extends AbstractXlsSrcGenerator {
@@ -75,11 +74,18 @@ public class Generator extends AbstractXlsSrcGenerator {
     Rank.SUBGENUS
   );
 
+  private static final int SHEET_RENAMED_IDX = 3; // Taxa Renamed in MSL38
+  private static final int COL_RENAMED_RANK = 0;
+  private static final int COL_RENAMED_OLD = 1;
+  private static final int COL_RENAMED_NEW = 2;
   private final String rootID = "root";
   private final Set<String> ids = new HashSet<>();
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true, DOWNLOAD);
+    // assert classification columns dont overlap with species col
+    var i = COL_REALM + CLASSIFICATION.size();
+    Preconditions.checkArgument(i <= COL_SPECIES, "Classification columns overlap with species column");
   }
 
   void extractMetadata() throws IOException {
@@ -124,7 +130,7 @@ public class Generator extends AbstractXlsSrcGenerator {
     newWriter(ColdpTerm.NameUsage, List.of(
       ColdpTerm.ID,
       ColdpTerm.parentID,
-      ColdpTerm.sequenceIndex,
+      ColdpTerm.ordinal,
       ColdpTerm.rank,
       ColdpTerm.scientificName,
       ColdpTerm.code,
@@ -138,7 +144,7 @@ public class Generator extends AbstractXlsSrcGenerator {
     LOG.info("{} rows found in excel sheet", rows);
 
     // first add a single root
-    addUsageRecord(rootID, null, null, "Viruses", null);
+    addUsageRecord(rootID, null, null, "Viruses", null, null);
 
     var iter = sheet.rowIterator();
     while (iter.hasNext()) {
@@ -153,8 +159,38 @@ public class Generator extends AbstractXlsSrcGenerator {
       // finally the species record
       writer.set(ColdpTerm.link, link(row, COL_LINK));
       writer.set(ColdpTerm.remarks, concat(row, COL_COMPOSITION, COL_CHANGE));
-      addUsageRecord(genID(Rank.SPECIES, species), parentID, Rank.SPECIES, species, sort);
+      String id = genID(Rank.SPECIES, species);
+      addUsageRecord(id, parentID, Rank.SPECIES, species, sort, TaxonomicStatus.ACCEPTED);
     }
+
+    // now add synonyms from the MSL38 renamer
+    sheet = wb.getSheetAt(SHEET_RENAMED_IDX);
+    rows = sheet.getPhysicalNumberOfRows();
+    LOG.info("{} rows found in synonym sheet", rows);
+    iter = sheet.rowIterator();
+    while (iter.hasNext()) {
+      Row row = iter.next();
+      if (row.getRowNum()+1 <= SKIP_ROWS) continue;
+
+      Rank rank = colRank(row, COL_RENAMED_RANK);
+      String oldName = lastInList(col(row, COL_RENAMED_OLD));
+      String newName = lastInList(col(row, COL_RENAMED_NEW));
+      if (rank == null || Strings.isNullOrEmpty(oldName) || Strings.isNullOrEmpty(newName)) continue;
+
+      // the synonym record
+      writer.set(ColdpTerm.remarks, "Renamed in MSL 38");
+      String id = genID(rank, oldName);
+      String parentID = genID(rank, newName);
+      addUsageRecord(id, parentID, rank, oldName, null, TaxonomicStatus.SYNONYM);
+    }
+  }
+
+  private String lastInList(String x) {
+    if (x != null) {
+      int i = x.lastIndexOf(';');
+      return x.substring(i+1).trim();
+    }
+    return null;
   }
 
   private String writeClassification(Row row, Integer sort) throws IOException {
@@ -165,7 +201,7 @@ public class Generator extends AbstractXlsSrcGenerator {
       if (!StringUtils.isBlank(name)) {
         String id = genID(rank, name);
         if (!ids.contains(id)) {
-          addUsageRecord(id, parentID, rank, name, sort);
+          addUsageRecord(id, parentID, rank, name, sort, TaxonomicStatus.ACCEPTED);
         }
         parentID = id;
       }
@@ -178,7 +214,7 @@ public class Generator extends AbstractXlsSrcGenerator {
     return rank.name().toLowerCase() + ":" + name.toLowerCase().trim().replace(" ", "_");
   }
 
-  private void addUsageRecord(String id, String parentID, Rank rank, String name, Integer sort) throws IOException {
+  private void addUsageRecord(String id, String parentID, Rank rank, String name, Integer sort, TaxonomicStatus status) throws IOException {
     // create new realm record
     writer.set(ColdpTerm.ID, id);
     writer.set(ColdpTerm.parentID, parentID);
@@ -187,7 +223,7 @@ public class Generator extends AbstractXlsSrcGenerator {
     }
     writer.set(ColdpTerm.scientificName, name);
     writer.set(ColdpTerm.code, NomCode.VIRUS.getAcronym());
-    writer.set(ColdpTerm.sequenceIndex, sort);
+    writer.set(ColdpTerm.ordinal, sort);
     writer.next();
     ids.add(id);
   }

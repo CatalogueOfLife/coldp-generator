@@ -1,8 +1,13 @@
 package org.catalogueoflife.data;
 
+import life.catalogue.parser.RankParser;
+import life.catalogue.parser.SafeParser;
+import life.catalogue.parser.UnparsableException;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.formula.FormulaParseException;
 import org.apache.poi.ss.usermodel.*;
+import org.gbif.nameparser.api.NomCode;
+import org.gbif.nameparser.api.Rank;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -39,6 +44,18 @@ public abstract class AbstractXlsSrcGenerator extends AbstractColdpGenerator {
       return formatter.formatCellValue(cell, evaluator);
     } catch (FormulaParseException e) {
       LOG.warn("Error evaluating excel formula in sheet {}, row {} and column {}: {}", row.getSheet().getSheetName(), row.getRowNum(), column, e.getMessage());
+    }
+    return null;
+  }
+
+  protected Rank colRank(Row row, int column) {
+    String val = col(row, column);
+    if (val != null) {
+      try {
+        return RankParser.PARSER.parse(NomCode.VIRUS, val).orElse(null);
+      } catch (Exception e) {
+        LOG.warn("Invalid rank {} in row {} and column {}", val, row.getRowNum(), column);
+      }
     }
     return null;
   }

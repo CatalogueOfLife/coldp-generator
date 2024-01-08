@@ -94,7 +94,7 @@ public class Generator extends AbstractColdpGenerator {
     newWriter(ColdpTerm.NameUsage, List.of(
       ColdpTerm.ID,
       ColdpTerm.parentID,
-      ColdpTerm.sequenceIndex,
+      ColdpTerm.ordinal,
       ColdpTerm.rank,
       ColdpTerm.scientificName,
       ColdpTerm.code,
