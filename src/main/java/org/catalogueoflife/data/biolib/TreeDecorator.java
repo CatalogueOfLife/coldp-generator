@@ -61,7 +61,7 @@ public class TreeDecorator implements AutoCloseable{
             var name = item.text().trim();
             var exact = item.select("a").text().trim();
             if (n.name.equalsIgnoreCase(exact)) {
-              return new SimpleTreeNode(n.id, name, n.rank, n.basionym, n.infos);
+              return new SimpleTreeNode(n.id, name, n.rank, n.basionym, n.infos, n.comment);
             }
           }
         } else if (title.contains(n.name.toLowerCase())) {
@@ -74,7 +74,7 @@ public class TreeDecorator implements AutoCloseable{
       }
     }
     // return as it was already
-    return new SimpleTreeNode(n.id, n.name, n.rank, n.basionym, n.infos);
+    return new SimpleTreeNode(n.id, n.name, n.rank, n.basionym, n.infos, n.comment);
   }
 
   private SimpleTreeNode parseDetails(ParsedTreeNode n, Document doc) {
@@ -82,10 +82,10 @@ public class TreeDecorator implements AutoCloseable{
     var author = header.select("small");
     if (!author.isEmpty()) {
       var name = author.parents().first().text();
-      return new SimpleTreeNode(n.id, name, n.rank, n.basionym, n.infos);
+      return new SimpleTreeNode(n.id, name, n.rank, n.basionym, n.infos, n.comment);
     }
     // return as it was already
-    return new SimpleTreeNode(n.id, n.name, n.rank, n.basionym, n.infos);
+    return new SimpleTreeNode(n.id, n.name, n.rank, n.basionym, n.infos, n.comment);
   }
 
   public static void main(String[] args) throws IOException {

@@ -98,7 +98,7 @@ public class Generator extends AbstractTextTreeGenerator {
       rank = Optional.of(Rank.OTHER);
     }
 
-    final var tn = new SimpleTreeNode(id, nameTxt, rank.orElse(null), false, new HashMap<>());
+    final var tn = new SimpleTreeNode(id, nameTxt, rank.orElse(null), false);
 
     // add synonyms & vernaculars - load name details
     scrapeName(tn);
@@ -140,7 +140,7 @@ public class Generator extends AbstractTextTreeGenerator {
         if (lang != null && lang.equals(SCIENTIFIC)) {
           // synonym?
           if (!n2.toLowerCase().startsWith(tn.name.toLowerCase())) {
-            var s = new SimpleTreeNode(synID--, n2, null, false, new HashMap<>());
+            var s = new SimpleTreeNode(synID--, n2, null, false);
             tn.synonyms.add(s);
           }
 
