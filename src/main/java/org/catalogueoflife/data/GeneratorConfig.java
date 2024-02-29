@@ -24,6 +24,10 @@ public class GeneratorConfig {
   @Parameter(names = {"--apiKey"})
   public String apiKey;
 
+  @Parameter(names = {"--lpsnUser"})
+  public String lpsnUsername;
+  @Parameter(names = {"--lpsnPass"})
+  public String lpsnPassword;
   @Parameter(names = {"--wsc-max-key"})
   public int wscMaxKey = 61000;
 

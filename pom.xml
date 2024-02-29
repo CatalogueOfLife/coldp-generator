@@ -44,12 +44,13 @@
     <jcommander.version>1.82</jcommander.version>
     <jsoup.version>1.16.1</jsoup.version>
     <junit.version>4.12</junit.version>
-    <logback.version>1.4.8</logback.version>
+    <keycloak.version>23.0.7</keycloak.version>
+    <logback.version>1.2.13</logback.version>
     <name-parser.version>3.10.1</name-parser.version>
     <newick-io.version>1.0.6</newick-io.version>
     <poi.version>5.2.3</poi.version>
     <scribejava.version>8.3.3</scribejava.version>
-    <slf4j.version>1.7.32</slf4j.version>
+    <slf4j.version>1.7.36</slf4j.version>
     <tika.version>1.22</tika.version>
     <text-tree.version>1.2.1</text-tree.version>
     <tukaani-xz.version>1.9</tukaani-xz.version>
@@ -269,9 +270,9 @@
       <version>${poi.version}</version>
     </dependency>
     <dependency>
-      <groupId>com.github.scribejava</groupId>
-      <artifactId>scribejava-apis</artifactId>
-      <version>${scribejava.version}</version>
+      <groupId>org.keycloak</groupId>
+      <artifactId>keycloak-authz-client</artifactId>
+      <version>${keycloak.version}</version>
     </dependency>
     <dependency>
       <groupId>org.jsoup</groupId>

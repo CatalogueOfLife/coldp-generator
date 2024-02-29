@@ -1,5 +1,9 @@
 package org.catalogueoflife.data.otl;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import life.catalogue.coldp.ColdpTerm;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.catalogueoflife.newick.SimpleNode;
@@ -7,6 +11,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
 
 import static org.junit.Assert.assertEquals;
 

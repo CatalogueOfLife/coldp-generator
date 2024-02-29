@@ -1,57 +1,43 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CatalogueOfLife/coldp/master/metadata.json
 ---
-alias: ICTV
-title: ICTV Master Species List (MSL)
+alias: LPSN
+title: List of Prokaryotic names with Standing in Nomenclature
 description: |-
-  This new release contains taxonomic changes approved by the ICTV Executive Committee in October, 2020 and ratified by the ICTV Membership in March, 2021. 
-  Official taxonomy proposals documenting these and all other taxonomic changes approved by the ICTV since the publication of the ICTV 8th Report 
-  can be found at https://ictv.global/Official_ICTV_Proposals.htm.
-
-  A notable change approved this year is the adoption of a uniform binomial format for naming of virus species. 
-  Previously, virologists have not been required to follow the convention of species naming that has been established in other fields of biology, 
-  whereby the species name consists of the genus name separated by a space from a species epithet that identifies the species within that genus. 
-  Over the last several decades, the case for a standardized nomenclature for virus species has been acknowledged by the ICTV and by many other virologists, 
-  but a uniform format of the species names had not been adopted (see references for an incomplete but relatively representative account of the opinion spectrum).
-  The case for a binomial nomenclature was presented by the ICTV Executive Committee in 2018 and 2020, 
-  and the advantages and disadvantages of different naming formats within the binomial framework were discussed. 
-  The EC then invited comments on this position from the virology community. 
-  Comments from ICTV SGs were also solicited and received by the EC SCs. 
-  Debates of the merits of various forms of binomial nomenclature took place in social media and in journal publications. 
-  Taking these discussions and comments into account, ICTV ratified the adoption of a standardized binomial system, 
-  which may follow either Latinized or free form formats. 
-  The ICTV SGs are now charged with conversion of all existing virus species names to the new binomial form; t
-  he process has started already and is expected to be completed in time to be considered by an EC meeting planned for 2023. 
-  It is worth emphasizing that this system concerns only the names of virus species but does not affect the names of viruses.
-
-  Another general proposal was the abolition of the requirement for a type species—a designated nomenclatural type for each genus. 
-  The ICTV noted that the requirement for type species in virus taxonomy was largely historical. 
-  Most importantly, the ICVCN defines virus species as follows: 
-  “A species is a monophyletic group of viruses whose properties can be distinguished from those of other species by multiple criteria", 
-  suggesting that the emphasis on “defining” a genus has been shifting from the properties of any particular member to the closeness of molecular 
-  and ecological relationships between all genus members. 
-  The ICTV concluded that the concept of a type species no longer serves a clear and useful purpose in virology and voted to abolish it.
-
-  One more proposal has clarified the remit of the ICTV. 
-  In addition to viruses, ICTV has been classifying viroids and virus satellites, though none of these mobile genetic elements, 
-  including viruses themselves, have been operationally defined, leaving the limits of the ICTV scope unclear. 
-  This has been clarified now by giving operational definitions of viruses sensu stricto, viriforms, viroids, and satellites. 
-  These entities together constitute the virosphere and are within the remit of the ICTV responsibilities for their classification, taxonomy and nomenclature. 
-  The historical name of the organization—the International Committee on Taxonomy of Viruses—remains unchanged.
+  The List of Prokaryotic names with Standing in Nomenclature (LPSN) was established in 1997 by Professor Jean Euzéby as the List of Bacterial names with Standing in Nomenclature (LBSN). 
+  Launched on 28 March 1997 as anonymous ftp files and on the World Wide Web on 28 January 1998, 
+  ‘Euzéby’s List’ rapidly became a key online resource for anyone interested in bacterial and archaeal nomenclature and classification; 
+  it changed ownership to Aidan C. Parte in July 2013 upon Euzéby’s retirement.
+  
+  The LPSN has remained an invaluable resource for keeping abreast of the rapid changes in prokaryotic nomenclature and ever-increasing descriptions of novel taxa. 
+  The number of new prokaryotic names and new combinations validly published according to the International Code of Nomenclature of Prokaryotes (ICNP) has exploded over the last three decades, and is set to continue increasing, irrespective of future modifications to the Code.
+  
+  With the rise in actual and anticipated new prokaryotic names, the LPSN had become increasingly difficult to maintain, so a better technical and funding basis was sought. 
+  To that end, in November 2019, the LPSN was acquired by Leibniz Institute DSMZ – German Collection of Microorganisms and Cell Cultures GmbH, Germany. 
+  The DSMZ already had its Prokaryotic Nomenclature Up-to-date (PNU) service since 1993, and because there is significant overlap in the content of both sites, it was decided to merge the two services into a completely new one, still under the LPSN name, which has a higher profile in the community. On 17 February 2020, the new LPSN was launched at https://lpsn.dsmz.de/ under a modified Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) license.
+  
+  This ColDP dataset has been created from content fetched from the LPSN API using the coldp generator code: https://github.com/CatalogueOfLife/coldp-generator/
 
 issued: {issued}
 version: {version}
 contact:
-  email: info@ictvonline.org
-  organisation: International Committee on Taxonomy of Viruses (ICTV)
+  email: contact@dsmz.de
+  organisation: Leibniz Institute DSMZ-German Collection of Microorganisms and Cell Cultures GmbH (DSMZ)
+contributor:
+  - family: Döring
+    given: Markus
+    orcid: 0000-0001-7757-1889
+    country: Germany
+    city: Berlin
+    email: mdoering@gbif.org
+    note: Developer of ColDP generator code
 creator:
- -
-   organisation: International Committee on Taxonomy of Viruses (ICTV)
 {authors}
-license: CC-BY
-taxonomicScope: Viruses
-taxonomicScopeInEnglish: Viruses
+license: CC BY-SA
+taxonomicScope: Prokaryota
+taxonomicScopeInEnglish: Prokaryotes
 geographicScope: global
 confidence: 5
 completeness: 100
-url: https://talk.ictvonline.org/taxonomy/w/ictv-taxonomy
-logo: https://raw.githubusercontent.com/mdoering/checklist_builder/master/src/main/resources/ictv/ictv-logo.png
+url: https://lpsn.dsmz.de
+logo: https://lpsn.dsmz.de/img/lpsn_logo.svg
 {sources}
