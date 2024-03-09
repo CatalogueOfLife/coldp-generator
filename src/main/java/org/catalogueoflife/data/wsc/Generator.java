@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.base.Preconditions;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
+import life.catalogue.api.model.SimpleName;
 import life.catalogue.api.util.ObjectUtils;
 import life.catalogue.api.vocab.Gazetteer;
 import life.catalogue.coldp.ColdpTerm;
@@ -16,6 +17,7 @@ import org.apache.http.HttpStatus;
 import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.catalogueoflife.data.utils.HttpException;
+import org.gbif.nameparser.api.Rank;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -31,6 +33,7 @@ public class Generator extends AbstractColdpGenerator {
   private static final Pattern LSID_PATTERN = Pattern.compile("nmbe.ch:spider(sp|gen|fam):([0-9]+)");
   private static final String ERROR = "error: ";
   private static int MAX_DEFAULT = 56000;
+  private static String ORDER = "Araneae";
   private final String apiKey;
   private final File tmp;
   private final Set<String> higherLSIDs = new HashSet<>();
@@ -67,7 +70,28 @@ public class Generator extends AbstractColdpGenerator {
       }
     }
     System.out.println("\nParse JSON files");
+    initWriters();
+    addRootClassification();
     parse();
+  }
+
+  private void addRootClassification() throws IOException {
+    SimpleName p = null;
+    for (var sn : List.of(
+            SimpleName.sn(Rank.KINGDOM, "Animalia"),
+            SimpleName.sn(Rank.PHYLUM, "Arthropoda"),
+            SimpleName.sn(Rank.CLASS, "Arachnida"),
+            SimpleName.sn(Rank.ORDER, ORDER)
+    )) {
+      writer.set(ColdpTerm.ID, sn.getRank());
+      if (p != null) {
+        writer.set(ColdpTerm.parentID, p.getName());
+      }
+      writer.set(ColdpTerm.rank, sn.getRank());
+      writer.set(ColdpTerm.scientificName, sn.getName());
+      writer.next();
+      p = sn;
+    }
   }
 
   private void update() throws Exception {
@@ -88,27 +112,28 @@ public class Generator extends AbstractColdpGenerator {
     }
   }
 
-  private void parse() throws Exception {
+  private void initWriters() throws Exception {
     initRefWriter(List.of(
-        ColdpTerm.ID,
-        ColdpTerm.citation,
-        ColdpTerm.doi
+            ColdpTerm.ID,
+            ColdpTerm.citation,
+            ColdpTerm.doi
     ));
     newWriter(ColdpTerm.NameUsage, List.of(
-        ColdpTerm.ID,
-        ColdpTerm.parentID,
-        ColdpTerm.status,
-        ColdpTerm.nameStatus,
-        ColdpTerm.rank,
-        ColdpTerm.uninomial,
-        ColdpTerm.genericName,
-        ColdpTerm.specificEpithet,
-        ColdpTerm.infraspecificEpithet,
-        ColdpTerm.authorship,
-        ColdpTerm.nameReferenceID,
-        ColdpTerm.publishedInPage
+            ColdpTerm.ID,
+            ColdpTerm.parentID,
+            ColdpTerm.status,
+            ColdpTerm.nameStatus,
+            ColdpTerm.rank,
+            ColdpTerm.uninomial,
+            ColdpTerm.genericName,
+            ColdpTerm.specificEpithet,
+            ColdpTerm.infraspecificEpithet,
+            ColdpTerm.authorship,
+            ColdpTerm.nameReferenceID,
+            ColdpTerm.publishedInPage
     ));
-
+  }
+  private void parse() throws Exception {
     try (var dWriter = additionalWriter(ColdpTerm.Distribution, List.of(
         ColdpTerm.taxonID,
         ColdpTerm.gazetteer,
