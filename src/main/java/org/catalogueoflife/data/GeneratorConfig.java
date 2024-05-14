@@ -32,7 +32,7 @@ public class GeneratorConfig {
   public File wscDataRepo;
 
   @Parameter(names = {"--wsc-max-key"})
-  public int wscMaxKey = 61000;
+  public int wscMaxKey = 64000;
 
   @Parameter(names = {"--date"})
   public String date;

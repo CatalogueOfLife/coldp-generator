@@ -32,7 +32,7 @@ public class Generator extends AbstractColdpGenerator {
   private static final String API = "https://wsc.nmbe.ch/api/";
   private static final Pattern LSID_PATTERN = Pattern.compile("nmbe.ch:spider(sp|gen|fam):([0-9]+)");
   private static final String ERROR = "error: ";
-  private static int MAX_DEFAULT = 56000;
+  private static int MAX_DEFAULT = 75000;
   private static String ORDER = "Araneae";
   private final String apiKey;
   private final File json;
