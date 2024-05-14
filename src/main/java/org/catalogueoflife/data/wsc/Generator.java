@@ -35,17 +35,18 @@ public class Generator extends AbstractColdpGenerator {
   private static int MAX_DEFAULT = 56000;
   private static String ORDER = "Araneae";
   private final String apiKey;
-  private final File tmp;
+  private final File json;
   private final Set<String> higherLSIDs = new HashSet<>();
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true, null);
     apiKey = Preconditions.checkNotNull(cfg.apiKey, "API Key required");
-    tmp = new File(cfg.repository, "wsc-api");
-    if (!tmp.exists()) {
-      tmp.mkdirs();
+    json = cfg.wscDataRepo;
+    System.out.println("Keep WSC API responses at " + json);
+    if (!json.exists()) {
+      System.out.println("  creating missing JSON directory");
+      json.mkdirs();
     }
-    System.out.println("Keep WSC API responses at " + tmp);
   }
 
   @Override
@@ -141,9 +142,9 @@ public class Generator extends AbstractColdpGenerator {
     ))) {
       final IntSet refs = new IntOpenHashSet();
       // simply loop over all files
-      for (String fn : tmp.list(new SuffixFileFilter(".json"))) {
+      for (String fn : json.list(new SuffixFileFilter(".json"))) {
         try {
-          var to = read(new File(tmp, fn));
+          var to = read(new File(json, fn));
           if (to.isPresent()) {
             var tax = to.get();
             writer.set(ColdpTerm.ID, tax.taxon.lsid);
@@ -233,9 +234,9 @@ public class Generator extends AbstractColdpGenerator {
     if (!m.find()) {
       throw new IllegalArgumentException("Unexpected LSID " + lsid);
     }
-    int id = Integer.parseInt(m.group(2));
     String rank = m.group(1);
-    File f = new File(tmp, String.format("%s%06d.json", rank, id));
+    int id = Integer.parseInt(m.group(2));
+    File f = new File(json, String.format("%s%06d.json", rank, id));
     // only load from API if it's not yet existing
     boolean failed = false;
     if (f.exists() && !forceUpdate) {
