@@ -34,12 +34,11 @@ public abstract class AbstractColdpGenerator extends AbstractGenerator {
   public AbstractColdpGenerator(GeneratorConfig cfg, boolean addMetadata, @Nullable URI downloadUri) throws IOException {
     super(cfg, addMetadata, "ColDP");
     src = new File("/tmp/" + name + ".src");
-    src.deleteOnExit();
-    this.download = new DownloadUtil(hc);
-    this.srcUri = downloadUri;
+    download = new DownloadUtil(hc);
+    srcUri = downloadUri;
   }
 
-  protected void prepare() throws IOException {
+  protected void prepare() throws Exception {
     // override if needed
   }
 
@@ -47,20 +46,29 @@ public abstract class AbstractColdpGenerator extends AbstractGenerator {
 
   @Override
   protected void addDataFiles() throws Exception {
-    // get latest CSVs
-    if (!src.exists() && srcUri != null) {
-      LOG.info("Downloading latest data from {}", srcUri);
-      download.download(srcUri, src);
-    } else if (srcUri == null) {
-      LOG.info("Reuse data from {}", src);
-    }
-    prepare();
-    addData();
-    if (writer != null) {
-      writer.close();
-    }
-    if (refWriter != null) {
-      refWriter.close();
+    try {
+      // get latest CSVs
+      if (src.exists()) {
+        LOG.info("Reuse data from {}", src);
+      } else if (srcUri != null) {
+        LOG.info("Downloading latest data from {}", srcUri);
+        download.download(srcUri, src);
+      } else {
+        LOG.warn("Missing source file {}", src);
+      }
+      prepare();
+      addData();
+      if (writer != null) {
+        writer.close();
+      }
+      if (refWriter != null) {
+        refWriter.close();
+      }
+
+    } finally {
+      if (src.exists()) {
+        //FileUtils.deleteQuietly(src);
+      }
     }
   }
 
