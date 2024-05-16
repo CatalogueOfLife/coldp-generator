@@ -13,8 +13,8 @@ public class ManualCli {
     //GeneratorCLI.main( new String[]{"-s", "otl", "-r", "/tmp/coldp/archives"} );
     //GeneratorCLI.main( new String[]{"-s", "antcat", "-r", "/tmp/coldp/archives"} );
     GeneratorCLI.main( new String[]{"-s", "wsc", "-r", "/tmp/coldp/archives",
-            "--wsc-data-repo", "/Users/markus/code/data/data-wsc/json"
-            //"--date", "2024-01-01"
+            "--wsc-data-repo", "/Users/markus/code/data/data-wsc/json",
+            "--date", "2024-05-01"
     } );
   }
 }
