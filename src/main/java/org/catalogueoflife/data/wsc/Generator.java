@@ -244,9 +244,9 @@ public class Generator extends AbstractColdpGenerator {
       System.out.println(String.format("Reuse %s", f.getName()));
 
     } else {
-      URI uri = URI.create(API + "lsid/" + lsid + "?apiKey=" + apiKey);
+      String uri = API + "lsid/" + lsid;
       try {
-        http.downloadJSON(uri, new HashMap<>(), f);
+        http.downloadJSON(URI.create(uri + "?apiKey=" + apiKey), new HashMap<>(), f);
         System.out.println(String.format("Crawled %s", lsid));
 
       } catch (HttpException e) {
