@@ -26,8 +26,6 @@ public class Generator extends AbstractTextTreeGenerator {
   private static Logger LOG = LoggerFactory.getLogger(Generator.class);
   private static final URI TAXON = URI.create("https://www.biolib.cz/en/taxon/id");
   private static final URI NAME = URI.create("https://www.biolib.cz/en/taxonnames/id");
-  private static final Integer root = 10713; // Coccinellidae
-  //private static final Integer root = 10726; // small test group
   private static final Pattern idPattern = Pattern.compile("/id(\\d+)/?$", Pattern.CASE_INSENSITIVE);
   private int counter = 0;
   private long synID = -1;
@@ -39,7 +37,7 @@ public class Generator extends AbstractTextTreeGenerator {
   @Override
   protected void populateTree() throws Exception {
     // recursively crawl all children of root
-    processTaxon(root, null);
+    processTaxon(cfg.biolibRootID, null);
     LOG.info("Scraping completed. Added {} taxa and {} synonyms to the tree.", counter, -1 * synID);
   }
 
@@ -98,7 +96,7 @@ public class Generator extends AbstractTextTreeGenerator {
       rank = Optional.of(Rank.OTHER);
     }
 
-    final var tn = new SimpleTreeNode(id, nameTxt, rank.orElse(null), false);
+    final var tn = new SimpleTreeNode(id, nameTxt, rank.orElse(null), false, new HashMap<>(), null);
 
     // add synonyms & vernaculars - load name details
     scrapeName(tn);

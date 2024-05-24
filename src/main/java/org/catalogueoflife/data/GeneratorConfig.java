@@ -28,6 +28,9 @@ public class GeneratorConfig {
   public String lpsnUsername;
   @Parameter(names = {"--lpsn-pass"})
   public String lpsnPassword;
+  @Parameter(names = {"--biolib-root-id"})
+  public int biolibRootID = 10713; // Coccinellidae, 4801=Coleoptera, 14955=Arthropoda, 10726=small test group
+
   @Parameter(names = {"--wsc-data-repo"})
   public File wscDataRepo;
 
