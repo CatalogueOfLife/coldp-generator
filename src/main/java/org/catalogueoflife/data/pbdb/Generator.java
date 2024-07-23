@@ -166,17 +166,19 @@ public class Generator extends AbstractColdpGenerator {
     materialWriter = additionalWriter(ColdpTerm.TypeMaterial, List.of(
             ColdpTerm.ID,
             ColdpTerm.nameID,
-            ColdpTerm.citation,
+            ColdpTerm.referenceID,
+            ColdpTerm.catalogNumber,
+            ColdpTerm.institutionCode,
             ColdpTerm.status,
+            ColdpTerm.collector,
+            ColdpTerm.date,
             ColdpTerm.country,
             ColdpTerm.locality,
             ColdpTerm.latitude,
             ColdpTerm.longitude,
-            ColdpTerm.catalogNumber,
-            ColdpTerm.institutionCode,
-            ColdpTerm.collector,
             ColdpTerm.modified,
             ColdpTerm.modifiedBy,
+            ColdpTerm.link,
             ColdpTerm.remarks
     ));
 
