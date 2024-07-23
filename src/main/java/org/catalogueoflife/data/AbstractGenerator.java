@@ -11,17 +11,14 @@ import life.catalogue.common.text.SimpleTemplate;
 import life.catalogue.metadata.DoiResolver;
 import life.catalogue.metadata.coldp.YamlMapper;
 import org.apache.commons.io.FileUtils;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.catalogueoflife.data.utils.HttpException;
+import org.apache.commons.io.IOUtils;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.catalogueoflife.data.utils.HttpUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.StringReader;
+import java.io.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -31,7 +28,7 @@ public abstract class AbstractGenerator implements Runnable {
   protected final HttpUtils http;
   protected final boolean addMetadata;
   protected final Map<String, Object> metadata = new HashMap<>();
-  protected final List<Citation> sources = new ArrayList<>();
+  protected final List<Citation> sourceCitations = new ArrayList<>();
   protected final String name;
   protected final File dir; // working directory
   protected final CloseableHttpClient hc;
@@ -102,7 +99,7 @@ public abstract class AbstractGenerator implements Runnable {
     var data = doiResolver.resolve(doi, issues);
     if (data != null) {
       LOG.info("Add source DOI {}: {}", doi, data.getCitationText());
-      sources.add(data);
+      sourceCitations.add(data);
     }
     for (var iss : issues.getIssues()) {
       LOG.warn("Resolution of DOI {} caused {}", doi, iss);
@@ -114,12 +111,25 @@ public abstract class AbstractGenerator implements Runnable {
   protected void addMetadata() throws Exception {
     if (addMetadata) {
       // do we have sources?
-      AbstractGenerator.asYaml(sources).ifPresent(yaml -> {
+      AbstractGenerator.asYaml(sourceCitations).ifPresent(yaml -> {
         metadata.put("sources", "source: \n" + yaml);
       });
 
       // use metadata to format
       String template = UTF8IoUtils.readString(Resources.stream(cfg.source + "/metadata.yaml"));
+      try (var mw = UTF8IoUtils.writerFromFile(new File(dir, "metadata.yaml"))) {
+        mw.write(SimpleTemplate.render(template, metadata));
+      }
+
+      // look for logo.png
+      var img = Resources.stream(cfg.source + "/logo.png");
+      if (img != null) {
+        var f = new File(dir, "logo.png");
+        LOG.info("Copy logo.png from resources");
+        try (OutputStream out = new FileOutputStream(f)) {
+          IOUtils.copy(img, out);
+        }
+      }
       try (var mw = UTF8IoUtils.writerFromFile(new File(dir, "metadata.yaml"))) {
         mw.write(SimpleTemplate.render(template, metadata));
       }

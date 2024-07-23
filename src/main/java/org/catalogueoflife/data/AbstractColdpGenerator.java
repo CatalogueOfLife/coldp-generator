@@ -1,6 +1,8 @@
 package org.catalogueoflife.data;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import life.catalogue.coldp.ColdpTerm;
@@ -13,29 +15,40 @@ import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public abstract class AbstractColdpGenerator extends AbstractGenerator {
   protected final DownloadUtil download;
-  protected final File src; // optional download
-  protected final URI srcUri;
+  protected final File sources;
+  protected final Map<String, URI> downloadURIs = new HashMap<>();
   protected TermWriter writer;
   protected TermWriter refWriter;
   private int refCounter = 1;
-  protected final static ObjectMapper mapper = new ObjectMapper()
+  protected final static ObjectMapper mapper = new ObjectMapper(new JsonFactory()
+          .configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET,false)
+      )
       .setSerializationInclusion(JsonInclude.Include.NON_EMPTY)
       .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
       .enable(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT);
 
   public AbstractColdpGenerator(GeneratorConfig cfg, boolean addMetadata) throws IOException {
-    this(cfg, addMetadata, null);
+    this(cfg, addMetadata, Collections.EMPTY_MAP);
   }
 
-  public AbstractColdpGenerator(GeneratorConfig cfg, boolean addMetadata, @Nullable URI downloadUri) throws IOException {
+  public AbstractColdpGenerator(GeneratorConfig cfg, boolean addMetadata, Map<String, URI> downloads) throws IOException {
     super(cfg, addMetadata, "ColDP");
-    src = new File("/tmp/" + name + ".src");
+    sources = new File("/tmp/" + name + "-sources");
     download = new DownloadUtil(hc);
-    srcUri = downloadUri;
+    if (downloads != null && !downloads.isEmpty()) {
+      downloadURIs.putAll(downloads);
+    }
+  }
+
+  protected File sourceFile(String fn) {
+    return new File(sources, fn);
   }
 
   protected void prepare() throws Exception {
@@ -46,29 +59,28 @@ public abstract class AbstractColdpGenerator extends AbstractGenerator {
 
   @Override
   protected void addDataFiles() throws Exception {
-    try {
-      // get latest CSVs
-      if (src.exists()) {
-        LOG.info("Reuse data from {}", src);
-      } else if (srcUri != null) {
-        LOG.info("Downloading latest data from {}", srcUri);
-        download.download(srcUri, src);
+    // get latest data files or reuse existing ones
+    if (sources.exists()) {
+      LOG.info("Reuse data from {}. To enforce new data downloads please wipe the directory3", sources);
+    } else {
+      sources.mkdirs();
+    }
+    for (var e : downloadURIs.entrySet()) {
+      var f = new File(sources, e.getKey());
+      if (!f.exists()) {
+        LOG.info("Downloading latest {} from {} to {}", e.getKey(), e.getValue(), f);
+        download.download(e.getValue(), f);
       } else {
-        LOG.warn("Missing source file {}", src);
+        LOG.info("Reuse source file {}", f);
       }
-      prepare();
-      addData();
-      if (writer != null) {
-        writer.close();
-      }
-      if (refWriter != null) {
-        refWriter.close();
-      }
-
-    } finally {
-      if (src.exists()) {
-        //FileUtils.deleteQuietly(src);
-      }
+    }
+    prepare();
+    addData();
+    if (writer != null) {
+      writer.close();
+    }
+    if (refWriter != null) {
+      refWriter.close();
     }
   }
 

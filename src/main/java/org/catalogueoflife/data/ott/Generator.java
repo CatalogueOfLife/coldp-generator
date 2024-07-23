@@ -47,24 +47,25 @@ public class Generator extends AbstractColdpGenerator {
       "no rank - terminal", "unranked"
   );
   private final String version;
+  protected static final String srcFN = "data.tgz";
   private final LocalDate issued;
-  protected File sources;
+  protected File ottSources;
 
   public Generator(GeneratorConfig cfg) throws IOException {
     this(cfg, DOWNLOAD, VERSION, ISSUED);
   }
 
   public Generator(GeneratorConfig cfg, URI download, String version, LocalDate issued) throws IOException {
-    super(cfg, true, download);
+    super(cfg, true, Map.of(srcFN, download));
     this.version = version;
     this.issued = issued;
   }
 
   @Override
   protected void prepare() throws IOException {
-    System.out.println("Unpack archive " + src);
-    sources = new File(dir, "sources");
-    CompressionUtil.decompressFile(sources, src);
+    System.out.println("Unpack archive " + srcFN);
+    ottSources = new File(dir, "sources");
+    CompressionUtil.decompressFile(ottSources, sourceFile(srcFN));
 
     // write just the NameUsage file
     newWriter(ColdpTerm.NameUsage, List.of(
@@ -118,7 +119,7 @@ public class Generator extends AbstractColdpGenerator {
     }
 
     System.out.println("Remove source files");
-    FileUtils.deleteQuietly(sources);
+    FileUtils.deleteQuietly(ottSources);
   }
 
   protected static String translateRank(String value) {
@@ -132,7 +133,7 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   protected Iterator<String[]> iterate(String filename) throws IOException {
-    BufferedReader br = UTF8IoUtils.readerFromFile(new File(sources, filename));
+    BufferedReader br = UTF8IoUtils.readerFromFile(new File(ottSources, filename));
     Iterator<String[]> iter = br.lines().map(this::split).iterator();
     iter.next(); // skip header row
     return iter;

@@ -18,8 +18,6 @@ package org.catalogueoflife.data.otl;
 import com.google.common.annotations.VisibleForTesting;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import life.catalogue.api.model.SimpleName;
-import life.catalogue.api.vocab.TaxonomicStatus;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.CompressionUtil;
 import life.catalogue.common.io.UTF8IoUtils;
@@ -27,7 +25,6 @@ import org.apache.commons.io.FileUtils;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.catalogueoflife.newick.SimpleNode;
 import org.catalogueoflife.newick.SimpleParser;
-import org.gbif.nameparser.api.Rank;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -66,9 +63,9 @@ public class Generator extends org.catalogueoflife.data.ott.Generator {
 
   @Override
   protected void prepare() throws IOException {
-    System.out.println("Unpack archive " + src);
-    sources = new File(dir, "sources");
-    CompressionUtil.decompressFile(sources, src);
+    System.out.println("Unpack archive " + sourceFile(srcFN));
+    ottSources = new File(dir, "sources");
+    CompressionUtil.decompressFile(ottSources, sourceFile(srcFN));
 
     System.out.println("Read OTT taxonomy");
     var iter = iterate("taxonomy.tsv");
@@ -140,7 +137,7 @@ public class Generator extends org.catalogueoflife.data.ott.Generator {
   @Override
   protected void addData() throws Exception {
     System.out.println("Read Newick tree");
-    Reader br = UTF8IoUtils.readerFromFile(new File(sources, "labelled_supertree.tre"));
+    Reader br = UTF8IoUtils.readerFromFile(new File(ottSources, "labelled_supertree.tre"));
     var p = new SimpleParser(br);
     var root = p.parse();
 
@@ -148,7 +145,7 @@ public class Generator extends org.catalogueoflife.data.ott.Generator {
     writeNode(root, null);
 
     System.out.println("Remove source files");
-    FileUtils.deleteQuietly(sources);
+    FileUtils.deleteQuietly(ottSources);
   }
 
 }

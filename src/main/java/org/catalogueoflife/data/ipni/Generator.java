@@ -42,9 +42,9 @@ import static org.gbif.dwc.terms.DwcTerm.month;
  * id|version_s_lower|ipni_record_type_s_lower|top_copy_b|suppressed_b|abbreviation_s_lower|title_s_lower|remarks_s_lower|bph_number_s_lower|isbn_s_lower|issn_s_lower|date_s_lower|lc_number_s_lower|preceded_by_s_lower|tl2_author_s_lower|tl2_number_s_lower|tdwg_abbreviation_s_lower|superceded_by_s_lower|sortable
  */
 public class Generator extends AbstractColdpGenerator {
-  private static final URI DOWNLOAD = URI.create("https://storage.googleapis.com/ipni-data/ipniWebName.csv.xz");
-  private static final URI DOWNLOAD_REF = URI.create("https://storage.googleapis.com/ipni-data/ipniWebPublications.csv.xz");
-
+  private static final String DOWNLOAD = "https://storage.googleapis.com/ipni-data/";
+  private static final String nameFN = "ipniWebName.csv.xz";
+  private static final String refFN = "ipniWebPublications.csv.xz";
   private static final String LINK_BASE = "https://www.ipni.org";
   static final Pattern PAGES = Pattern.compile("\\s*:\\s*");
   static final Pattern COLLATION = Pattern.compile("^(\\d+)(?:\\s*[(-]\\s*(\\d+(?:\\s*[,-]\\s*\\d+)?)\\s*\\)?)?\\s*$");
@@ -57,24 +57,17 @@ public class Generator extends AbstractColdpGenerator {
   private TermWriter typeWriter;
   private TermWriter nameRelWriter;
   private Map<String, Set<Reference>> refCollations = new HashMap<>(); // ref id to set of collations
-  private File refSrc;
-
   private Set<String> refIDs = new HashSet<>();
 
   public Generator(GeneratorConfig cfg) throws IOException {
-    super(cfg, true, DOWNLOAD);
+    super(cfg, true, Map.of(
+            nameFN, URI.create(DOWNLOAD + nameFN),
+            refFN, URI.create(DOWNLOAD + refFN)
+    ));
   }
 
   @Override
   protected void prepare() throws IOException {
-    // download refs
-    refSrc = new File("/tmp/ipni-bib.src");
-    refSrc.deleteOnExit();
-    if (!refSrc.exists()) {
-      LOG.info("Downloading latest bib data from {}", DOWNLOAD_REF);
-      download.download(DOWNLOAD_REF, refSrc);
-    }
-
     newWriter(ColdpTerm.Name, List.of(
         ColdpTerm.ID,
         ColdpTerm.rank,
@@ -135,8 +128,8 @@ public class Generator extends AbstractColdpGenerator {
   // id|version_s_lower|ipni_record_type_s_lower|top_copy_b|suppressed_b|abbreviation_s_lower|title_s_lower|remarks_s_lower|bph_number_s_lower|isbn_s_lower|issn_s_lower|date_s_lower|lc_number_s_lower|preceded_by_s_lower|tl2_author_s_lower|tl2_number_s_lower|tdwg_abbreviation_s_lower|superceded_by_s_lower|sortable
   @Override
   protected void addData() throws Exception {
-    try (InputStream inNames = new XZCompressorInputStream(new FileInputStream(src));
-         InputStream inRefs = new XZCompressorInputStream(new FileInputStream(refSrc));
+    try (InputStream inNames = new XZCompressorInputStream(new FileInputStream(sourceFile(nameFN)));
+         InputStream inRefs = new XZCompressorInputStream(new FileInputStream(sourceFile(refFN)));
     ){
       var iter = iterate(inNames);
       while(iter.hasNext()) {

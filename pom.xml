@@ -38,8 +38,8 @@
     <col.version>1.0-SNAPSHOT</col.version>
     <dwc-api.version>1.46</dwc-api.version>
     <dwca-io.version>2.11</dwca-io.version>
-    <httpcore.version>4.4.16</httpcore.version>
-    <jackson.version>2.13.5</jackson.version>
+    <httpclient.version>5.3.1</httpclient.version>
+    <jackson.version>2.16.1</jackson.version>
     <jbibtex.version>1.0.20</jbibtex.version>
     <jcommander.version>1.82</jcommander.version>
     <jena.version>4.10.0</jena.version>
@@ -47,7 +47,7 @@
     <junit.version>4.12</junit.version>
     <keycloak.version>23.0.7</keycloak.version>
     <logback.version>1.2.13</logback.version>
-    <name-parser.version>3.10.1</name-parser.version>
+    <name-parser.version>4.0.0-SNAPSHOT</name-parser.version>
     <newick-io.version>1.0.6</newick-io.version>
     <poi.version>5.2.3</poi.version>
     <scribejava.version>8.3.3</scribejava.version>
@@ -322,9 +322,9 @@
       <version>${jcommander.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.apache.httpcomponents</groupId>
-      <artifactId>httpcore</artifactId>
-      <version>${httpcore.version}</version>
+      <groupId>org.apache.httpcomponents.client5</groupId>
+      <artifactId>httpclient5</artifactId>
+      <version>${httpclient.version}</version>
     </dependency>
     <!-- jackson -->
     <dependency>
@@ -340,6 +340,11 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-annotations</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.module</groupId>
+      <artifactId>jackson-module-blackbird</artifactId>
       <version>${jackson.version}</version>
     </dependency>
     <dependency>

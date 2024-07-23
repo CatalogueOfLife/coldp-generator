@@ -59,7 +59,7 @@ public class Generator extends AbstractColdpGenerator {
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
     kc = new Configuration();
-    kc.setHttpClient(hc);
+    //kc.setHttpClient(hc); // need to migrate to hc5 or use a separate instance
     kc.setRealm("dsmz");
     kc.setAuthServerUrl(SSO);
     kc.setResource(client_id);
@@ -247,8 +247,8 @@ public class Generator extends AbstractColdpGenerator {
   protected void addMetadata() throws Exception {
     addSource(SOURCE);
     // now also use authors of the source as dataset authors!
-    if (!sources.isEmpty()) {
-      asYaml(sources.get(0).getAuthor()).ifPresent(yaml -> {
+    if (!sourceCitations.isEmpty()) {
+      asYaml(sourceCitations.get(0).getAuthor()).ifPresent(yaml -> {
         metadata.put("authors", yaml);
       });
     }

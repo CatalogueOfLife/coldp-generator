@@ -23,6 +23,7 @@ import java.util.*;
 
 public class Generator extends AbstractColdpGenerator {
   static final URI DOWNLOAD = URI.create("https://dumps.wikimedia.org/specieswiki/latest/specieswiki-latest-pages-articles.xml.bz2");
+  static final String srcFN = "data.xml.bz2";
   int counterTax = 0;
   int counterTmpl = 0;
   BufferedWriter titles;
@@ -30,7 +31,7 @@ public class Generator extends AbstractColdpGenerator {
   private TermWriter vernWriter;
 
   public Generator(GeneratorConfig cfg) throws IOException {
-    super(cfg, true, DOWNLOAD);
+    super(cfg, true, Map.of(srcFN, DOWNLOAD));
     ParserConfig pcfg = new SimpleParserConfig();
     p = new WikitextParser(pcfg);
   }
@@ -40,7 +41,7 @@ public class Generator extends AbstractColdpGenerator {
     System.out.println("\nStart Wikispecies parsing");
     var factory = XMLInputFactory.newInstance();
     titles = UTF8IoUtils.writerFromFile(new File("/tmp/wikispecies-titles.txt"));
-    try (var input = new FileInputStream(src)) {
+    try (var input = new FileInputStream(sourceFile(srcFN))) {
     //try (var input = new BZip2CompressorInputStream(new FileInputStream(src), true)) {
       XMLStreamReader parser = factory.createXMLStreamReader(new InputStreamReader(input, StandardCharsets.UTF_8));
 

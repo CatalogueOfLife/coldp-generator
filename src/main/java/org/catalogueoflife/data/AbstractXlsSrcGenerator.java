@@ -13,19 +13,21 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Locale;
+import java.util.Map;
 
 public abstract class AbstractXlsSrcGenerator extends AbstractColdpGenerator {
+  private static final String srcFN = "data.xls";
   protected Workbook wb;
   private DataFormatter formatter;
   private FormulaEvaluator evaluator;
 
-  public AbstractXlsSrcGenerator(GeneratorConfig cfg, boolean addMetadata, @Nullable URI downloadUri) throws IOException {
-    super(cfg, addMetadata, downloadUri);
+  public AbstractXlsSrcGenerator(GeneratorConfig cfg, boolean addMetadata, URI downloadUri) throws IOException {
+    super(cfg, addMetadata, Map.of(srcFN, downloadUri));
   }
 
   @Override
   protected void prepare() throws IOException {
-    wb = WorkbookFactory.create(src);
+    wb = WorkbookFactory.create(sourceFile(srcFN));
     formatter = new DataFormatter(Locale.US);
     evaluator = wb.getCreationHelper().createFormulaEvaluator();;
   }

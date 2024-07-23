@@ -14,8 +14,6 @@ description: |-
   With the rise in actual and anticipated new prokaryotic names, the LPSN had become increasingly difficult to maintain, so a better technical and funding basis was sought. 
   To that end, in November 2019, the LPSN was acquired by Leibniz Institute DSMZ – German Collection of Microorganisms and Cell Cultures GmbH, Germany. 
   The DSMZ already had its Prokaryotic Nomenclature Up-to-date (PNU) service since 1993, and because there is significant overlap in the content of both sites, it was decided to merge the two services into a completely new one, still under the LPSN name, which has a higher profile in the community. On 17 February 2020, the new LPSN was launched at https://lpsn.dsmz.de/ under a modified Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) license.
-  
-  This ColDP dataset has been created from content fetched from the LPSN API using the coldp generator code: https://github.com/CatalogueOfLife/coldp-generator/
 
 issued: {issued}
 version: {version}

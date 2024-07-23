@@ -31,7 +31,7 @@ public abstract class AbstractTextTreeGenerator extends AbstractGenerator {
   protected void addMetadata() throws Exception {
     if (addMetadata) {
       // do we have sources?
-      asYaml(sources).ifPresent(yaml -> {
+      asYaml(sourceCitations).ifPresent(yaml -> {
         metadata.put("sources", "source: \n" + yaml);
       });
 
