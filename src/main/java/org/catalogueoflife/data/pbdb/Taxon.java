@@ -12,8 +12,7 @@ import java.util.Objects;
  * "jec":"Insecta","jmo":"actively mobile","jco":"chitin"},
  *
  */
-public class Taxon {
-    private String oid; // ID
+public class Taxon extends Base {
     private String vid; // A unique identifier for the selected variant of this taxonomic name. By default, this is the variant currently accepted as most correct.
     private String flg; // flags: This field will be empty for most records. Otherwise, it will contain one or more of the following letters: I= taxon is an ichnotaxon. F= taxon is a form taxon.
     private Integer rnk; // rank
@@ -25,17 +24,6 @@ public class Taxon {
     private String acn; // accepted name
     private String ext; // True if this taxon is extant on earth today, false if not, not present if unrecorded
     private String img; // If this value is non-zero, you can use it to construct image URLs using taxa/thumb and taxa/icon.
-
-    private String ati; // The identifier of the person who authorized the entry of this record
-    private String ath; // The name of the person who authorized the entry of this record
-    private String eni; // The identifier of the person who actually entered this record.
-    private String ent; // The name of the person who actually entered this record
-    private String mdi; // The identifier of the person who last modified this record, if it has been modified.
-    private String mdf; // The name of the person who last modified this record, if it has been modified.
-    private String dcr; // The date and time at which this record was created.
-    private String dmd; // The date and time at which this record was last modified.
-
-    private String rid; // The identifier of the reference from which this name was entered.
 
     // geotimes
     private Float fea; // The early age bound for the first appearance of this taxon in the database
@@ -88,14 +76,6 @@ public class Taxon {
     private String jon; // ontogeny
     private String jco; // composition: chitin
 
-    public String getOid() {
-        return oid;
-    }
-
-    public void setOid(String oid) {
-        this.oid = oid;
-    }
-
     public String getFlg() {
         return flg;
     }
@@ -134,14 +114,6 @@ public class Taxon {
 
     public void setPar(String par) {
         this.par = par;
-    }
-
-    public String getRid() {
-        return rid;
-    }
-
-    public void setRid(String rid) {
-        this.rid = rid;
     }
 
     public String getExt() {
@@ -341,70 +313,6 @@ public class Taxon {
         this.acn = acn;
     }
 
-    public String getAti() {
-        return ati;
-    }
-
-    public void setAti(String ati) {
-        this.ati = ati;
-    }
-
-    public String getAth() {
-        return ath;
-    }
-
-    public void setAth(String ath) {
-        this.ath = ath;
-    }
-
-    public String getEni() {
-        return eni;
-    }
-
-    public void setEni(String eni) {
-        this.eni = eni;
-    }
-
-    public String getEnt() {
-        return ent;
-    }
-
-    public void setEnt(String ent) {
-        this.ent = ent;
-    }
-
-    public String getMdi() {
-        return mdi;
-    }
-
-    public void setMdi(String mdi) {
-        this.mdi = mdi;
-    }
-
-    public String getMdf() {
-        return mdf;
-    }
-
-    public void setMdf(String mdf) {
-        this.mdf = mdf;
-    }
-
-    public String getDcr() {
-        return dcr;
-    }
-
-    public void setDcr(String dcr) {
-        this.dcr = dcr;
-    }
-
-    public String getDmd() {
-        return dmd;
-    }
-
-    public void setDmd(String dmd) {
-        this.dmd = dmd;
-    }
-
     public Float getFea() {
         return fea;
     }
@@ -569,11 +477,12 @@ public class Taxon {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Taxon taxon)) return false;
-        return Objects.equals(oid, taxon.oid) && Objects.equals(vid, taxon.vid) && Objects.equals(flg, taxon.flg) && Objects.equals(rnk, taxon.rnk) && Objects.equals(nam, taxon.nam) && Objects.equals(att, taxon.att) && Objects.equals(nm2, taxon.nm2) && Objects.equals(tdf, taxon.tdf) && Objects.equals(acc, taxon.acc) && Objects.equals(acn, taxon.acn) && Objects.equals(ati, taxon.ati) && Objects.equals(ath, taxon.ath) && Objects.equals(eni, taxon.eni) && Objects.equals(ent, taxon.ent) && Objects.equals(mdi, taxon.mdi) && Objects.equals(mdf, taxon.mdf) && Objects.equals(dcr, taxon.dcr) && Objects.equals(dmd, taxon.dmd) && Objects.equals(rid, taxon.rid) && Objects.equals(ext, taxon.ext) && Objects.equals(noc, taxon.noc) && Objects.equals(fea, taxon.fea) && Objects.equals(fla, taxon.fla) && Objects.equals(lea, taxon.lea) && Objects.equals(lla, taxon.lla) && Objects.equals(tei, taxon.tei) && Objects.equals(tli, taxon.tli) && Objects.equals(siz, taxon.siz) && Objects.equals(exs, taxon.exs) && Objects.equals(img, taxon.img) && Objects.equals(prt, taxon.prt) && Objects.equals(prl, taxon.prl) && Objects.equals(prr, taxon.prr) && Objects.equals(par, taxon.par) && Objects.equals(ipn, taxon.ipn) && Objects.equals(ipl, taxon.ipl) && Objects.equals(kgn, taxon.kgn) && Objects.equals(kgl, taxon.kgl) && Objects.equals(phn, taxon.phn) && Objects.equals(phl, taxon.phl) && Objects.equals(cln, taxon.cln) && Objects.equals(cll, taxon.cll) && Objects.equals(odn, taxon.odn) && Objects.equals(odl, taxon.odl) && Objects.equals(fmn, taxon.fmn) && Objects.equals(fml, taxon.fml) && Objects.equals(gnn, taxon.gnn) && Objects.equals(gnl, taxon.gnl) && Objects.equals(ttl, taxon.ttl) && Objects.equals(ttn, taxon.ttn) && Objects.equals(jec, taxon.jec) && Objects.equals(jev, taxon.jev) && Objects.equals(jmo, taxon.jmo) && Objects.equals(jlh, taxon.jlh) && Objects.equals(jvs, taxon.jvs) && Objects.equals(jdt, taxon.jdt) && Objects.equals(jre, taxon.jre) && Objects.equals(jon, taxon.jon) && Objects.equals(jco, taxon.jco);
+        if (!super.equals(o)) return false;
+        return Objects.equals(vid, taxon.vid) && Objects.equals(flg, taxon.flg) && Objects.equals(rnk, taxon.rnk) && Objects.equals(nam, taxon.nam) && Objects.equals(att, taxon.att) && Objects.equals(nm2, taxon.nm2) && Objects.equals(tdf, taxon.tdf) && Objects.equals(acc, taxon.acc) && Objects.equals(acn, taxon.acn) && Objects.equals(ext, taxon.ext) && Objects.equals(img, taxon.img) && Objects.equals(fea, taxon.fea) && Objects.equals(fla, taxon.fla) && Objects.equals(lea, taxon.lea) && Objects.equals(lla, taxon.lla) && Objects.equals(tei, taxon.tei) && Objects.equals(tli, taxon.tli) && Objects.equals(siz, taxon.siz) && Objects.equals(exs, taxon.exs) && Objects.equals(noc, taxon.noc) && Objects.equals(prt, taxon.prt) && Objects.equals(prl, taxon.prl) && Objects.equals(prr, taxon.prr) && Objects.equals(par, taxon.par) && Objects.equals(ipn, taxon.ipn) && Objects.equals(ipl, taxon.ipl) && Objects.equals(kgn, taxon.kgn) && Objects.equals(kgl, taxon.kgl) && Objects.equals(phn, taxon.phn) && Objects.equals(phl, taxon.phl) && Objects.equals(cln, taxon.cln) && Objects.equals(cll, taxon.cll) && Objects.equals(odn, taxon.odn) && Objects.equals(odl, taxon.odl) && Objects.equals(fmn, taxon.fmn) && Objects.equals(fml, taxon.fml) && Objects.equals(gnn, taxon.gnn) && Objects.equals(gnl, taxon.gnl) && Objects.equals(ttl, taxon.ttl) && Objects.equals(ttn, taxon.ttn) && Objects.equals(jec, taxon.jec) && Objects.equals(jev, taxon.jev) && Objects.equals(jmo, taxon.jmo) && Objects.equals(jlh, taxon.jlh) && Objects.equals(jvs, taxon.jvs) && Objects.equals(jdt, taxon.jdt) && Objects.equals(jre, taxon.jre) && Objects.equals(jon, taxon.jon) && Objects.equals(jco, taxon.jco);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(oid, vid, flg, rnk, nam, att, nm2, tdf, acc, acn, ati, ath, eni, ent, mdi, mdf, dcr, dmd, rid, ext, noc, fea, fla, lea, lla, tei, tli, siz, exs, img, prt, prl, prr, par, ipn, ipl, kgn, kgl, phn, phl, cln, cll, odn, odl, fmn, fml, gnn, gnl, ttl, ttn, jec, jev, jmo, jlh, jvs, jdt, jre, jon, jco);
+        return Objects.hash(super.hashCode(), vid, flg, rnk, nam, att, nm2, tdf, acc, acn, ext, img, fea, fla, lea, lla, tei, tli, siz, exs, noc, prt, prl, prr, par, ipn, ipl, kgn, kgl, phn, phl, cln, cll, odn, odl, fmn, fml, gnn, gnl, ttl, ttn, jec, jev, jmo, jlh, jvs, jdt, jre, jon, jco);
     }
 }

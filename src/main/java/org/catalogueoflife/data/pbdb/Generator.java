@@ -20,8 +20,6 @@ import com.univocity.parsers.common.IterableResult;
 import com.univocity.parsers.common.ParsingContext;
 import com.univocity.parsers.csv.CsvParser;
 import com.univocity.parsers.csv.CsvParserSettings;
-import com.univocity.parsers.tsv.TsvParser;
-import com.univocity.parsers.tsv.TsvParserSettings;
 import life.catalogue.api.model.Agent;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
@@ -34,10 +32,7 @@ import org.catalogueoflife.data.utils.bibjson.BibRef;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -47,10 +42,17 @@ import java.util.regex.Pattern;
  */
 public class Generator extends AbstractColdpGenerator {
   private static final String API = "https://paleobiodb.org/data1.2";
-  private static final String taxaFN = "taxa.json";
-  private static final String rankFN = "ranks.csv";
+  private static final String LINK_TAXON = "https://paleobiodb.org/classic/checkTaxonInfo?taxon_no=";
+  private static final String LINK_COLLECTION = "https://paleobiodb.org/classic?a=basicCollectionSearch&collection_no=";
+  private static final String LINK_REFERENCE = "https://paleobiodb.org/classic/displayReference?reference_no=";
 
+
+  private static final String taxaFN = "taxa.json";
+  private static final String specFN = "specimen.json";
   private static final String refFN = "references.json";
+  private static final String rankFN = "ranks.csv";
+  private static final String collFN = "collections.json";
+
   private TermWriter authorWriter;
   private TermWriter factWriter;
   private TermWriter vernacularWriter;
@@ -63,9 +65,10 @@ public class Generator extends AbstractColdpGenerator {
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true, Map.of(
             taxaFN, URI.create(API + "/taxa/list.json?all_taxa=true&show=attr,app,common,parent,immparent,classext,ecospace,ttaph,nav,img,ref,refattr,ent,entname,crmod"),
-            rankFN, URI.create(API + "/config.txt?show=ranks"),
-            //taxaFN, URI.create(API + "/opinions/list.json?all_taxa=true"),
-            refFN, URI.create(API + "/refs/list.json?vocab=bibjson&all_records=true")
+            specFN, URI.create(API + "/specs/list.json?all_records=true&show=attr,abund,plant,ecospace,taphonomy,coll,coords,loc,strat,lith,methods,env,geo,rem,resgroup,ent,entname,crmod"),
+            refFN, URI.create(API + "/refs/list.json?vocab=bibjson&all_records=true"),
+            //collFN, URI.create(API + "/config.txt?show=ranks"),
+            rankFN, URI.create(API + "/config.txt?show=ranks")
     ));
   }
 
@@ -119,12 +122,12 @@ public class Generator extends AbstractColdpGenerator {
       ColdpTerm.temporalRangeStart,
       ColdpTerm.temporalRangeEnd,
       ColdpTerm.referenceID,
-      ColdpTerm.kingdom,
-      ColdpTerm.phylum,
-      ColdpTerm.class_,
-      ColdpTerm.order,
-      ColdpTerm.family,
-      ColdpTerm.genus,
+      //ColdpTerm.kingdom,
+      //ColdpTerm.phylum,
+      //ColdpTerm.class_,
+      //ColdpTerm.order,
+      //ColdpTerm.family,
+      //ColdpTerm.genus,
       ColdpTerm.link,
       ColdpTerm.scrutinizer,
       ColdpTerm.scrutinizerID,
@@ -171,7 +174,10 @@ public class Generator extends AbstractColdpGenerator {
             ColdpTerm.longitude,
             ColdpTerm.catalogNumber,
             ColdpTerm.institutionCode,
-            ColdpTerm.collector
+            ColdpTerm.collector,
+            ColdpTerm.modified,
+            ColdpTerm.modifiedBy,
+            ColdpTerm.remarks
     ));
 
     parseDataFiles();
@@ -218,7 +224,6 @@ public class Generator extends AbstractColdpGenerator {
       LOG.info("{} ranks found in vocabulary", ranks.size());
     }
 
-
     TypeReference<Wrapper<Taxon>> taxTYPE = new TypeReference<>() {};
     try (var in = UTF8IoUtils.readerFromFile(sourceFile(taxaFN))) {
       var res = mapper.readValue(in, taxTYPE);
@@ -248,36 +253,29 @@ public class Generator extends AbstractColdpGenerator {
           writer.set(ColdpTerm.parentID, t.getPar());
         }
 
-        writeHigherRank(ColdpTerm.kingdom, t.getKgl());
-        writeHigherRank(ColdpTerm.phylum, t.getPhl());
-        writeHigherRank(ColdpTerm.class_, t.getCll());
-        writeHigherRank(ColdpTerm.order, t.getOdl());
-        writeHigherRank(ColdpTerm.family, t.getFml());
-        writeHigherRank(ColdpTerm.genus, t.getGnl());
+        //writeHigherRank(ColdpTerm.kingdom, t.getKgl());
+        //writeHigherRank(ColdpTerm.phylum, t.getPhl());
+        //writeHigherRank(ColdpTerm.class_, t.getCll());
+        //writeHigherRank(ColdpTerm.order, t.getOdl());
+        //writeHigherRank(ColdpTerm.family, t.getFml());
+        //writeHigherRank(ColdpTerm.genus, t.getGnl());
 
         writer.set(ColdpTerm.scrutinizer, t.getEnt());
         if (t.getEni() != null) {
           loadPerson(t.getEni(), t.getEnt());
           writer.set(ColdpTerm.scrutinizerID, t.getEni());
         }
-        writer.set(ColdpTerm.modified, t.getDmd());
-        if (t.getMdi() != null) {
-          loadPerson(t.getMdi(), t.getMdf());
-          writer.set(ColdpTerm.modifiedBy, t.getMdi());
-        }
 
-        //TODO: geological times
-        //Tyrannosaursu: "fea":83.6,"fla":66,   "lea":83.6,"lla":66,
+        // geological times
         writer.set(ColdpTerm.temporalRangeStart, millionYears(t.getFea()));
         writer.set(ColdpTerm.temporalRangeEnd, millionYears(t.getLla()));
 
+        writer.set(ColdpTerm.link, LINK_TAXON + t.getOid());
+        writer.set(ColdpTerm.remarks, remarks.toString());
 
-        if (!remarks.isEmpty()) {
-          writer.set(ColdpTerm.remarks, remarks.toString());
-        }
         writer.next();
 
-        // types
+        // type species
         if (t.getTtn() != null) {
           nomRelWriter.set(ColdpTerm.nameID, t.getOid());
           nomRelWriter.set(ColdpTerm.type, "TYPE");
@@ -301,11 +299,55 @@ public class Generator extends AbstractColdpGenerator {
         writeFact(t.getOid(), "reproduction", t.getJre());
         writeFact(t.getOid(), "ontogeny", t.getJon());
         writeFact(t.getOid(), "composition", t.getJco());
+
+        // modified
+        writeModified(writer, t);
       }
     }
     writer.close();
     vernacularWriter.close();
     factWriter.close();
+
+    TypeReference<Wrapper<Specimen>> specTYPE = new TypeReference<>() {};
+    try (var in = UTF8IoUtils.readerFromFile(sourceFile(specFN))) {
+      var res = mapper.readValue(in, specTYPE);
+      LOG.info("{} specimens discovered", res.records.size());
+      for (var sp : res.records) {
+        var remarks = new RemarksBuilder();
+        materialWriter.set(ColdpTerm.ID, sp.getOid());
+        materialWriter.set(ColdpTerm.nameID, sp.getTid());
+        materialWriter.set(ColdpTerm.referenceID, sp.getRid());
+        materialWriter.set(ColdpTerm.status, sp.getSmt());
+
+        materialWriter.set(ColdpTerm.institutionCode, sp.getCcu()); // The museum or museums which hold the specimens.
+        materialWriter.set(ColdpTerm.catalogNumber, sp.getSmi()); // The identifier for this specimen according to its custodial institution
+        materialWriter.set(ColdpTerm.collector, sp.getCcc()); // Names of the collectors.
+        materialWriter.set(ColdpTerm.date, sp.getCcd()); // Dates on which the collection was done.
+        materialWriter.set(ColdpTerm.locality, sp.getCnm());
+        materialWriter.set(ColdpTerm.country, sp.getCc2());
+        materialWriter.set(ColdpTerm.latitude, sp.getLng());
+        materialWriter.set(ColdpTerm.longitude, sp.getLat());
+
+        remarks.append(sp.getSmp()); // specimen part
+        remarks.append(sp.getGgc()); // geographic comments
+        remarks.append(sp.getSmc()); // stratigraphic comments
+        remarks.append(sp.getCcm()); // Collection comments
+        remarks.append(sp.getTcm()); // Taxonomy comments
+        materialWriter.set(ColdpTerm.remarks, remarks.toString());
+
+        writeModified(materialWriter, sp);
+        materialWriter.set(ColdpTerm.link, LINK_COLLECTION + sp.getCid());
+        materialWriter.next();
+      }
+    }
+  }
+
+  private void writeModified(TermWriter writer, Base obj) throws IOException {
+    writer.set(ColdpTerm.modified, obj.getDmd());
+    if (obj.getMdi() != null) {
+      loadPerson(obj.getMdi(), obj.getMdf());
+      writer.set(ColdpTerm.modifiedBy, obj.getMdi());
+    }
   }
 
   private static String millionYears(Float fea) {
