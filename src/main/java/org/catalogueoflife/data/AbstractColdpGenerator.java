@@ -15,10 +15,7 @@ import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public abstract class AbstractColdpGenerator extends AbstractGenerator {
   protected final DownloadUtil download;
@@ -26,6 +23,7 @@ public abstract class AbstractColdpGenerator extends AbstractGenerator {
   protected final Map<String, URI> downloadURIs = new HashMap<>();
   protected TermWriter writer;
   protected TermWriter refWriter;
+  private final List<TermWriter> addWriter = new ArrayList<>();
   private int refCounter = 1;
   protected final static ObjectMapper mapper = new ObjectMapper(new JsonFactory()
           .configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET,false)
@@ -82,6 +80,9 @@ public abstract class AbstractColdpGenerator extends AbstractGenerator {
     if (refWriter != null) {
       refWriter.close();
     }
+    for (var w : addWriter) {
+      w.close();
+    }
   }
 
   /**
@@ -116,11 +117,13 @@ public abstract class AbstractColdpGenerator extends AbstractGenerator {
   }
 
   protected TermWriter additionalWriter(ColdpTerm rowType) throws IOException {
-    return new TermWriter.TSV(dir, rowType, ColdpTerm.RESOURCES.get(rowType));
+    return additionalWriter(rowType, ColdpTerm.RESOURCES.get(rowType));
   }
 
   protected TermWriter additionalWriter(Term rowType, List<? extends Term> columns) throws IOException {
-    return new TermWriter.TSV(dir, rowType, columns);
+    var w = new TermWriter.TSV(dir, rowType, columns);
+    addWriter.add(w);
+    return w;
   }
 
 }

@@ -10,6 +10,7 @@ import org.gbif.nameparser.api.NomCode;
 import org.gbif.nameparser.api.Rank;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Locale;
@@ -21,14 +22,24 @@ public abstract class AbstractXlsSrcGenerator extends AbstractColdpGenerator {
   private DataFormatter formatter;
   private FormulaEvaluator evaluator;
 
+  public AbstractXlsSrcGenerator(GeneratorConfig cfg, boolean addMetadata) throws IOException {
+    super(cfg, addMetadata, null);
+  }
   public AbstractXlsSrcGenerator(GeneratorConfig cfg, boolean addMetadata, URI downloadUri) throws IOException {
     super(cfg, addMetadata, Map.of(srcFN, downloadUri));
   }
 
   @Override
   protected void prepare() throws IOException {
-    wb = WorkbookFactory.create(sourceFile(srcFN));
     formatter = new DataFormatter(Locale.US);
+    var f = sourceFile(srcFN);
+    if (f != null && f.exists()) {
+      prepareWB(f);
+    }
+  }
+
+  protected void prepareWB(File f) throws IOException {
+    wb = WorkbookFactory.create(f);
     evaluator = wb.getCreationHelper().createFormulaEvaluator();;
   }
 
@@ -43,7 +54,7 @@ public abstract class AbstractXlsSrcGenerator extends AbstractColdpGenerator {
   protected String col(Row row, int column) {
     try {
       Cell cell = row.getCell(column);
-      return formatter.formatCellValue(cell, evaluator);
+      return StringUtils.trimToNull(formatter.formatCellValue(cell, evaluator));
     } catch (FormulaParseException e) {
       LOG.warn("Error evaluating excel formula in sheet {}, row {} and column {}: {}", row.getSheet().getSheetName(), row.getRowNum(), column, e.getMessage());
     }
