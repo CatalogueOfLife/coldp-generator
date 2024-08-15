@@ -109,62 +109,63 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   @Override
-  protected void addData() throws Exception {
+  protected void prepare() throws Exception {
     newWriter(ColdpTerm.NameUsage, List.of(
-      ColdpTerm.ID,
-      ColdpTerm.parentID,
-      ColdpTerm.basionymID,
-      ColdpTerm.rank,
-      ColdpTerm.scientificName,
-      ColdpTerm.authorship,
-      ColdpTerm.uninomial,
-      ColdpTerm.genericName,
-      ColdpTerm.infragenericEpithet,
-      ColdpTerm.specificEpithet,
-      ColdpTerm.infraspecificEpithet,
-      ColdpTerm.status,
-      ColdpTerm.nameStatus,
-      gender,
-      fossil,
-      ColdpTerm.nameReferenceID,
-      ColdpTerm.publishedInYear,
-      ColdpTerm.family,
-      ColdpTerm.subfamily,
-      ColdpTerm.tribe,
-      ColdpTerm.genus,
-      ColdpTerm.subgenus,
-      ColdpTerm.species,
-      ColdpTerm.link,
-      ColdpTerm.remarks
+            ColdpTerm.ID,
+            ColdpTerm.parentID,
+            ColdpTerm.basionymID,
+            ColdpTerm.rank,
+            ColdpTerm.scientificName,
+            ColdpTerm.authorship,
+            ColdpTerm.uninomial,
+            ColdpTerm.genericName,
+            ColdpTerm.infragenericEpithet,
+            ColdpTerm.specificEpithet,
+            ColdpTerm.infraspecificEpithet,
+            ColdpTerm.status,
+            ColdpTerm.nameStatus,
+            gender,
+            fossil,
+            ColdpTerm.nameReferenceID,
+            ColdpTerm.publishedInYear,
+            ColdpTerm.family,
+            ColdpTerm.subfamily,
+            ColdpTerm.tribe,
+            ColdpTerm.genus,
+            ColdpTerm.subgenus,
+            ColdpTerm.species,
+            ColdpTerm.link,
+            ColdpTerm.remarks
     ));
     refWriter = additionalWriter(ColdpTerm.Reference, List.of(
-        ColdpTerm.ID,
-        ColdpTerm.doi,
-        ColdpTerm.type,
-        ColdpTerm.citation,
-        ColdpTerm.author,
-        ColdpTerm.issued,
-        ColdpTerm.title,
-        ColdpTerm.containerAuthor,
-        ColdpTerm.containerTitle,
-        ColdpTerm.volume,
-        ColdpTerm.issue,
-        ColdpTerm.publisher,
-        ColdpTerm.publisherPlace,
-        ColdpTerm.page,
-        ColdpTerm.link,
-        ColdpTerm.remarks
+            ColdpTerm.ID,
+            ColdpTerm.doi,
+            ColdpTerm.type,
+            ColdpTerm.citation,
+            ColdpTerm.author,
+            ColdpTerm.issued,
+            ColdpTerm.title,
+            ColdpTerm.containerAuthor,
+            ColdpTerm.containerTitle,
+            ColdpTerm.volume,
+            ColdpTerm.issue,
+            ColdpTerm.publisher,
+            ColdpTerm.publisherPlace,
+            ColdpTerm.page,
+            ColdpTerm.link,
+            ColdpTerm.remarks
     ));
     typeWriter = additionalWriter(ColdpTerm.TypeMaterial, List.of(
-        ColdpTerm.nameID,
-        ColdpTerm.locality,
-        ColdpTerm.citation,
-        fossil,
-        ColdpTerm.remarks
+            ColdpTerm.nameID,
+            ColdpTerm.locality,
+            ColdpTerm.citation,
+            fossil,
+            ColdpTerm.remarks
     ));
+  }
 
-    LOG.info("Use antcat csv file at {}", ANTWEB_FILE);
-
+  @Override
+  protected void addData() throws Exception {
     // dump all taxa, protonyms and references
     load(Publisher.class, "publishers", this::readPublishers, this::cachePublisher);
     load(Journal.class, "journals", this::readJournal, this::cacheJournal);
@@ -189,6 +190,7 @@ public class Generator extends AbstractColdpGenerator {
     TsvParser parser = new TsvParser(settings);
 
     // parse taxa once to just full the lookup cache
+    LOG.info("Use antcat csv file at {}", ANTWEB_FILE);
     boolean first = true;
     List<String[]> data = new ArrayList<>();
     Reader reader = new InputStreamReader(http.getStream(ANTWEB_FILE), StandardCharsets.UTF_8);
@@ -251,6 +253,16 @@ public class Generator extends AbstractColdpGenerator {
       return specificEpithet != null || subgenus != null;
     }
 
+    /**
+     * @return the species binomial if species or below. Otherwise null
+     */
+    String species() {
+      if (genus != null && specificEpithet != null) {
+        return genus + " " + specificEpithet;
+      }
+      return null;
+    }
+
     String name() {
       life.catalogue.api.model.Name n = new life.catalogue.api.model.Name();
       if (hasBinomenOrInfrageneric()) {
@@ -296,6 +308,7 @@ public class Generator extends AbstractColdpGenerator {
     writer.set(ColdpTerm.tribe, n.tribe);
     writer.set(ColdpTerm.genus, n.genus);
     writer.set(ColdpTerm.subgenus, n.subgenus);
+    writer.set(ColdpTerm.species, n.species());
 
     if (n.hasBinomenOrInfrageneric() || n.subgenus != null) {
       writer.set(ColdpTerm.genericName, n.genus);
