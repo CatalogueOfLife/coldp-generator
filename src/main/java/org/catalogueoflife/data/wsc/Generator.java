@@ -18,6 +18,7 @@ import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.catalogueoflife.data.utils.HttpException;
 import org.gbif.nameparser.api.Rank;
+import org.jsoup.Jsoup;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -30,10 +31,11 @@ import java.util.regex.Pattern;
 
 public class Generator extends AbstractColdpGenerator {
   private static final String API = "https://wsc.nmbe.ch/api/";
+  private static final String HOMEPAGE = "https://wsc.nmbe.ch/";
   private static final Pattern LSID_PATTERN = Pattern.compile("nmbe.ch:spider(sp|gen|fam):([0-9]+)");
   private static final String ERROR = "error: ";
+  private static final String ROOT_ID = Rank.ORDER.name();
   private static int MAX_DEFAULT = 65000;
-  private static String ORDER = "Araneae";
   private final String apiKey;
   private final File json;
   private final Set<String> higherLSIDs = new HashSet<>();
@@ -82,7 +84,7 @@ public class Generator extends AbstractColdpGenerator {
             SimpleName.sn(Rank.KINGDOM, "Animalia"),
             SimpleName.sn(Rank.PHYLUM, "Arthropoda"),
             SimpleName.sn(Rank.CLASS, "Arachnida"),
-            SimpleName.sn(Rank.ORDER, ORDER)
+            SimpleName.sn(Rank.ORDER, "Araneae")
     )) {
       writer.set(ColdpTerm.ID, sn.getRank());
       if (p != null) {
@@ -154,9 +156,12 @@ public class Generator extends AbstractColdpGenerator {
             if (tax.taxon.taxonRank.equalsIgnoreCase("family")) {
               System.out.println(String.format("%s: %s %s", tax.taxon.lsid, tax.taxon.family, tax.taxon.author));
               writer.set(ColdpTerm.uninomial, tax.taxon.family);
+              writer.set(ColdpTerm.parentID, ROOT_ID);
+
             } else if (tax.taxon.taxonRank.equalsIgnoreCase("genus")) {
               System.out.println(String.format("%s: %s %s - %s", tax.taxon.lsid, tax.taxon.genus, tax.taxon.author, tax.taxon.family));
               writer.set(ColdpTerm.uninomial, tax.taxon.genus);
+              
             } else {
               String subsp = StringUtils.isBlank(tax.taxon.subspecies) ? "" : " "+tax.taxon.subspecies;
               System.out.println(String.format("%s: %s %s%s %s", tax.taxon.lsid, tax.taxon.genus, tax.taxon.species, subsp, tax.taxon.author));
@@ -222,10 +227,24 @@ public class Generator extends AbstractColdpGenerator {
     }
   }
 
+  private String scrapeVersion() {
+    try {
+      String html = http.get(HOMEPAGE);
+      return scrapeVersion(html);
+    } catch (IOException e) {
+      LOG.error("Failed to retrieve version from homepage", e);
+    }
+    return null;
+  }
+  static String scrapeVersion(String html) {
+    var j = Jsoup.parse(html);
+    var s = j.body().selectFirst("main h1 span");
+    return s.text().replaceFirst("Version *", "").trim();
+  }
   @Override
   protected void addMetadata() throws Exception {
     metadata.put("issued", LocalDate.now().toString());
-    metadata.put("version", "Version 23.0");
+    metadata.put("version", scrapeVersion());
     super.addMetadata();
   }
 
