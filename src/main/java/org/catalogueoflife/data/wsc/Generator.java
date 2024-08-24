@@ -34,7 +34,7 @@ public class Generator extends AbstractColdpGenerator {
   private static final String HOMEPAGE = "https://wsc.nmbe.ch/";
   private static final Pattern LSID_PATTERN = Pattern.compile("nmbe.ch:spider(sp|gen|fam):([0-9]+)");
   private static final String ERROR = "error: ";
-  private static final String ROOT_ID = Rank.ORDER.name();
+  private static final String ROOT_ID = Rank.ORDER.name().toLowerCase();
   private static int MAX_DEFAULT = 65000;
   private final String apiKey;
   private final File json;
@@ -161,7 +161,7 @@ public class Generator extends AbstractColdpGenerator {
             } else if (tax.taxon.taxonRank.equalsIgnoreCase("genus")) {
               System.out.println(String.format("%s: %s %s - %s", tax.taxon.lsid, tax.taxon.genus, tax.taxon.author, tax.taxon.family));
               writer.set(ColdpTerm.uninomial, tax.taxon.genus);
-              
+
             } else {
               String subsp = StringUtils.isBlank(tax.taxon.subspecies) ? "" : " "+tax.taxon.subspecies;
               System.out.println(String.format("%s: %s %s%s %s", tax.taxon.lsid, tax.taxon.genus, tax.taxon.species, subsp, tax.taxon.author));

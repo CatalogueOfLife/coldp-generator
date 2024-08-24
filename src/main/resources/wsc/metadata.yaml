@@ -18,7 +18,7 @@ description: |-
 
   The brief descriptions of geographic ranges are provided only as a general guide; no attempt has been made to ensure that they are comprehensive.
 issued: {issued}
-version: {version!}
+version: {version}
 contact:
   email: wsc@nmbe.ch
   organisation: The World Spider Catalog Association WSCA
