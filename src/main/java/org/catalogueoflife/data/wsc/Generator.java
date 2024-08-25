@@ -34,11 +34,11 @@ public class Generator extends AbstractColdpGenerator {
   private static final String HOMEPAGE = "https://wsc.nmbe.ch/";
   private static final Pattern LSID_PATTERN = Pattern.compile("nmbe.ch:spider(sp|gen|fam):([0-9]+)");
   private static final String ERROR = "error: ";
-  private static final String ROOT_ID = Rank.ORDER.name().toLowerCase();
   private static int MAX_DEFAULT = 65000;
   private final String apiKey;
   private final File json;
   private final Set<String> higherLSIDs = new HashSet<>();
+  private String rootId;
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true, null);
@@ -79,21 +79,21 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   private void addRootClassification() throws IOException {
-    SimpleName p = null;
     for (var sn : List.of(
             SimpleName.sn(Rank.KINGDOM, "Animalia"),
             SimpleName.sn(Rank.PHYLUM, "Arthropoda"),
             SimpleName.sn(Rank.CLASS, "Arachnida"),
             SimpleName.sn(Rank.ORDER, "Araneae")
     )) {
-      writer.set(ColdpTerm.ID, sn.getRank());
-      if (p != null) {
-        writer.set(ColdpTerm.parentID, p.getName());
+      String id = sn.getName().toLowerCase();
+      writer.set(ColdpTerm.ID, id);
+      if (rootId != null) {
+        writer.set(ColdpTerm.parentID, rootId);
       }
       writer.set(ColdpTerm.rank, sn.getRank());
       writer.set(ColdpTerm.scientificName, sn.getName());
       writer.next();
-      p = sn;
+      rootId = id;
     }
   }
 
@@ -156,7 +156,7 @@ public class Generator extends AbstractColdpGenerator {
             if (tax.taxon.taxonRank.equalsIgnoreCase("family")) {
               System.out.println(String.format("%s: %s %s", tax.taxon.lsid, tax.taxon.family, tax.taxon.author));
               writer.set(ColdpTerm.uninomial, tax.taxon.family);
-              writer.set(ColdpTerm.parentID, ROOT_ID);
+              writer.set(ColdpTerm.parentID, rootId);
 
             } else if (tax.taxon.taxonRank.equalsIgnoreCase("genus")) {
               System.out.println(String.format("%s: %s %s - %s", tax.taxon.lsid, tax.taxon.genus, tax.taxon.author, tax.taxon.family));
