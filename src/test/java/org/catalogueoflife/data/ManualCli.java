@@ -11,7 +11,7 @@ public class ManualCli {
     //GeneratorCLI.main( new String[]{"-s", "cycads", "-r", "/tmp/coldp/archives"});
     GeneratorCLI.main( new String[]{"-s", "lpsn", "-r", "/tmp/coldp/archives",
                     "--lpsn-user", "mdoering@gbif.org",
-                    "--lpsn-pass", "NzFhs9MAC44L"
+                    "--lpsn-pass", "xxx"
     } );
     //GeneratorCLI.main( new String[]{"-s", "wikispecies", "-r", "/tmp/coldp/archives"} );
     //GeneratorCLI.main( new String[]{"-s", "otl", "-r", "/tmp/coldp/archives"} );
