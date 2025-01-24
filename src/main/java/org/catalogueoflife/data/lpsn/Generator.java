@@ -16,12 +16,15 @@
 package org.catalogueoflife.data.lpsn;
 
 import life.catalogue.api.model.DOI;
+import life.catalogue.api.vocab.NomStatus;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
 import org.apache.commons.lang3.StringUtils;
 import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.catalogueoflife.data.utils.HttpException;
+import org.catalogueoflife.data.utils.RemarksBuilder;
+import org.gbif.nameparser.api.NomCode;
 import org.keycloak.authorization.client.AuthzClient;
 import org.keycloak.authorization.client.Configuration;
 import org.keycloak.authorization.client.util.Http;
@@ -65,7 +68,6 @@ public class Generator extends AbstractColdpGenerator {
     kc.setResource(client_id);
     kc.setCredentials(Map.of("secret", "secret"));
     authzClient = AuthzClient.create(kc);
-    token = authzClient.obtainAccessToken(cfg.lpsnUsername, cfg.lpsnPassword);
   }
 
   /**
@@ -148,6 +150,8 @@ public class Generator extends AbstractColdpGenerator {
 
   public static class FetchDetail {
     public int id;
+    public Integer lpsn_parent_id;
+    public Integer lpsn_correct_name_id;
     public String monomial;
     public String species_epithet;
     public String subspecies_epithet;
@@ -168,7 +172,6 @@ public class Generator extends AbstractColdpGenerator {
     public String ijsem_list_kind;
     public List<Map<String, String>> emendations;
     public List<Map<String, String>> molecules;
-    public Integer lpsn_correct_name_id;
     public String lpsn_taxonomic_status;
     public String lpsn_address;
   }
@@ -195,6 +198,9 @@ public class Generator extends AbstractColdpGenerator {
       ColdpTerm.type
     ));
 
+    // get first auth token
+    token = authzClient.obtainAccessToken(cfg.lpsnUsername, cfg.lpsnPassword);
+
     // retrieve list of all ids first, then lookup each in batches
     for (boolean valid : new boolean[]{true, false}) {
       int page = 0;
@@ -215,20 +221,64 @@ public class Generator extends AbstractColdpGenerator {
     }
   }
 
+  String mapTaxStatus(String x) {
+    if (x != null) {
+      return switch (x){
+        case "correct name" -> "accepted";
+        case "misspelling" -> "synonym";
+        case "preferred name (not correct name)" -> "preferred";
+        default -> null;
+      };
+    }
+    return null;
+  }
+  String mapNomStatus(String nom, String tax) {
+    NomStatus stat = null;
+    if (tax != null) {
+      stat = switch (tax){
+        case "validly published under the ICNP" -> NomStatus.ESTABLISHED;
+        case "validly published under the ICNP, rejected name" -> NomStatus.REJECTED;
+        case "validly published under the ICNP, rejected name, later homonym" -> NomStatus.REJECTED;
+        case "validly published under the ICNP, illegitimate name, later homonym" -> NomStatus.UNACCEPTABLE;
+        case "not validly published" -> NomStatus.NOT_ESTABLISHED;
+        default -> null;
+      };
+    }
+    if (stat != null) {
+      return stat.name();
+    } else if (nom != null) {
+      return switch (nom){
+        case "validly published under the ICNP" -> "available";
+        case "not validly published" -> "unavailable";
+        default -> null;
+      };
+    }
+    return null;
+  }
+  NomCode code(String nomStatus) {
+    return switch (nomStatus){
+      case "validly published under the ICN (Botanical Code)" -> NomCode.BOTANICAL;
+      default -> NomCode.BACTERIAL;
+    };
+  }
   void writeNames(List<String> ids) throws IOException {
     LOG.info("Retrieve {} names from the API", ids.size());
-    String json = callAPI("/fetch/" + ids.stream().collect(Collectors.joining(";")));
+    String json = callAPI("/fetch/" + String.join(";", ids));
     var resp = mapper.readValue(json, FetchResult.class);
     for (var n : resp.results) {
+      RemarksBuilder remarks = new RemarksBuilder();
       writer.set(ColdpTerm.ID, n.id);
+      writer.set(ColdpTerm.parentID, n.lpsn_parent_id); // might be overwritten in case of synonyms
       writer.set(ColdpTerm.rank, n.category);
       writer.set(ColdpTerm.scientificName, n.full_name);
       writer.set(ColdpTerm.authorship, n.authority);
       writer.set(ColdpTerm.basionymID, n.basonym_id);
-      writer.set(ColdpTerm.nameStatus, n.nomenclatural_status);
-      writer.set(ColdpTerm.status, n.lpsn_taxonomic_status);
+      writer.set(ColdpTerm.nameStatus, mapNomStatus(n.nomenclatural_status, n.lpsn_taxonomic_status));
+      remarks.append(n.nomenclatural_status);
+      writer.set(ColdpTerm.status, mapTaxStatus(n.lpsn_taxonomic_status));
       writer.set(ColdpTerm.link, n.lpsn_address);
-      writer.set(ColdpTerm.remarks, n.publication_text);
+      remarks.append(n.publication_text);
+      writer.set(ColdpTerm.remarks, remarks.toString());
       if (!Objects.equals(n.id, n.lpsn_correct_name_id)) {
         writer.set(ColdpTerm.parentID, n.lpsn_correct_name_id);
       }

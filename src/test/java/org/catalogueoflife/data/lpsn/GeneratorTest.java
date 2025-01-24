@@ -3,10 +3,19 @@ package org.catalogueoflife.data.lpsn;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.catalogueoflife.data.GeneratorConfig;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class GeneratorTest {
+
+    @Test
+    public void metadata() throws Exception {
+        var cfg = new GeneratorConfig();
+        cfg.source = "lpsn";
+        var gen = new Generator(cfg);
+        gen.addMetadata();
+    }
 
     @Test
     public void deserialize() throws Exception {

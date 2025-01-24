@@ -64,13 +64,7 @@ public abstract class AbstractColdpGenerator extends AbstractGenerator {
       sources.mkdirs();
     }
     for (var e : downloadURIs.entrySet()) {
-      var f = new File(sources, e.getKey());
-      if (!f.exists()) {
-        LOG.info("Downloading latest {} from {} to {}", e.getKey(), e.getValue(), f);
-        download.download(e.getValue(), f);
-      } else {
-        LOG.info("Reuse source file {}", f);
-      }
+      download(e.getKey(), e.getValue());
     }
     prepare();
     addData();
@@ -85,10 +79,22 @@ public abstract class AbstractColdpGenerator extends AbstractGenerator {
     }
   }
 
-  /**
-   * Finalizes the current ref record and creates a new ref id if not yet set.
-   * @return the ID of the previous record.
-   */
+  protected File download(String filename, URI url) throws IOException {
+    var f = new File(sources, filename);
+    if (!f.exists()) {
+      LOG.info("Downloading latest {} from {} to {}", filename, url, f);
+      download.download(url, f);
+    } else {
+      LOG.info("Reuse source file {}", f);
+    }
+    return f;
+  }
+
+
+    /**
+     * Finalizes the current ref record and creates a new ref id if not yet set.
+     * @return the ID of the previous record.
+     */
   protected String nextRef() throws IOException {
     String id;
     if (refWriter.has(ColdpTerm.ID)) {
