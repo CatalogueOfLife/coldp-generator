@@ -221,13 +221,37 @@ public class Generator extends AbstractColdpGenerator {
     }
   }
 
+  //@Override
+  public void run2() {
+    try {
+      // get first auth token
+      token = authzClient.obtainAccessToken(cfg.lpsnUsername, cfg.lpsnPassword);
+      lookup("43717");
+
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    } finally {
+      try {
+        hc.close();
+      } catch (IOException e) {
+        LOG.error("Failed to close http client", e);
+        throw new RuntimeException(e);
+      }
+    }
+  }
+
   String mapTaxStatus(String x) {
     if (x != null) {
+      if (x.startsWith("orphaned")) {
+        return "provisionally accepted";
+      } else if (x.startsWith("synonym of")) {
+        return "synonym";
+      }
       return switch (x){
         case "correct name" -> "accepted";
-        case "misspelling" -> "synonym";
         case "preferred name (not correct name)" -> "preferred";
-        default -> null;
+        case "misspelling" -> "synonym";
+        default -> x;
       };
     }
     return null;
@@ -260,6 +284,13 @@ public class Generator extends AbstractColdpGenerator {
       case "validly published under the ICN (Botanical Code)" -> NomCode.BOTANICAL;
       default -> NomCode.BACTERIAL;
     };
+  }
+  void lookup(String id) throws IOException {
+    String json = callAPI("/fetch/" + id);
+    var resp = mapper.readValue(json, FetchResult.class);
+    System.out.println(resp);
+    var n = resp.results.get(0);
+    System.out.println(n);
   }
   void writeNames(List<String> ids) throws IOException {
     LOG.info("Retrieve {} names from the API", ids.size());
