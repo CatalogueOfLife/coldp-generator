@@ -39,7 +39,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * LPSN export into ColDP using the LPSN API:
@@ -251,6 +250,7 @@ public class Generator extends AbstractColdpGenerator {
         case "correct name" -> "accepted";
         case "preferred name (not correct name)" -> "preferred";
         case "misspelling" -> "synonym";
+        case "not in use" -> "bare name";
         default -> x;
       };
     }

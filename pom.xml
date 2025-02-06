@@ -35,11 +35,11 @@
     <citeproc-styles.version>2.0.0</citeproc-styles.version>
     <commons-compress.version>1.23.0</commons-compress.version>
     <commons-io.version>2.13.0</commons-io.version>
-    <col.version>1.0-SNAPSHOT</col.version>
+    <clb.version>1.0-SNAPSHOT</clb.version>
     <dwc-api.version>1.46</dwc-api.version>
     <dwca-io.version>2.11</dwca-io.version>
     <httpclient.version>5.3.1</httpclient.version>
-    <jackson.version>2.16.1</jackson.version>
+    <jackson.version>2.17.2</jackson.version>
     <jbibtex.version>1.0.20</jbibtex.version>
     <jcommander.version>1.82</jcommander.version>
     <jena.version>4.10.0</jena.version>
@@ -208,22 +208,22 @@
     <dependency>
       <groupId>org.catalogueoflife</groupId>
       <artifactId>coldp</artifactId>
-      <version>${col.version}</version>
+      <version>${clb.version}</version>
     </dependency>
     <dependency>
       <groupId>org.catalogueoflife</groupId>
       <artifactId>metadata</artifactId>
-      <version>${col.version}</version>
+      <version>${clb.version}</version>
     </dependency>
     <dependency>
       <groupId>org.catalogueoflife</groupId>
       <artifactId>api</artifactId>
-      <version>${col.version}</version>
+      <version>${clb.version}</version>
     </dependency>
     <dependency>
       <groupId>org.catalogueoflife</groupId>
       <artifactId>doi</artifactId>
-      <version>${col.version}</version>
+      <version>${clb.version}</version>
     </dependency>
     <dependency>
       <groupId>org.gbif</groupId>

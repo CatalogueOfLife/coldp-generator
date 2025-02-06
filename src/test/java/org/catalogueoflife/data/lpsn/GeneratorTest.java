@@ -3,9 +3,14 @@ package org.catalogueoflife.data.lpsn;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.io.FileUtils;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.junit.Assert;
 import org.junit.Test;
+
+import java.nio.charset.StandardCharsets;
+
+import static org.catalogueoflife.data.Utils.verifyMetadata;
 
 public class GeneratorTest {
 
@@ -15,6 +20,10 @@ public class GeneratorTest {
         cfg.source = "lpsn";
         var gen = new Generator(cfg);
         gen.addMetadata();
+        System.out.println(gen.getMetadataFile());
+        var x = FileUtils.readFileToString(gen.getMetadataFile(), StandardCharsets.UTF_8);
+        System.out.println(x);
+        verifyMetadata(gen.getMetadataFile());
     }
 
     @Test

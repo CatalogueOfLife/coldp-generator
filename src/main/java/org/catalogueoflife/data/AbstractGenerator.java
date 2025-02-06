@@ -1,11 +1,7 @@
 package org.catalogueoflife.data;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import life.catalogue.api.model.Citation;
-import life.catalogue.api.model.CslName;
 import life.catalogue.api.model.DOI;
 import life.catalogue.api.model.IssueContainer;
 import life.catalogue.common.io.CompressionUtil;
@@ -52,33 +48,11 @@ public abstract class AbstractGenerator implements Runnable {
     HttpClientBuilder htb = HttpClientBuilder.create();
     hc = htb.build();
     doiResolver = new DoiResolver(hc);
-    if (addMetadata) {
-      initMapper();
-    }
   }
 
-  private void initMapper() {
-    YamlMapper.MAPPER.addMixIn(Citation.class, CitationMixin.class);
-  }
-  public abstract class CitationMixin {
-    @JsonProperty("DOI")
-    private DOI doi;
-    @JsonProperty("container-author")
-    private List<CslName> containerAuthor;
-    @JsonProperty("container-title")
-    private String containerTitle;
-    @JsonProperty("collection-title")
-    private String collectionTitle;
-    @JsonProperty("collection-editor")
-    private List<CslName> collectionEditor;
-    @JsonProperty("publisher-place")
-    private String publisherPlace;
-    @JsonProperty("ISBN")
-    private String isbn;
-    @JsonProperty("ISSN")
-    private String issn;
-    @JsonProperty("URL")
-    private String url;
+  protected static Optional<String> citAsYaml(List<Citation> items) throws JsonProcessingException {
+    // we need to revert CoiResolver citations to standard citations to get the jackson mixins!
+    return asYaml( items.stream().map(Citation::new).toList() );
   }
   protected static Optional<String> asYaml(List<?> items) throws JsonProcessingException {
     StringBuilder yaml = new StringBuilder();
@@ -91,7 +65,7 @@ public abstract class AbstractGenerator implements Runnable {
       yaml.append(indented);
       yaml.append("\n");
     }
-    return yaml.length() > 0 ? Optional.of(yaml.toString()) : Optional.empty();
+    return !yaml.isEmpty() ? Optional.of(yaml.toString()) : Optional.empty();
   }
 
   @Override
@@ -141,7 +115,7 @@ public abstract class AbstractGenerator implements Runnable {
   protected void addMetadata() throws Exception {
     if (addMetadata) {
       // do we have sources?
-      AbstractGenerator.asYaml(sourceCitations).ifPresent(yaml -> {
+      AbstractGenerator.citAsYaml(sourceCitations).ifPresent(yaml -> {
         metadata.put("sources", "source: \n" + yaml);
       });
 
@@ -160,9 +134,13 @@ public abstract class AbstractGenerator implements Runnable {
           IOUtils.copy(img, out);
         }
       }
-      try (var mw = UTF8IoUtils.writerFromFile(new File(dir, "metadata.yaml"))) {
+      try (var mw = UTF8IoUtils.writerFromFile(getMetadataFile())) {
         mw.write(SimpleTemplate.render(template, metadata));
       }
     }
+  }
+
+  public File getMetadataFile() {
+    return new File(dir, "metadata.yaml");
   }
 }
