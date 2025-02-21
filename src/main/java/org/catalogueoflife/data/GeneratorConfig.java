@@ -35,7 +35,7 @@ public class GeneratorConfig {
   public File wscDataRepo;
 
   @Parameter(names = {"--wsc-max-key"})
-  public int wscMaxKey = 61000; // max on 14.5.2024 is 60660
+  public int wscMaxKey = 70000; // max on 21.2.2025 is 64070
 
   @Parameter(names = {"--date"})
   public String date;

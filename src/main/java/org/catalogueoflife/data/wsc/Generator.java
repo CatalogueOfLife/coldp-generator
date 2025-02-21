@@ -134,7 +134,8 @@ public class Generator extends AbstractColdpGenerator {
             ColdpTerm.infraspecificEpithet,
             ColdpTerm.authorship,
             ColdpTerm.nameReferenceID,
-            ColdpTerm.publishedInPage
+            ColdpTerm.publishedInPage,
+            ColdpTerm.link
     ));
   }
   private void parse() throws Exception {
@@ -151,6 +152,7 @@ public class Generator extends AbstractColdpGenerator {
           if (to.isPresent()) {
             var tax = to.get();
             writer.set(ColdpTerm.ID, tax.taxon.lsid);
+            writer.set(ColdpTerm.link, "https://wsc.nmbe.ch/lsid/" + tax.taxon.lsid);
             writer.set(ColdpTerm.rank, tax.taxon.taxonRank);
             writer.set(ColdpTerm.authorship, tax.taxon.author);
             if (tax.taxon.taxonRank.equalsIgnoreCase("family")) {
@@ -170,7 +172,7 @@ public class Generator extends AbstractColdpGenerator {
               writer.set(ColdpTerm.infraspecificEpithet, tax.taxon.subspecies);
             }
 
-            writer.set(ColdpTerm.status, tax.taxon.status);
+            writer.set(ColdpTerm.status, mapStatus(tax.taxon.status));
             writer.set(ColdpTerm.nameStatus, tax.taxon.status);
             if (tax.validTaxon != null) {
               writer.set(ColdpTerm.parentID, tax.validTaxon.getLSID());
@@ -207,6 +209,14 @@ public class Generator extends AbstractColdpGenerator {
         }
       }
     }
+  }
+
+  private String mapStatus(String status) {
+    if (status == null) return null;
+    return switch (status.toUpperCase().trim()) {
+      case "nomen_dubium" -> "bare name";
+      default -> status;
+    };
   }
 
   private Optional<NameUsage> read(File f) throws IOException {
