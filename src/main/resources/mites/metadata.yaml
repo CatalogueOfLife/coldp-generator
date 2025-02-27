@@ -25,8 +25,7 @@ creator:
    country: DE
    email: info@miteresearch.org
 license: CC-BY
-taxonomicScope: Acariformes
-taxonomicScopeInEnglish: Mites
+taxonomicScope: Mites
 geographicScope: global
 confidence: 4
 completeness: 100

@@ -24,8 +24,7 @@ creator:
  -
    organisation: The HBW/BirdLife International Taxonomic Working Group
 license: CC-BY
-taxonomicScope: Aves
-taxonomicScopeInEnglish: Birds
+taxonomicScope: Birds
 geographicScope: global
 confidence: 5
 completeness: 100

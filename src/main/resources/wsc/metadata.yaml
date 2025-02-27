@@ -79,8 +79,7 @@ contributor:
     country: BR
 
 geographicScope: Global
-taxonomicScope: Araneae
-taxonomicScopeInEnglish: Spiders
+taxonomicScope: Spiders
 confidence: 5
 completeness: 100
 license: cc by

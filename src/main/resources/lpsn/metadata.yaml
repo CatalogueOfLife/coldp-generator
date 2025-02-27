@@ -31,8 +31,7 @@ contributor:
 creator:
 {authors}
 license: CC BY-SA
-taxonomicScope: Prokaryota
-taxonomicScopeInEnglish: Prokaryotes
+taxonomicScope: Prokaryotes
 geographicScope: global
 confidence: 5
 completeness: 100

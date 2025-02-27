@@ -7,6 +7,7 @@ import it.unimi.dsi.fastutil.ints.IntSet;
 import life.catalogue.api.model.SimpleName;
 import life.catalogue.api.util.ObjectUtils;
 import life.catalogue.api.vocab.Gazetteer;
+import life.catalogue.api.vocab.TaxonomicStatus;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
 import org.apache.commons.io.FileUtils;
@@ -19,6 +20,9 @@ import org.catalogueoflife.data.GeneratorConfig;
 import org.catalogueoflife.data.utils.HttpException;
 import org.gbif.nameparser.api.Rank;
 import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
+import org.jsoup.nodes.Node;
+import org.jsoup.nodes.TextNode;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -35,10 +39,12 @@ public class Generator extends AbstractColdpGenerator {
   private static final Pattern LSID_PATTERN = Pattern.compile("nmbe.ch:spider(sp|gen|fam):([0-9]+)");
   private static final String ERROR = "error: ";
   private static int MAX_DEFAULT = 65000;
+  static final Pattern yearSuffix = Pattern.compile("(\\d+)[abcdefg]$");
   private final String apiKey;
   private final File json;
   private final Set<String> higherLSIDs = new HashSet<>();
   private String rootId;
+  private int synIdGen = 1;
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true, null);
@@ -138,6 +144,11 @@ public class Generator extends AbstractColdpGenerator {
             ColdpTerm.link
     ));
   }
+
+  private static String link(String lsid) {
+    return "https://wsc.nmbe.ch/lsid/" + lsid;
+  }
+
   private void parse() throws Exception {
     try (var dWriter = additionalWriter(ColdpTerm.Distribution, List.of(
         ColdpTerm.taxonID,
@@ -152,7 +163,7 @@ public class Generator extends AbstractColdpGenerator {
           if (to.isPresent()) {
             var tax = to.get();
             writer.set(ColdpTerm.ID, tax.taxon.lsid);
-            writer.set(ColdpTerm.link, "https://wsc.nmbe.ch/lsid/" + tax.taxon.lsid);
+            writer.set(ColdpTerm.link, link(tax.taxon.lsid));
             writer.set(ColdpTerm.rank, tax.taxon.taxonRank);
             writer.set(ColdpTerm.authorship, tax.taxon.author);
             if (tax.taxon.taxonRank.equalsIgnoreCase("family")) {
@@ -196,6 +207,11 @@ public class Generator extends AbstractColdpGenerator {
             }
             writer.next();
 
+            // scrape older synonyms in case of valid names
+            if (tax.validTaxon == null) {
+              //scrapeSynonyms(tax.taxon.lsid);
+            }
+
             if (!StringUtils.isBlank(tax.taxon.distribution)) {
               dWriter.set(ColdpTerm.taxonID, tax.taxon.lsid);
               dWriter.set(ColdpTerm.area, tax.taxon.distribution);
@@ -214,7 +230,7 @@ public class Generator extends AbstractColdpGenerator {
   private String mapStatus(String status) {
     if (status == null) return null;
     return switch (status.toUpperCase().trim()) {
-      case "nomen_dubium" -> "bare name";
+      case "NOMEN_DUBIUM", "NOMEN_NUDUM" -> "bare name";
       default -> status;
     };
   }
@@ -237,6 +253,81 @@ public class Generator extends AbstractColdpGenerator {
     }
   }
 
+  private void scrapeSynonyms(String lsid) {
+    try {
+      String html = http.get(link(lsid));
+      var j = Jsoup.parse(html);
+      var bs = j.body().select("main b");
+      for (var b : bs) {
+        if (b.text().trim().equalsIgnoreCase("Taxonomic references")) {
+          for (var div : b.siblingElements()) {
+            if (div.normalName().equals("div")) {
+              var name = div.firstElementChild();
+              if (name != null && name.normalName().equals("i")) {
+                scrapeSynonym(lsid, name);
+              }
+              // find all synonyms, look for BRs
+              for (var br : div.select("br")) {
+                name = br.firstElementChild();
+                if (name != null && name.normalName().equals("i")) {
+                  scrapeSynonym(lsid, name);
+                }
+              }
+              break;
+            }
+          }
+          break;
+        }
+      }
+    } catch (IOException e) {
+      LOG.error("Failed to scrape older synonyms for taxon {}", lsid, e);
+    }
+  }
+
+  /**
+   * Expects the i tag with the name
+   */
+  private void scrapeSynonym(String validLsid, Element tag) throws IOException {
+    String name = tag.text();
+    String authorship = null;
+    var author = tag.nextElementSibling();
+    if (author.normalName().equals("strong")) {
+      authorship = yearSuffix.matcher(author.text()).replaceFirst("");
+      var ref = author.firstElementChild();
+      if (ref != null && ref.hasAttr("href")) {
+        String link = ref.attr("href");
+        //TODO: scrape reference? IDs seem to be different from the ones we written before
+      }
+    }
+    // does this synonym have an LSID already? then we did write it already as its part of the API data
+    boolean hasLsid = false;
+    Node nxt = author;
+    while (nxt != null) {
+      if (nxt instanceof TextNode) {
+        if (((TextNode) nxt).text().contains("[urn:lsid")){
+          hasLsid = true;
+        }
+      } else if (nxt.normalName().equals("br") || nxt.normalName().equals("i")) {
+        break;
+      }
+      nxt = nxt.nextSibling();
+    }
+
+    if (!hasLsid) {
+      writeSynonym(validLsid, name, authorship);
+    }
+  }
+
+  private void writeSynonym(String validLsid, String name, String authorship) throws IOException {
+    writer.set(ColdpTerm.ID, "syn" + synIdGen++);
+    writer.set(ColdpTerm.parentID, validLsid);
+    writer.set(ColdpTerm.scientificName, name);
+    writer.set(ColdpTerm.status, TaxonomicStatus.SYNONYM);
+    writer.set(ColdpTerm.authorship, authorship);
+    //writer.set(ColdpTerm.rank, tax.taxon.taxonRank);
+    writer.next();
+  }
+
   private String scrapeVersion() {
     try {
       String html = http.get(HOMEPAGE);
@@ -246,11 +337,13 @@ public class Generator extends AbstractColdpGenerator {
     }
     return null;
   }
+
   static String scrapeVersion(String html) {
     var j = Jsoup.parse(html);
     var s = j.body().selectFirst("main h1 span");
     return s.text().replaceFirst("Version *", "").trim();
   }
+
   @Override
   protected void addMetadata() throws Exception {
     metadata.put("issued", LocalDate.now().toString());
