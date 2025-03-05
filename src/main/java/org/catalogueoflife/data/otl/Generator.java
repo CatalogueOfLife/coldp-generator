@@ -41,14 +41,13 @@ import java.util.regex.Pattern;
  */
 public class Generator extends org.catalogueoflife.data.ott.Generator {
   private static final String VERSION = "13.4";
-  private static final LocalDate ISSUED = LocalDate.of(2021,6,18);
   private static final URI DOWNLOAD = URI.create("http://files.opentreeoflife.org/synthesis/opentree" + VERSION + "/opentree" + VERSION + ".tgz");
   private static final Pattern OTT_PATTERN = Pattern.compile("ott(\\d+)");
   @VisibleForTesting
   protected final Int2ObjectMap<OttName> ott = new Int2ObjectOpenHashMap<>();
 
   public Generator(GeneratorConfig cfg) throws IOException {
-    super(cfg, DOWNLOAD, VERSION, ISSUED);
+    super(cfg, DOWNLOAD, VERSION);
   }
 
   static class OttName {
@@ -146,6 +145,12 @@ public class Generator extends org.catalogueoflife.data.ott.Generator {
 
     System.out.println("Remove source files");
     FileUtils.deleteQuietly(ottSources);
+  }
+
+  protected LocalDate extractIssueDate() {
+    //TODO: read http modified date for the downloaded archive file!
+    // https://files.opentreeoflife.org/synthesis/opentree15.1/
+    return LocalDate.now();
   }
 
 }

@@ -28,6 +28,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -40,25 +41,23 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class Generator extends AbstractColdpGenerator {
   private static final String VERSION = "3.7.2";
-  private static final LocalDate ISSUED = LocalDate.of(2021,6,1);
   private static final URI DOWNLOAD = URI.create("http://files.opentreeoflife.org/ott/ott" + VERSION + "/ott" + VERSION + ".tgz");
+  private static final URI PROPERTY_FILE = URI.create("https://files.opentreeoflife.org/ott/ott" + VERSION + "/properties.json");
   private static final Map<String, String> rankMap = Map.of(
       "no rank", "unranked",
       "no rank - terminal", "unranked"
   );
   private final String version;
   protected static final String srcFN = "data.tgz";
-  private final LocalDate issued;
   protected File ottSources;
 
   public Generator(GeneratorConfig cfg) throws IOException {
-    this(cfg, DOWNLOAD, VERSION, ISSUED);
+    this(cfg, DOWNLOAD, VERSION);
   }
 
-  public Generator(GeneratorConfig cfg, URI download, String version, LocalDate issued) throws IOException {
+  public Generator(GeneratorConfig cfg, URI download, String version) throws IOException {
     super(cfg, true, Map.of(srcFN, download));
     this.version = version;
-    this.issued = issued;
   }
 
   @Override
@@ -147,11 +146,26 @@ public class Generator extends AbstractColdpGenerator {
     return null;
   }
 
+  protected LocalDate extractIssueDate() throws IOException {
+    LOG.info("Downloading property file for version {} from {}", version, PROPERTY_FILE);
+    var propF = new File(dir, "ott-properties.json");
+    download.download(PROPERTY_FILE, propF);
+    var prop = mapper.readValue(propF, OttProp.class);
+    return LocalDate.parse(prop.date, DateTimeFormatter.BASIC_ISO_DATE);
+  }
+
   @Override
   protected void addMetadata() throws Exception {
     metadata.put("version", version);
-    metadata.put("issued", issued);
+    metadata.put("issued", extractIssueDate());
     super.addMetadata();
   }
 
+  public static class OttProp {
+    public String date;
+    public String generated_on;
+    public String legal;
+    public String version;
+    public String draft;
+  }
 }
