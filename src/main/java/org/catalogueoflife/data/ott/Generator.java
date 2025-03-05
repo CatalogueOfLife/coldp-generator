@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * https://tree.opentreeoflife.org/about/taxonomy-version
  */
 public class Generator extends AbstractColdpGenerator {
-  private static final String VERSION = "3.3";
+  private static final String VERSION = "3.7.2";
   private static final LocalDate ISSUED = LocalDate.of(2021,6,1);
   private static final URI DOWNLOAD = URI.create("http://files.opentreeoflife.org/ott/ott" + VERSION + "/ott" + VERSION + ".tgz");
   private static final Map<String, String> rankMap = Map.of(

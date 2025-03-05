@@ -19,4 +19,5 @@ Currently the project supports ColDP generators for the following sources:
  - [LPSN](https://lpsn.dsmz.de/): List of Prokaryotic names with Standing in Nomenclature
  - [OTL](https://tree.opentreeoflife.org/about/synthesis-release): Open Tree of Life Synthesis Tree (OTL)
  - [OTT](https://tree.opentreeoflife.org/about/taxonomy-version): Open Tree of Life Reference Taxonomy (OTT)
+ - [PBDB](https://paleobiodb.org/): The Paleobiology Database (PBDB)
  - [WSC](https://wsc.nmbe.ch/): The World Spider Catalog (WSC)
