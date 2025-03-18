@@ -328,6 +328,7 @@ public class Generator extends AbstractColdpGenerator {
   protected void addMetadata() throws Exception {
     addSource(SOURCE);
     // now also use authors of the source as dataset authors!
+    metadata.put("authors", "");
     if (!sourceCitations.isEmpty()) {
       asYaml(sourceCitations.get(0).getAuthor()).ifPresent(yaml -> {
         metadata.put("authors", yaml);
