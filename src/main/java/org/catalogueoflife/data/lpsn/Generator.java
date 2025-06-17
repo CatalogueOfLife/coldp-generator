@@ -257,15 +257,20 @@ public class Generator extends AbstractColdpGenerator {
 
       } else if (x.startsWith("correct name")) {
         return "accepted";
-
-      } else if (x.startsWith("not in use")) {
-        return "bare name";
       }
-      LOG.warn("Unknown status: " + x);
-      return x;
+
+      return switch (x){
+        case "pro-correct name" -> "provisionally accepted";
+        case "not in use" -> "bare name";
+        default -> {
+          LOG.warn("Unknown status: " + x);
+          yield x;
+        }
+      };
     }
     return null;
   }
+
   String mapNomStatus(String nom, String tax) {
     NomStatus stat = null;
     if (tax != null) {
