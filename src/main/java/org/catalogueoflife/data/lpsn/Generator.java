@@ -220,8 +220,8 @@ public class Generator extends AbstractColdpGenerator {
     }
   }
 
-  @Override
-  public void run() {
+  //@Override
+  public void runTest() {
     try {
       // get first auth token
       token = authzClient.obtainAccessToken(cfg.lpsnUsername, cfg.lpsnPassword);
