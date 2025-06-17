@@ -32,11 +32,11 @@ import java.util.regex.Pattern;
 
 public class Generator extends AbstractXlsSrcGenerator {
   // to be updated manually to current version !!!
-  // http://datazone.birdlife.org/species/taxonomy
-  private static final URI DOWNLOAD = URI.create("http://datazone.birdlife.org/userfiles/file/Species/Taxonomy/Handbook%20of%20the%20Birds%20of%20the%20World%20and%20BirdLife%20International%20Digital%20Checklist%20of%20the%20Birds%20of%20the%20World_Version_6b.xlsx");
+  // https://datazone.birdlife.org/about-our-science/taxonomy
+  private static final URI DOWNLOAD = URI.create("https://cdn.sanity.io/files/6ibvd6r4/production/26d171f13e544d775a1346a745034d2b6d5cae4a.xlsx/Handbook%20of%20the%20Birds%20of%20the%20World%20and%20BirdLife%20International%20Digital%20Checklist%20of%20the%20Birds%20of%20the%20World_Version_9.xlsx");
   // manually curated data
-  private static final String ISSUED = "2022-07";
-  private static final String VERSION = "6.0b";
+  private static final String ISSUED = "2024-10";
+  private static final String VERSION = "9.1";
   // SPREADSHEET FORMAT
   private static final int SHEET_IDX = 0;
   private static final int SKIP_ROWS = 4;
@@ -50,13 +50,11 @@ public class Generator extends AbstractXlsSrcGenerator {
   private static final int COL_VERNACULAR = 7;
   private static final int COL_SCINAME   = 8;
   private static final int COL_AUTHORITY = 9;
-  private static final int COL_REDLIST = 11;
-  private static final int COL_SYNONYMS = 12;
-  private static final int COL_ALT_VERNACULARS = 13;
-  private static final int COL_SOURCES = 14;
-  private static final int COL_SISRecID = 15;
-  private static final int COL_SpcRecID = 16;
-  private static final int COL_SubsppID = 17;
+  private static final int COL_SYNONYMS = 11;
+  private static final int COL_ALT_VERNACULARS = 12;
+  private static final int COL_SOURCES = 13;
+  private static final int COL_SISRecID = 14;
+  private static final int COL_SubsppID = 16;
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true, DOWNLOAD);
@@ -110,6 +108,13 @@ public class Generator extends AbstractXlsSrcGenerator {
       final String sort = col(row, COL_SORT);
       final String sort2 = col(row, COL_SSP_SORT);
 
+      if (row.getRowNum() > 30_000 && sort == null && sort2 == null) {
+        // we have reached the end.
+        // not recognized concepts follow now which we don't want to include!
+        LOG.info("End of regular taxonomy detected on row {}", row.getRowNum());
+        break;
+      }
+
       String id;
       Rank rank;
       if (sort2.equals("0")) {
@@ -117,7 +122,10 @@ public class Generator extends AbstractXlsSrcGenerator {
         spID = id;
         rank = Rank.SPECIES;
         writer.set(ColdpTerm.ordinal, sort);
-        writer.set(ColdpTerm.order, col(row, COL_ORDER));
+        String ord = col(row, COL_ORDER);
+        if (ord != null) {
+          writer.set(ColdpTerm.order, StringUtils.capitalize(ord.toLowerCase()));
+        }
         writer.set(ColdpTerm.family, col(row, COL_FAMILY));
         writer.set(ColdpTerm.subfamily, col(row, COL_SUBFAMILY));
         writer.set(ColdpTerm.tribe, col(row, COL_TRIBE));

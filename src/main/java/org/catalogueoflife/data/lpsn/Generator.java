@@ -220,8 +220,8 @@ public class Generator extends AbstractColdpGenerator {
     }
   }
 
-  //@Override
-  public void run2() {
+  @Override
+  public void run() {
     try {
       // get first auth token
       token = authzClient.obtainAccessToken(cfg.lpsnUsername, cfg.lpsnPassword);
@@ -243,7 +243,7 @@ public class Generator extends AbstractColdpGenerator {
     if (x != null) {
       if (x.startsWith("orphaned")) {
         return "provisionally accepted";
-      } else if (x.startsWith("synonym of")) {
+      } else if (x.startsWith("synonym")) {
         return "synonym";
       }
       return switch (x){

@@ -1,11 +1,6 @@
 package org.catalogueoflife.data;
 
-import com.beust.jcommander.Parameter;
-import org.apache.jena.base.Sys;
 import org.junit.Ignore;
-
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 
 @Ignore
 public class ManualCli {
