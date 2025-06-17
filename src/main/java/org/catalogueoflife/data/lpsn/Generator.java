@@ -239,20 +239,30 @@ public class Generator extends AbstractColdpGenerator {
     }
   }
 
+  /**
+   * https://lpsn.dsmz.de/text/glossary
+   */
   String mapTaxStatus(String x) {
     if (x != null) {
-      if (x.startsWith("orphaned")) {
+      if (x.startsWith("orphaned")
+        || x.startsWith("in need of a replacement")
+        || x.startsWith("preferred")
+      ) {
         return "provisionally accepted";
-      } else if (x.startsWith("synonym")) {
+
+      } else if (x.startsWith("synonym")
+              || x.startsWith("misspelling")
+      ) {
         return "synonym";
+
+      } else if (x.startsWith("correct name")) {
+        return "accepted";
+
+      } else if (x.startsWith("not in use")) {
+        return "bare name";
       }
-      return switch (x){
-        case "correct name" -> "accepted";
-        case "preferred name (not correct name)" -> "preferred";
-        case "misspelling" -> "synonym";
-        case "not in use" -> "bare name";
-        default -> x;
-      };
+      LOG.warn("Unknown status: " + x);
+      return x;
     }
     return null;
   }
@@ -261,9 +271,13 @@ public class Generator extends AbstractColdpGenerator {
     if (tax != null) {
       stat = switch (tax){
         case "validly published under the ICNP" -> NomStatus.ESTABLISHED;
+
         case "validly published under the ICNP, rejected name" -> NomStatus.REJECTED;
         case "validly published under the ICNP, rejected name, later homonym" -> NomStatus.REJECTED;
+
         case "validly published under the ICNP, illegitimate name, later homonym" -> NomStatus.UNACCEPTABLE;
+        case "in need of a replacement" -> NomStatus.UNACCEPTABLE;
+
         case "not validly published" -> NomStatus.NOT_ESTABLISHED;
         default -> null;
       };
