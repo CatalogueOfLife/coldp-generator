@@ -156,12 +156,13 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   /**
-   * Query all distinct taxon ranks from Wikidata and add any missing ones to the rank map.
+   * Query all distinct taxon ranks directly from items that are instance of "taxonomic rank" (Q427626),
+   * avoiding a full scan of all taxa.
    */
   private void loadAdditionalRanks() {
     String sparql = PREFIXES + """
-        SELECT DISTINCT ?rank ?rankLabel WHERE {
-          ?item wdt:P105 ?rank .
+        SELECT ?rank ?rankLabel WHERE {
+          ?rank wdt:P31 wd:Q427626 .
           ?rank rdfs:label ?rankLabel .
           FILTER(LANG(?rankLabel) = "en")
         }
@@ -170,7 +171,7 @@ public class Generator extends AbstractColdpGenerator {
       Query query = QueryFactory.create(sparql);
       executeQuery(query, sol -> {
         String qid = qid(sol.getResource("rank"));
-        if (!rankMap.containsKey(qid)) {
+        if (qid != null && !rankMap.containsKey(qid)) {
           String label = sol.getLiteral("rankLabel").getString().toLowerCase();
           rankMap.put(qid, label);
           LOG.debug("Discovered rank {} -> {}", qid, label);
@@ -210,7 +211,6 @@ public class Generator extends AbstractColdpGenerator {
         String page = literal(sol, "refPg");
         String bhlPageId = literal(sol, "bhl");
         String bhlPageLink = bhlPageId != null ? "https://www.biodiversitylibrary.org/page/" + bhlPageId : null;
-        // year will be filled in during phase 2
         nomRefMap.put(taxonQid, new NomRef(pubQid, null, page, bhlPageLink));
       }
     });
@@ -306,79 +306,94 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   /**
-   * Query all Wikidata taxa (items with P225 taxon name) in paginated batches
-   * and write them as ColDP NameUsage records.
+   * Query all Wikidata taxa using a subquery pattern: the inner query paginates over
+   * item IDs efficiently, the outer query enriches with optional properties.
+   * This avoids GROUP BY + ORDER BY over millions of rows which causes timeouts.
    */
   private void crawlTaxa() throws Exception {
-    int total = crawlPaginated("""
-        SELECT ?item
-          (SAMPLE(?taxonName) AS ?name)
-          (SAMPLE(?rank) AS ?r)
-          (SAMPLE(?parent) AS ?p)
-          (SAMPLE(?authorName) AS ?auth)
-          (SAMPLE(?bas) AS ?basionym)
-        WHERE {
-          ?item wdt:P225 ?taxonName .
-          OPTIONAL { ?item wdt:P105 ?rank }
-          OPTIONAL { ?item wdt:P171 ?parent }
-          OPTIONAL { ?item wdt:P835 ?authorName }
-          OPTIONAL { ?item wdt:P566 ?bas }
+    int total = 0;
+    int offset = 0;
+    boolean hasMore = true;
+    Set<String> seen = new HashSet<>();
+
+    while (hasMore) {
+      String sparql = PREFIXES + String.format("""
+          SELECT ?item ?name ?r ?p ?auth ?basionym WHERE {
+            {
+              SELECT ?item WHERE {
+                ?item wdt:P225 [] .
+              }
+              LIMIT %d
+              OFFSET %d
+            }
+            ?item wdt:P225 ?name .
+            OPTIONAL { ?item wdt:P105 ?r }
+            OPTIONAL { ?item wdt:P171 ?p }
+            OPTIONAL { ?item wdt:P835 ?auth }
+            OPTIONAL { ?item wdt:P566 ?basionym }
+          }
+          """, BATCH_SIZE, offset);
+
+      Query query = QueryFactory.create(sparql);
+      int batchItems = 0;
+      int batchCount = executeQuery(query, sol -> {
+        try {
+          Resource item = sol.getResource("item");
+          String qid = qid(item);
+          // skip duplicate rows from multiple optional values
+          if (!seen.add(qid)) return;
+
+          writer.set(ColdpTerm.ID, qid);
+          writer.set(ColdpTerm.scientificName, sol.getLiteral("name").getString());
+
+          if (sol.getResource("r") != null) {
+            writer.set(ColdpTerm.rank, rankMap.get(qid(sol.getResource("r"))));
+          }
+          if (sol.getResource("p") != null) {
+            writer.set(ColdpTerm.parentID, qid(sol.getResource("p")));
+          }
+          if (sol.get("auth") != null) {
+            writer.set(ColdpTerm.authorship, sol.getLiteral("auth").getString());
+          }
+          if (sol.getResource("basionym") != null) {
+            writer.set(ColdpTerm.basionymID, qid(sol.getResource("basionym")));
+          }
+          writer.set(ColdpTerm.link, "https://www.wikidata.org/wiki/" + qid);
+          writer.set(ColdpTerm.status, "accepted");
+
+          NomRef ref = nomRefMap.get(qid);
+          if (ref != null) {
+            writer.set(ColdpTerm.referenceID, ref.refID());
+            writer.set(ColdpTerm.publishedInYear, ref.year());
+            writer.set(ColdpTerm.publishedInPage, ref.page());
+            writer.set(ColdpTerm.publishedInPageLink, ref.bhlPageLink());
+          }
+
+          writer.next();
+        } catch (IOException e) {
+          throw new RuntimeException(e);
         }
-        GROUP BY ?item
-        """, sol -> {
-      try {
-        Resource item = sol.getResource("item");
-        String qid = qid(item);
+      });
 
-        String taxonName = sol.getLiteral("name").getString();
+      // The inner subquery returns BATCH_SIZE items, but the outer query may produce
+      // more rows (from OPTIONALs). Track unique items written to determine batch size.
+      int prevTotal = total;
+      total = seen.size();
+      batchItems = total - prevTotal;
+      offset += BATCH_SIZE;
+      LOG.info("Processed {} taxa (batch {})", total, batchItems);
+      // Stop when inner subquery returned fewer than BATCH_SIZE items
+      hasMore = batchCount > 0 && batchItems > 0;
 
-        String rank = null;
-        if (sol.getResource("r") != null) {
-          rank = rankMap.get(qid(sol.getResource("r")));
-        }
-
-        String parentID = null;
-        if (sol.getResource("p") != null) {
-          parentID = qid(sol.getResource("p"));
-        }
-
-        String authorship = null;
-        if (sol.get("auth") != null) {
-          authorship = sol.getLiteral("auth").getString();
-        }
-
-        String basionymID = null;
-        if (sol.getResource("basionym") != null) {
-          basionymID = qid(sol.getResource("basionym"));
-        }
-
-        writer.set(ColdpTerm.ID, qid);
-        writer.set(ColdpTerm.parentID, parentID);
-        writer.set(ColdpTerm.basionymID, basionymID);
-        writer.set(ColdpTerm.rank, rank);
-        writer.set(ColdpTerm.scientificName, taxonName);
-        writer.set(ColdpTerm.authorship, authorship);
-        writer.set(ColdpTerm.link, "https://www.wikidata.org/wiki/" + qid);
-        writer.set(ColdpTerm.status, "accepted");
-
-        NomRef ref = nomRefMap.get(qid);
-        if (ref != null) {
-          writer.set(ColdpTerm.referenceID, ref.refID());
-          writer.set(ColdpTerm.publishedInYear, ref.year());
-          writer.set(ColdpTerm.publishedInPage, ref.page());
-          writer.set(ColdpTerm.publishedInPageLink, ref.bhlPageLink());
-        }
-
-        writer.next();
-      } catch (IOException e) {
-        throw new RuntimeException(e);
+      if (hasMore) {
+        Thread.sleep(1000);
       }
-    });
+    }
     LOG.info("Total taxa: {}", total);
   }
 
   /**
-   * Query all vernacular names (P1843) for Wikidata taxa and write them as ColDP VernacularName records.
+   * Query all vernacular names (P1843) for Wikidata taxa.
    */
   private void crawlVernacularNames() throws Exception {
     int total = crawlPaginated("""
@@ -388,8 +403,7 @@ public class Generator extends AbstractColdpGenerator {
         }
         """, sol -> {
       try {
-        Resource item = sol.getResource("item");
-        String qid = qid(item);
+        String qid = qid(sol.getResource("item"));
         Literal nameLit = sol.getLiteral("name");
 
         vernWriter.set(ColdpTerm.taxonID, qid);
@@ -512,8 +526,10 @@ public class Generator extends AbstractColdpGenerator {
   // --- Shared infrastructure ---
 
   /**
-   * Paginated SPARQL crawl with ORDER BY ?item, LIMIT/OFFSET and retry on 504.
-   * The queryBody should NOT include ORDER BY, LIMIT or OFFSET — they are appended automatically.
+   * Paginated SPARQL crawl using LIMIT/OFFSET without ORDER BY.
+   * Blazegraph (used by WDQS) iterates in deterministic internal storage order,
+   * making OFFSET without ORDER BY reliable and much faster than with ORDER BY
+   * which forces a full sort of millions of results before applying LIMIT.
    */
   private int crawlPaginated(String queryBody, Consumer<QuerySolution> handler) throws Exception {
     int total = 0;
@@ -522,7 +538,6 @@ public class Generator extends AbstractColdpGenerator {
 
     while (hasMore) {
       String sparql = PREFIXES + queryBody + String.format("""
-          ORDER BY ?item
           LIMIT %d
           OFFSET %d
           """, BATCH_SIZE, offset);
@@ -532,6 +547,7 @@ public class Generator extends AbstractColdpGenerator {
 
       total += batchCount;
       offset += BATCH_SIZE;
+      LOG.info("Processed {} rows (batch {})", total, batchCount);
       hasMore = batchCount == BATCH_SIZE;
 
       if (hasMore) {
