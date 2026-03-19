@@ -17,6 +17,10 @@ public class GeneratorConfig {
   @NotNull
   public File repository = new File("/tmp/coldp-generator");
 
+  @Parameter(names = {"--tmp"})
+  @NotNull
+  public File tmpSourceDir = new File("/tmp/coldp-generator-sources");
+
   @Parameter(names = {"-s", "--source"}, required = true)
   @NotNull
   public String source;
@@ -45,6 +49,10 @@ public class GeneratorConfig {
    */
   public File archiveDir() {
     return new File(repository, source);
+  }
+
+  public File tmpDir() {
+    return new File(tmpSourceDir, source);
   }
 
   public Class<? extends AbstractColdpGenerator> builderClass() {

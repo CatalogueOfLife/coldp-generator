@@ -38,7 +38,7 @@ public abstract class AbstractColdpGenerator extends AbstractGenerator {
 
   public AbstractColdpGenerator(GeneratorConfig cfg, boolean addMetadata, Map<String, URI> downloads) throws IOException {
     super(cfg, addMetadata, "ColDP");
-    sources = new File("/tmp/" + name + "-sources");
+    sources = cfg.tmpDir();
     download = new DownloadUtil(hc);
     if (downloads != null && !downloads.isEmpty()) {
       downloadURIs.putAll(downloads);
