@@ -1,7 +1,6 @@
 package org.catalogueoflife.data.utils.bibjson;
 
 import de.undercouch.citeproc.csl.CSLItemDataBuilder;
-import org.apache.jena.base.Sys;
 
 import java.util.Objects;
 

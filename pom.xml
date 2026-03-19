@@ -42,7 +42,6 @@
     <jackson.version>2.20.0</jackson.version>
     <jbibtex.version>1.0.20</jbibtex.version>
     <jcommander.version>1.82</jcommander.version>
-    <jena.version>4.10.0</jena.version>
     <jsoup.version>1.16.1</jsoup.version>
     <junit.version>4.12</junit.version>
     <keycloak.version>23.0.7</keycloak.version>
@@ -291,19 +290,9 @@
       <version>${tukaani-xz.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.apache.jena</groupId>
-      <artifactId>jena-arq</artifactId>
-      <version>${jena.version}</version>
-      <exclusions>
-        <exclusion>
-          <groupId>log4j</groupId>
-          <artifactId>log4j</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>org.slf4j</groupId>
-          <artifactId>slf4j-log4j12</artifactId>
-        </exclusion>
-      </exclusions>
+      <groupId>com.github.ben-manes.caffeine</groupId>
+      <artifactId>caffeine</artifactId>
+      <version>3.1.8</version>
     </dependency>
     <dependency>
       <groupId>org.sweble.wikitext</groupId>
