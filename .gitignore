@@ -1,6 +1,11 @@
 *.iml
 .idea
 .DS_Store
+.classpath
+.claude/
+.factorypath
+.project
+.settings/
 target/
 pom.xml.tag
 pom.xml.releaseBackup
