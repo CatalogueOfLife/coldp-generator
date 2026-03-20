@@ -619,7 +619,7 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.remarks
     ));
     vernWriter = additionalWriter(ColdpTerm.VernacularName, List.of(
-        ColdpTerm.ID,
+        ColdpTerm.taxonID,
         ColdpTerm.language,
         ColdpTerm.name,
         ColdpTerm.referenceID
