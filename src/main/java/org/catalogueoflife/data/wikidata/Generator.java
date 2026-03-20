@@ -19,6 +19,7 @@ import static org.catalogueoflife.data.wikidata.WikidataDumpReader.*;
 public class Generator extends AbstractColdpGenerator {
   private static final String DUMP_URL = "https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.gz";
   private static final String DUMP_FILENAME = "latest-all.json.gz";
+  private final boolean PREVENT_DOWNLOAD = true;
 
   private TermWriter vernWriter;
   private TermWriter distWriter;
@@ -73,7 +74,7 @@ public class Generator extends AbstractColdpGenerator {
     File dumpFile = sourceFile(DUMP_FILENAME);
     if (dumpFile.exists()) {
       // Check freshness via HTTP HEAD
-      if (isRemoteNewer(dumpFile)) {
+      if (!PREVENT_DOWNLOAD && isRemoteNewer(dumpFile)) {
         LOG.info("Remote dump is newer, re-downloading...");
         dumpFile.delete();
         downloadDump(dumpFile);
