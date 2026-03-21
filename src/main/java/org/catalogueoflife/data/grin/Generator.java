@@ -107,8 +107,8 @@ public class Generator extends AbstractColdpGenerator {
     collectBasionyms();
 
     // Phase 2: write ColDP records
-    parseFamilies();
-    parseGenera();
+    var familyIdToRoot = parseFamilies();
+    parseGenera(familyIdToRoot);
     parseSpecies(nomRelWriter);
     parseCommonNames(vernWriter);
     parseDistributions(distWriter);
@@ -212,39 +212,118 @@ public class Generator extends AbstractColdpGenerator {
 
   // ── ColDP writers ─────────────────────────────────────────────────────────
 
-  private void parseFamilies() throws IOException {
-    int accepted = 0, synonyms = 0;
+  /**
+   * Parses taxonomy_family.txt. Each row is a placement node encoding a family × subfamily ×
+   * tribe × subtribe combination. The most specific non-null field determines the rank:
+   *   - subtribe_name set  → subtribe
+   *   - tribe_name set     → tribe
+   *   - subfamily_name set → subfamily
+   *   - none set           → family (root record)
+   *
+   * All nodes are written as ColDP NameUsage records. Parent IDs are resolved by looking up
+   * the closest accepted ancestor node. The returned map resolves synonym node IDs to their
+   * accepted equivalent, for use when linking genera to their parent.
+   */
+  private Map<Integer, Integer> parseFamilies() throws IOException {
+    List<String[]> allRows = new ArrayList<>();
+    Map<String, Integer> idx;
     var parser = tsvParser();
     parser.beginParsing(UTF8IoUtils.readerFromFile(sourceFile("taxonomy_family.txt")));
-    var idx = indexMap(parser.getContext().headers());
+    idx = indexMap(parser.getContext().headers());
     String[] row;
     while ((row = parser.parseNext()) != null) {
-      var famId     = intCol(row, idx, "taxonomy_family_id");
-      var currentId = intCol(row, idx, "current_taxonomy_family_id");
-      if (famId == null) continue;
-
-      writer.set(ColdpTerm.ID, "fam:" + famId);
-      writer.set(ColdpTerm.scientificName, col(row, idx, "family_name"));
-      writer.set(ColdpTerm.authorship, col(row, idx, "family_authority"));
-      writer.set(ColdpTerm.rank, "family");
-
-      if (currentId != null && !currentId.equals(famId)) {
-        writer.set(ColdpTerm.parentID, "fam:" + currentId);
-        writer.set(ColdpTerm.status, "synonym");
-        synonyms++;
-      } else {
-        accepted++;
-      }
-
-      var altName = col(row, idx, "alternate_name");
-      writer.set(ColdpTerm.remarks, altName != null ? "alt.: " + altName : null);
-      writer.next();
+      if (intCol(row, idx, "taxonomy_family_id") != null) allRows.add(row.clone());
     }
     parser.stopParsing();
-    LOG.info("{} families ({} accepted, {} synonyms)", accepted + synonyms, accepted, synonyms);
+
+    // Build lookup maps from accepted nodes at each level, keyed by the path to that node.
+    // Keys: "familyName" for roots, "fam|sf" for subfamilies, "fam|sf|tr" for tribes.
+    Map<String, Integer> rootByName      = new HashMap<>();
+    Map<String, Integer> sfByKey         = new HashMap<>();
+    Map<String, Integer> tribeByKey      = new HashMap<>();
+
+    for (String[] r : allRows) {
+      Integer id      = intCol(r, idx, "taxonomy_family_id");
+      Integer current = intCol(r, idx, "current_taxonomy_family_id");
+      if (current != null && !current.equals(id)) continue; // skip synonyms for lookups
+      String fn = col(r, idx, "family_name");
+      String sf = col(r, idx, "subfamily_name");
+      String tr = col(r, idx, "tribe_name");
+      String st = col(r, idx, "subtribe_name");
+      if      (st != null) { /* subtribes have no children */ }
+      else if (tr != null) tribeByKey.put(fn + "|" + sf + "|" + tr, id);
+      else if (sf != null) sfByKey.put(fn + "|" + sf, id);
+      else if (fn != null) rootByName.put(fn, id);
+    }
+
+    // Write all nodes as ColDP NameUsage; build synonym resolution map.
+    Map<Integer, Integer> idToAccepted = new HashMap<>();
+    int[] counts = new int[4]; // family, subfamily, tribe, subtribe
+    int synonyms = 0;
+
+    for (String[] r : allRows) {
+      Integer id      = intCol(r, idx, "taxonomy_family_id");
+      Integer current = intCol(r, idx, "current_taxonomy_family_id");
+      if (current == null) current = id;
+      boolean isSynonym = !current.equals(id);
+      idToAccepted.put(id, isSynonym ? current : id);
+
+      String fn = col(r, idx, "family_name");
+      String sf = col(r, idx, "subfamily_name");
+      String tr = col(r, idx, "tribe_name");
+      String st = col(r, idx, "subtribe_name");
+
+      String rank, sciName;
+      String parentId;
+      if (st != null) {
+        rank = "subtribe"; sciName = st; counts[3]++;
+        if (isSynonym) {
+          parentId = "fam:" + current;
+        } else {
+          Integer p = tr != null ? tribeByKey.get(fn + "|" + sf + "|" + tr)
+                                 : sf != null ? sfByKey.get(fn + "|" + sf)
+                                              : rootByName.get(fn);
+          parentId = p != null ? "fam:" + p : null;
+        }
+      } else if (tr != null) {
+        rank = "tribe"; sciName = tr; counts[2]++;
+        if (isSynonym) {
+          parentId = "fam:" + current;
+        } else {
+          Integer p = sf != null ? sfByKey.get(fn + "|" + sf) : rootByName.get(fn);
+          parentId = p != null ? "fam:" + p : null;
+        }
+      } else if (sf != null) {
+        rank = "subfamily"; sciName = sf; counts[1]++;
+        if (isSynonym) {
+          parentId = "fam:" + current;
+        } else {
+          Integer p = rootByName.get(fn);
+          parentId = p != null ? "fam:" + p : null;
+        }
+      } else {
+        rank = "family"; sciName = fn; counts[0]++;
+        parentId = isSynonym ? "fam:" + current : null;
+      }
+
+      writer.set(ColdpTerm.ID, "fam:" + id);
+      writer.set(ColdpTerm.scientificName, sciName);
+      if ("family".equals(rank)) writer.set(ColdpTerm.authorship, col(r, idx, "family_authority"));
+      writer.set(ColdpTerm.rank, rank);
+      writer.set(ColdpTerm.parentID, parentId);
+      if (isSynonym) { writer.set(ColdpTerm.status, "synonym"); synonyms++; }
+      if ("family".equals(rank)) {
+        var altName = col(r, idx, "alternate_name");
+        writer.set(ColdpTerm.remarks, altName != null ? "alt.: " + altName : null);
+      }
+      writer.next();
+    }
+    LOG.info("{} families, {} subfamilies, {} tribes, {} subtribes ({} synonyms)",
+        counts[0], counts[1], counts[2], counts[3], synonyms);
+    return idToAccepted;
   }
 
-  private void parseGenera() throws IOException {
+  private void parseGenera(Map<Integer, Integer> familyIdToRoot) throws IOException {
     int accepted = 0, synonyms = 0;
     var parser = tsvParser();
     parser.beginParsing(UTF8IoUtils.readerFromFile(sourceFile("taxonomy_genus.txt")));
@@ -267,7 +346,9 @@ public class Generator extends AbstractColdpGenerator {
         writer.set(ColdpTerm.status, "synonym");
         synonyms++;
       } else {
-        writer.set(ColdpTerm.parentID, famId != null ? "fam:" + famId : null);
+        // Resolve to accepted node (in case genus points to a synonym placement node)
+        Integer resolvedFamId = famId != null ? familyIdToRoot.getOrDefault(famId, famId) : null;
+        writer.set(ColdpTerm.parentID, resolvedFamId != null ? "fam:" + resolvedFamId : null);
         accepted++;
       }
 
@@ -466,12 +547,6 @@ public class Generator extends AbstractColdpGenerator {
   private static String capitalise(String s) {
     if (s == null || s.isEmpty()) return s;
     return Character.toUpperCase(s.charAt(0)) + s.substring(1).toLowerCase();
-  }
-
-  private static String join(String a, String b) {
-    if (a == null) return b;
-    if (b == null) return a;
-    return a + ", " + b;
   }
 
   private static String toLangCode(String lang) {
