@@ -173,7 +173,8 @@ public class Generator extends AbstractColdpGenerator {
       writer.set(ColdpTerm.rank,           rank);
       writer.set(ColdpTerm.scientificName, name);
       writer.set(ColdpTerm.authorship,     col(r, COL_AUTHORITY));
-      writer.set(ColdpTerm.alternativeID,  col(r, COL_AVIBASE_ID));
+      String avibId = col(r, COL_AVIBASE_ID);
+      if (avibId != null) writer.set(ColdpTerm.alternativeID, "avibase:" + avibId);
       writer.set(ColdpTerm.status,         "accepted");
       String extinct = col(r, COL_EXTINCT);
       if ("extinct".equalsIgnoreCase(extinct) || "1".equals(extinct)) {

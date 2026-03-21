@@ -22,8 +22,17 @@ public class NameExtractor {
     StringBuilder authorBuf = new StringBuilder();
     String year = null;
 
+    // Sweble wraps the first content line in a WtParagraph when a sub-section follows.
+    // Unwrap it so we can walk the inline nodes directly.
+    WtNode container = body;
+    for (WtNode n : body) {
+      if (n instanceof WtParagraph) { container = n; break; }
+      if (n instanceof WtItalics || n instanceof WtTemplate || n instanceof WtInternalLink
+          || (n instanceof WtText && !((WtText) n).getContent().isBlank())) break;
+    }
+
     // Walk first-line nodes only (stop at first newline)
-    for (WtNode node : body) {
+    for (WtNode node : container) {
       if (node instanceof WtNewline) break;
 
       if (node instanceof WtItalics) {

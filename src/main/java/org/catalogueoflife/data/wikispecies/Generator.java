@@ -37,7 +37,12 @@ public class Generator extends AbstractColdpGenerator {
   private static final Map<String, String> RANK_MAP = buildRankMap();
 
   private TermWriter vernWriter;
+  private TermWriter nameRelWriter;
+  private TermWriter distWriter;
   private final WikitextParser parser;
+
+  private static final Pattern DIST_SKIP =
+      Pattern.compile("(?i)continental|regional|\u02D0");
 
   // Counters
   private int taxonCount = 0;
@@ -65,12 +70,24 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.rank,
         ColdpTerm.scientificName,
         ColdpTerm.authorship,
+        ColdpTerm.nameReferenceID,
+        ColdpTerm.publishedInYear,
+        ColdpTerm.referenceID,
         ColdpTerm.link
     ));
     vernWriter = additionalWriter(ColdpTerm.VernacularName, List.of(
         ColdpTerm.taxonID,
         ColdpTerm.language,
         ColdpTerm.name
+    ));
+    nameRelWriter = additionalWriter(ColdpTerm.NameRelation, List.of(
+        ColdpTerm.nameID,
+        ColdpTerm.relatedNameID,
+        ColdpTerm.type
+    ));
+    distWriter = additionalWriter(ColdpTerm.Distribution, List.of(
+        ColdpTerm.taxonID,
+        ColdpTerm.area
     ));
   }
 
@@ -136,6 +153,9 @@ public class Generator extends AbstractColdpGenerator {
     String rank = null;
     String sciName = null;
     String authorship = null;
+    String nameYear = null;
+    String primaryRefId = null;
+    List<String> additionalRefIds = new ArrayList<>();
     String wikidataQid = null;
     List<VernacularExtractor.VernacularName> vernaculars = new ArrayList<>();
     List<SynonymData> synonyms = new ArrayList<>();
@@ -162,22 +182,34 @@ public class Generator extends AbstractColdpGenerator {
         case "name" -> {
           NameExtractor.ParsedName pn = NameExtractor.extract(sect.getBody());
           sciName = pn.scientificName();
+          nameYear = pn.year();
           String auth = pn.authorship();
-          String yr = pn.year();
-          if (auth != null && yr != null) {
-            authorship = auth + ", " + yr;
+          if (auth != null && nameYear != null) {
+            authorship = auth + ", " + nameYear;
           } else if (auth != null) {
             authorship = auth;
-          } else if (yr != null) {
-            authorship = yr;
+          } else if (nameYear != null) {
+            authorship = nameYear;
           }
-          collectRefs(sect.getBody(), refIds);
-          // Also look in sub-sections (Primary references, Additional references)
+          // Scan sub-sections for primary and additional references
+          Set<String> primRefs = new LinkedHashSet<>();
+          Set<String> addlRefs = new LinkedHashSet<>();
           for (WtNode sub : sect.getBody()) {
-            if (sub instanceof WtSection && ((WtSection) sub).hasBody()) {
-              collectRefs(((WtSection) sub).getBody(), refIds);
+            if (!(sub instanceof WtSection) || !((WtSection) sub).hasBody()) continue;
+            WtSection subSect = (WtSection) sub;
+            String subKey = sectionKey(subSect.getHeading());
+            if (subKey.contains("primary")) {
+              collectRefsAny(subSect.getBody(), primRefs);
+            } else if (subKey.contains("additional")) {
+              collectRefs(subSect.getBody(), addlRefs);
             }
           }
+          if (!primRefs.isEmpty()) {
+            primaryRefId = primRefs.iterator().next();
+            refIds.addAll(primRefs);
+          }
+          additionalRefIds.addAll(addlRefs);
+          refIds.addAll(addlRefs);
         }
         case "synonymy", "synonyms" ->
             synonyms.addAll(parseSynonymSection(sect.getBody()));
@@ -207,6 +239,11 @@ public class Generator extends AbstractColdpGenerator {
     writer.set(ColdpTerm.rank, rank);
     writer.set(ColdpTerm.scientificName, sciName);
     writer.set(ColdpTerm.authorship, authorship);
+    writer.set(ColdpTerm.nameReferenceID, primaryRefId);
+    writer.set(ColdpTerm.publishedInYear, nameYear);
+    if (!additionalRefIds.isEmpty()) {
+      writer.set(ColdpTerm.referenceID, String.join(",", additionalRefIds));
+    }
     if (wikidataQid != null) writer.set(ColdpTerm.alternativeID, "wd:" + wikidataQid);
     writer.set(ColdpTerm.link, "https://species.wikimedia.org/wiki/" + id);
     writer.next();
@@ -224,13 +261,33 @@ public class Generator extends AbstractColdpGenerator {
     // Synonyms from synonymy section
     for (var syn : synonyms) {
       if (syn.name() == null || syn.name().isEmpty()) continue;
-      writer.set(ColdpTerm.ID, id + "_syn_" + (++synSeq));
+      String synId = id + "_syn_" + (++synSeq);
+      writer.set(ColdpTerm.ID, synId);
       writer.set(ColdpTerm.parentID, id);
       writer.set(ColdpTerm.status, syn.status());
       writer.set(ColdpTerm.scientificName, syn.name());
       writer.set(ColdpTerm.authorship, syn.authorship());
       writer.next();
       synCount++;
+
+      // NameRelation for homotypic synonyms
+      if ("homotypic synonym".equals(syn.status())) {
+        nameRelWriter.set(ColdpTerm.nameID, synId);
+        nameRelWriter.set(ColdpTerm.relatedNameID, id);
+        nameRelWriter.set(ColdpTerm.type, "homotypic synonym");
+        nameRelWriter.next();
+      }
+    }
+
+    // Distribution from {{nadi|...}} templates anywhere in the article
+    List<WtTemplate> nadiTemplates = new ArrayList<>();
+    findTemplates(article, "nadi", nadiTemplates);
+    for (WtTemplate nadi : nadiTemplates) {
+      for (String area : extractDistAreas(nadi)) {
+        distWriter.set(ColdpTerm.taxonID, id);
+        distWriter.set(ColdpTerm.area, area);
+        distWriter.next();
+      }
     }
 
     // References
@@ -404,6 +461,30 @@ public class Generator extends AbstractColdpGenerator {
   // ─── Reference collection ─────────────────────────────────────────────────
 
   /**
+   * Collect any non-empty template in a body as a reference.
+   * Used for "Primary references" sections where template names don't follow
+   * the "Author, year" pattern (e.g. {{LSP1|68}}).
+   */
+  private void collectRefsAny(WtBody body, Set<String> refIds) {
+    for (WtNode node : body) {
+      collectAnyRefFromNode(node, refIds);
+    }
+  }
+
+  private void collectAnyRefFromNode(WtNode node, Set<String> refIds) {
+    if (node instanceof WtTemplate) {
+      String tname = templateName((WtTemplate) node);
+      if (!tname.isEmpty()) {
+        refIds.add("ref:" + WikiPage.id(tname));
+      }
+      return; // don't recurse into template args
+    }
+    for (WtNode child : node) {
+      collectAnyRefFromNode(child, refIds);
+    }
+  }
+
+  /**
    * Collect reference IDs from template citations like {{Miller, 1768}} or
    * {{Fleming, 1822a}} found in a section body.
    * Template names containing a comma or matching "Author, year" pattern are
@@ -433,6 +514,44 @@ public class Generator extends AbstractColdpGenerator {
   private boolean isRefTemplate(String name) {
     // Reference templates match pattern like "Lastname, 1234" or "Lastname et al., 1234x"
     return name.contains(",") && name.matches(".*,\\s*\\d{4}.*");
+  }
+
+  // ─── Distribution extraction ──────────────────────────────────────────────
+
+  /** Recursively find all templates with a given name in an AST node. Does not recurse into template args. */
+  private void findTemplates(WtNode node, String name, List<WtTemplate> result) {
+    if (node instanceof WtTemplate) {
+      if (name.equalsIgnoreCase(templateName((WtTemplate) node))) {
+        result.add((WtTemplate) node);
+      }
+      return; // don't recurse into template args
+    }
+    for (WtNode child : node) {
+      findTemplates(child, name, result);
+    }
+  }
+
+  /**
+   * Extract individual area names from a {{nadi|...}} distribution template.
+   * The template argument contains nested wikitext lists:
+   *   *'''Continental: ...'''
+   *   **'''Regional: ...'''
+   *   ***  Country1, Country2, ...
+   * We collect the leaf-level text and split by comma.
+   */
+  private List<String> extractDistAreas(WtTemplate nadiTemplate) {
+    String content = templateArg(nadiTemplate, 0);
+    if (content == null || content.isBlank()) return List.of();
+    List<String> areas = new ArrayList<>();
+    for (String line : content.split("\n")) {
+      line = line.strip();
+      if (line.isEmpty() || DIST_SKIP.matcher(line).find()) continue;
+      for (String part : line.split(",")) {
+        String area = part.strip();
+        if (area.length() > 1) areas.add(area);
+      }
+    }
+    return areas;
   }
 
   // ─── Rank label parsing ───────────────────────────────────────────────────
