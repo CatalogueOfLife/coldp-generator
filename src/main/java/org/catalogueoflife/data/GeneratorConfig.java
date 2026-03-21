@@ -44,6 +44,9 @@ public class GeneratorConfig {
   @Parameter(names = {"--date"})
   public String date;
 
+  @Parameter(names = {"--media-threads"})
+  public int mediaThreads = 0; // 0 = skip media crawling
+
   /**
    * Returns the directory with the decompressed archive folder created by the checklist builder
    */

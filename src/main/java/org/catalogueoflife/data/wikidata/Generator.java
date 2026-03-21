@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.catalogueoflife.data.wikidata.WikidataDumpReader.*;
 
@@ -25,6 +26,7 @@ public class Generator extends AbstractColdpGenerator {
   private TermWriter distWriter;
   private TermWriter propWriter;
   private TermWriter nameRelWriter;
+  private TermWriter mediaWriter; // null when media crawling is disabled (--media-threads 0)
   private PrintWriter duplicateLogWriter;
   private final Map<String, String> rankMap = new HashMap<>();
   private final Set<String> writtenRefs = new HashSet<>();
@@ -161,12 +163,18 @@ public class Generator extends AbstractColdpGenerator {
     writeIdentifierRegistry(reader);
 
     LOG.info("Starting pass 2: emitting ColDP records...");
+    Map<String, String> pendingGalleries = new LinkedHashMap<>();
     try {
-      emitColdpRecords(dumpFile, reader);
+      emitColdpRecords(dumpFile, reader, pendingGalleries);
     } finally {
       if (duplicateLogWriter != null) {
         duplicateLogWriter.close();
       }
+    }
+
+    if (cfg.mediaThreads > 0 && !pendingGalleries.isEmpty()) {
+      LOG.info("Starting media crawl: {} galleries, {} threads", pendingGalleries.size(), cfg.mediaThreads);
+      crawlMedia(pendingGalleries);
     }
   }
 
@@ -424,7 +432,8 @@ public class Generator extends AbstractColdpGenerator {
     return s == null ? "" : s;
   }
 
-  private void emitColdpRecords(File dumpFile, WikidataDumpReader reader) throws IOException {
+  private void emitColdpRecords(File dumpFile, WikidataDumpReader reader,
+                                Map<String, String> pendingGalleries) throws IOException {
     LOG.info("Pass 2: writing ColDP records...");
     int[] taxonCount = {0};
     int[] synCount = {0};
@@ -459,6 +468,12 @@ public class Generator extends AbstractColdpGenerator {
         propCount[0] += writeIucnStatus(entity, qid, reader);
         nameRelCount[0] += writeNameRelations(entity, qid);
 
+        // Collect gallery name for later media crawling
+        String gallery = reader.galleryNames.get(qid);
+        if (gallery != null && cfg.mediaThreads > 0) {
+          pendingGalleries.put(qid, gallery);
+        }
+
         if (taxonCount[0] % 100_000 == 0) {
           LOG.info("Pass 2: {} taxa ({} synonyms), {} duplicates skipped, {} vernaculars, {} distributions, {} properties, {} name relations",
               taxonCount[0], synCount[0], duplicateCount[0], vernCount[0], distCount[0], propCount[0], nameRelCount[0]);
@@ -472,6 +487,31 @@ public class Generator extends AbstractColdpGenerator {
 
     LOG.info("Pass 2 complete: {} taxa ({} synonyms), {} duplicates skipped, {} vernaculars, {} distributions, {} properties, {} name relations, {} references",
         taxonCount[0], synCount[0], duplicateCount[0], vernCount[0], distCount[0], propCount[0], nameRelCount[0], writtenRefs.size());
+  }
+
+  private void crawlMedia(Map<String, String> galleries) throws InterruptedException {
+    CommonsMediaCrawler crawler = new CommonsMediaCrawler(cfg.mediaThreads, http);
+    AtomicInteger mediaCount = new AtomicInteger();
+
+    crawler.submitAll(galleries);
+    crawler.awaitAndDrain(r -> {
+      try {
+        mediaWriter.set(ColdpTerm.taxonID, r.taxonID());
+        mediaWriter.set(ColdpTerm.url, r.url());
+        mediaWriter.set(ColdpTerm.type, r.type());
+        mediaWriter.set(ColdpTerm.format, r.format());
+        mediaWriter.set(ColdpTerm.title, r.title());
+        mediaWriter.set(ColdpTerm.created, r.created());
+        mediaWriter.set(ColdpTerm.creator, r.creator());
+        mediaWriter.set(ColdpTerm.license, r.license());
+        mediaWriter.set(ColdpTerm.link, r.link());
+        mediaWriter.next();
+        mediaCount.incrementAndGet();
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    });
+    LOG.info("Media records written: {}", mediaCount.get());
   }
 
   private void writeNameUsage(JsonNode entity, String qid, WikidataDumpReader reader) throws IOException {
@@ -855,6 +895,20 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.publisher,
         ColdpTerm.link
     ));
+
+    if (cfg.mediaThreads > 0) {
+      mediaWriter = additionalWriter(ColdpTerm.Media, List.of(
+          ColdpTerm.taxonID,
+          ColdpTerm.url,
+          ColdpTerm.type,
+          ColdpTerm.format,
+          ColdpTerm.title,
+          ColdpTerm.created,
+          ColdpTerm.creator,
+          ColdpTerm.license,
+          ColdpTerm.link
+      ));
+    }
 
     // Duplicate page debug log (written to the archive directory as a plain TSV)
     File duplicateLog = new File(dir, "wikidata-duplicates.tsv");

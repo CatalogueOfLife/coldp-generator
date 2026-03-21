@@ -50,6 +50,7 @@ public class WikidataDumpReader {
   static final String P1353 = "P1353"; // original combination (original spelling)
   static final String P574  = "P574";  // year of taxon name publication (qualifier on P225)
   // External taxon identifier properties
+  static final String P935  = "P935";  // Commons gallery
   static final String P685  = "P685";  // NCBI taxonomy ID
   static final String P846  = "P846";  // GBIF species ID
   static final String P830  = "P830";  // Encyclopedia of Life ID
@@ -77,6 +78,8 @@ public class WikidataDumpReader {
   final Map<String, String> nomStatusLabels = new HashMap<>();
   /** External identifier properties discovered during pass 1: PID → info */
   final Map<String, ExtIdInfo> extIdProperties = new LinkedHashMap<>();
+  /** QID → Commons gallery name (P935), populated during pass 1 */
+  final Map<String, String> galleryNames = new HashMap<>();
 
   // Sets of QIDs needed by taxa, collected during pass 1
   final Set<String> neededPubQids = new HashSet<>();
@@ -141,7 +144,7 @@ public class WikidataDumpReader {
     Predicate<String> filter = line ->
         line.contains("\"P225\"") || line.contains("\"P297\"") ||
         line.contains("\"P1476\"") || line.contains("\"P31\"") ||
-        line.contains("\"P1630\""); // formatter URL → external identifier properties
+        line.contains("\"P1630\"") || line.contains("\"P935\""); // P935 = Commons gallery
 
     // Track used prefixes to ensure uniqueness
     Set<String> usedPrefixes = new HashSet<>();
@@ -319,6 +322,15 @@ public class WikidataDumpReader {
           }
           break; // only take first matching reference
         }
+      }
+    }
+
+    // Collect Commons gallery name (P935)
+    JsonNode galleryVal = getClaimValue(entity, P935);
+    if (galleryVal != null) {
+      String gallery = galleryVal.asText(null);
+      if (gallery != null) {
+        galleryNames.put(taxonQid, gallery);
       }
     }
 

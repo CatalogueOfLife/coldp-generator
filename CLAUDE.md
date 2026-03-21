@@ -23,6 +23,7 @@ mvn test
 - `--api-key` — API key for authenticated sources
 - `--lpsn-user / --lpsn-pass` — LPSN credentials
 - `--date` — date filter for incremental updates
+- `--media-threads` — number of threads for Wikimedia Commons media crawling (default: 0 = disabled; Wikidata only)
 
 ## Project Structure
 
@@ -144,6 +145,7 @@ The dump is stored at `{sourceDir}/wikidata/latest-all.json.gz` (default: `/tmp/
 **Pass 2** (`emitColdpRecords`): streams again (filter: `"P225"`) and emits ColDP records:
 - Skips entities with P31=Q17362920 (Wikimedia duplicated pages) — logs them to `wikidata-duplicates.tsv`.
 - Writes `NameUsage` (accepted + synonyms via P1420), `VernacularName`, `Distribution`, `TaxonProperty`, `NameRelation`, `Reference`.
+- Collects P935 (Commons gallery) names into `pendingGalleries` for the optional media crawl phase.
 
 #### Property mapping
 
@@ -171,6 +173,11 @@ The dump is stored at `{sourceDir}/wikidata/latest-all.json.gz` (default: `/tmp/
 - `NameRelation.tsv` — replacement name relations (P694)
 - `wikidata-duplicates.tsv` — skipped duplicate-page entities
 - `identifier-registry.tsv` — all discovered external identifier properties with CURIE prefix, formatter URL, format regex
+- `Media.tsv` — taxon images/audio/video from Wikimedia Commons (only produced when `--media-threads` > 0)
+
+#### Wikimedia Commons media crawling (`--media-threads N`)
+
+After pass 2, if `--media-threads` is set to a positive value, `CommonsMediaCrawler` fetches images for all taxa that have a P935 (Commons gallery) property. The crawl uses the MediaWiki API (`commons.wikimedia.org/w/api.php`) with `generator=images` and paginates via `gimcontinue`. HTTP fetches run in a thread pool of size N; results are collected in a `LinkedBlockingQueue` and written to `Media.tsv` from the main thread (TSV writer is not thread-safe). Fields populated: `url`, `type` (image/audio/video/other), `format` (MIME type), `title`, `created`, `creator`, `license`, `link` (description page). HTML tags are stripped from `creator` and `title`. Default (0) skips media crawling entirely and produces no `Media.tsv`.
 
 ## Notes
 
