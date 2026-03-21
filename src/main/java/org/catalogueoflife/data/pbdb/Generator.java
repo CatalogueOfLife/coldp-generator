@@ -64,7 +64,7 @@ public class Generator extends AbstractColdpGenerator {
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true, Map.of(
-            taxaFN, URI.create(API + "/taxa/list.json?all_taxa=true&show=attr,app,common,parent,immparent,classext,ecospace,ttaph,nav,img,ref,refattr,ent,entname,crmod"),
+            taxaFN, URI.create(API + "/taxa/list.json?all_records=true&show=attr,app,common,parent,immparent,classext,ecospace,ttaph,nav,img,ref,refattr,ent,entname,crmod"),
             specFN, URI.create(API + "/specs/list.json?all_records=true&show=attr,abund,plant,ecospace,taphonomy,coll,coords,loc,strat,lith,methods,env,geo,rem,resgroup,ent,entname,crmod"),
             refFN, URI.create(API + "/refs/list.json?vocab=bibjson&all_records=true"),
             //collFN, URI.create(API + "/config.txt?show=ranks"),
@@ -232,7 +232,13 @@ public class Generator extends AbstractColdpGenerator {
       LOG.info("{} taxa discovered", res.records.size());
       for (var t : res.records) {
         var remarks = new RemarksBuilder();
-        writer.set(ColdpTerm.ID, t.getOid());
+        // flg="V" marks a variant (alternative combination, misspelling, previous rank)
+        boolean isVariant = t.getFlg() != null && t.getFlg().contains("V");
+        // Variants may lack a vid; fall back to oid#name as a stable unique ID
+        String id = isVariant
+            ? (t.getVid() != null ? t.getVid() : t.getOid() + "#" + t.getNam())
+            : t.getOid();
+        writer.set(ColdpTerm.ID, id);
         if (t.getRnk() != null) {
           writer.set(ColdpTerm.rank, ranks.get(t.getRnk()));
         }
@@ -245,12 +251,17 @@ public class Generator extends AbstractColdpGenerator {
           writer.set(ColdpTerm.extinct, !t.isExtant());
         }
 
-        if (t.getAcc() != null && !t.getAcc().equals(t.getOid())) {
+        if (isVariant) {
+          // Alternative combination or spelling: synonym of the canonical taxon concept
+          writer.set(ColdpTerm.parentID, t.getOid());
+          writer.set(ColdpTerm.status, "synonym");
+          writer.set(ColdpTerm.nameStatus, t.getTdf());
+          remarks.append(t.getTdf());
+        } else if (t.getAcc() != null && !t.getAcc().equals(t.getOid())) {
           writer.set(ColdpTerm.parentID, t.getAcc());
           writer.set(ColdpTerm.status, "synonym");
           writer.set(ColdpTerm.nameStatus, t.getTdf());
           remarks.append(t.getTdf());
-
         } else {
           writer.set(ColdpTerm.parentID, t.getPar());
         }
@@ -277,30 +288,32 @@ public class Generator extends AbstractColdpGenerator {
 
         writer.next();
 
-        // type species
-        if (t.getTtn() != null) {
-          nomRelWriter.set(ColdpTerm.nameID, t.getOid());
-          nomRelWriter.set(ColdpTerm.type, "TYPE");
-          nomRelWriter.set(ColdpTerm.relatedNameID, t.getTtn());
-          nomRelWriter.next();
-        }
+        if (!isVariant) {
+          // type species — concept-level, not per-combination
+          if (t.getTtn() != null) {
+            nomRelWriter.set(ColdpTerm.nameID, t.getOid());
+            nomRelWriter.set(ColdpTerm.type, "TYPE");
+            nomRelWriter.set(ColdpTerm.relatedNameID, t.getTtn());
+            nomRelWriter.next();
+          }
 
-        // common names
-        if (t.getNm2() != null) {
-          vernacularWriter.set(ColdpTerm.taxonID, t.getOid());
-          vernacularWriter.set(ColdpTerm.name, t.getNm2());
-          vernacularWriter.set(ColdpTerm.language, "eng");
-          vernacularWriter.next();
-        }
+          // common names — concept-level
+          if (t.getNm2() != null) {
+            vernacularWriter.set(ColdpTerm.taxonID, t.getOid());
+            vernacularWriter.set(ColdpTerm.name, t.getNm2());
+            vernacularWriter.set(ColdpTerm.language, "eng");
+            vernacularWriter.next();
+          }
 
-        // property values
-        writeFact(t.getOid(), "motility", t.getJmo());
-        writeFact(t.getOid(), "life habit", t.getJlh());
-        writeFact(t.getOid(), "vision", t.getJvs());
-        writeFact(t.getOid(), "diet", t.getJdt());
-        writeFact(t.getOid(), "reproduction", t.getJre());
-        writeFact(t.getOid(), "ontogeny", t.getJon());
-        writeFact(t.getOid(), "composition", t.getJco());
+          // property values — concept-level
+          writeFact(t.getOid(), "motility", t.getJmo());
+          writeFact(t.getOid(), "life habit", t.getJlh());
+          writeFact(t.getOid(), "vision", t.getJvs());
+          writeFact(t.getOid(), "diet", t.getJdt());
+          writeFact(t.getOid(), "reproduction", t.getJre());
+          writeFact(t.getOid(), "ontogeny", t.getJon());
+          writeFact(t.getOid(), "composition", t.getJco());
+        }
 
         // modified
         writeModified(writer, t);
