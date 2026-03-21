@@ -88,11 +88,45 @@ src/main/resources/
 | SWC parser | Wikitext parsing |
 | coldp / dwc-api | ColDP and Darwin Core types |
 
-## Supported Sources (17)
+## Supported Sources (19)
 
-AntCat, Birdlife (HBW), BioLib, CITES, Clements, Cycads, ICTV, IPNI, IPNI-crawl, LPSN, MDD, Mites, OTL, OTT, PBDB, WikiData, WikiSpecies, WSC
+AntCat, Birdlife (HBW), BioLib, CITES, Clements, Cycads, GRIN, ICTV, IPNI, IPNI-crawl, LPSN, MDD, Mites, OTL, OTT, PBDB, WikiData, WikiSpecies, WSC
 
-## Wikidata Generator
+### GRIN Generator
+
+The GRIN generator (`grin/`) converts the [GRIN-Global taxonomy](https://npgsweb.ars-grin.gov/gringlobal/taxon/abouttaxonomy) for cultivated and economically important plants.
+
+**Requires `cabextract`** to be installed on the host (`brew install cabextract`). The generator downloads a single `taxonomy_data.cab` (27 MB Windows Cabinet archive) and extracts 16 TSV files.
+
+**Data files extracted from `taxonomy_data.cab`:**
+
+| File | Content |
+|------|---------|
+| `taxonomy_family.txt` | Families (with suprafamily rank/name and subfamily/tribe/subtribe text) |
+| `taxonomy_genus.txt` | Genera with `is_web_visible` flag; synonymized genera via `current_taxonomy_genus_id` |
+| `taxonomy_species.txt` | Species/infraspecies; synonym code `B`=homotypic, `S`=heterotypic |
+| `taxonomy_common_name.txt` | Vernacular names in many languages |
+| `taxonomy_geography_map.txt` | Distribution records (52 MB, streamed) |
+| `taxonomy_use.txt` | Economic uses (16 classes × 113 subclasses per Cook 1995) |
+| `literature.txt` | Reference records → ColDP Reference |
+| `citation.txt` | Species→literature links for `nameReferenceID` (87 MB, streamed) |
+| `geography.txt` | Geography hierarchy → ISO country code lookup |
+
+**Two-pass over `taxonomy_species.txt`:**
+- **Pass 1** (`collectBasionyms`): builds `accepted_id → basionym_id` map from all `synonym_code=B` records.
+- **Pass 2** (`parseSpecies`): writes NameUsage with `basionymID` set for accepted names; synonym records get `status=homotypic synonym` or `heterotypic synonym`; a `NameRelation type=basionym` row is also written for each homotypic synonym.
+
+**ID scheme:** `fam:<taxonomy_family_id>`, `gen:<taxonomy_genus_id>`, `sp:<taxonomy_species_id>`, `ref:<literature_id>`
+
+**Distribution status mapping:** `n`→native, `i`→introduced, `c`→cultivated, `a`→naturalised; gazetteer=ISO (country codes from `geography.country_code`).
+
+### PBDB Generator
+
+The PBDB generator (`pbdb/`) uses the [Paleobiology Database API](https://paleobiodb.org/data1.2/).
+
+**Taxa API uses `all_records=true`** (not `all_taxa=true`) to include all name variants — alternative combinations, misspellings, previous ranks. Variant records are identified by `flg` containing `"V"`. They are emitted as synonyms with `status=synonym`, `nameStatus=tdf` (e.g. "recombined as"), using `vid` as their ColDP ID (fallback: `oid#name`). Canonical (non-variant) records use `oid` as ID. Concept-level data (type species, common names, ecospace facts) is only written for canonical records.
+
+### Wikidata Generator
 
 The Wikidata generator (`wikidata/`) is special — it processes the full Wikidata JSON dump (~160 GB compressed), which takes an entire day to download. Key design points:
 
@@ -100,7 +134,7 @@ The Wikidata generator (`wikidata/`) is special — it processes the full Wikida
 
 The dump is stored at `{sourceDir}/wikidata/latest-all.json.gz` (default: `/tmp/coldp-generator-sources/wikidata/`).
 
-### Two-pass streaming architecture
+#### Two-pass streaming architecture
 
 **Pass 1** (`collectLookups`): streams the full dump to build in-memory lookup maps:
 - Rank labels (P105 QIDs), area info + ISO codes (P297), IUCN status labels (P141), publication info (P1476), journal labels (P1433), nomenclatural status / gender labels (P1135, P2433 qualifiers on P225), and external identifier property metadata (P entities with formatter URL P1630).
@@ -111,7 +145,7 @@ The dump is stored at `{sourceDir}/wikidata/latest-all.json.gz` (default: `/tmp/
 - Skips entities with P31=Q17362920 (Wikimedia duplicated pages) — logs them to `wikidata-duplicates.tsv`.
 - Writes `NameUsage` (accepted + synonyms via P1420), `VernacularName`, `Distribution`, `TaxonProperty`, `NameRelation`, `Reference`.
 
-### Property mapping
+#### Property mapping
 
 | Wikidata | ColDP field | Notes |
 |----------|-------------|-------|
@@ -133,7 +167,7 @@ The dump is stored at `{sourceDir}/wikidata/latest-all.json.gz` (default: `/tmp/
 | sitelinks.enwiki | remarks (Wikipedia URL) | |
 | all P entities with P1630 | alternativeID (CURIEs) | dynamically discovered |
 
-### Output files (in addition to standard ColDP)
+#### Output files (in addition to standard ColDP)
 - `NameRelation.tsv` — replacement name relations (P694)
 - `wikidata-duplicates.tsv` — skipped duplicate-page entities
 - `identifier-registry.tsv` — all discovered external identifier properties with CURIE prefix, formatter URL, format regex

@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CatalogueOfLife/coldp/master/metadata.json
+---
+alias: GRIN
+title: Germplasm Resources Information Network (GRIN) Taxonomy
+description: |-
+  The GRIN-Global Taxonomy database provides classification and nomenclature for cultivated plants
+  and many other economic plants on a worldwide basis. The database is maintained by taxonomists
+  at the National Germplasm Resources Laboratory of the USDA Agricultural Research Service.
+
+  Coverage includes 28,745 genera (14,953 accepted), 133,904 species or infraspecies (73,279 accepted),
+  and 623,723 germplasm accessions. Data fields include scientific names, common names in many languages,
+  geographical distributions, literature references, economic importance, regulated noxious weeds,
+  and threatened/endangered plant listings.
+
+  Homotypic and heterotypic synonymy is distinguished. Economic use data is based on Cook's (1995)
+  Economic Botany Data Collection Standard, covering 16 primary use classes subdivided into 113 subclasses.
+
+issued: {issued}
+version: {version}
+contact:
+  url: https://npgsweb.ars-grin.gov/gringlobal/ContactUs.aspx
+  organisation: USDA, Agricultural Research Service, National Germplasm Resources Laboratory
+contributor:
+  - family: Döring
+    given: Markus
+    orcid: 0000-0001-7757-1889
+    country: Germany
+    city: Berlin
+    email: mdoering@gbif.org
+    note: Developer of ColDP generator code
+creator:
+  - organisation: USDA, Agricultural Research Service, National Germplasm Resources Laboratory
+    url: https://npgsweb.ars-grin.gov/gringlobal/taxon/abouttaxonomy
+license: unspecified
+url: https://npgsweb.ars-grin.gov/gringlobal/taxon/abouttaxonomy
+logo: https://npgsweb.ars-grin.gov/gringlobal/images/ars-logo.png
+taxonomicScope: Plantae (cultivated plants and economically important species)
+geographicScope: global
+confidence: 4
+completeness: 70
+notes: |-
+  Generated from taxonomy_data.cab downloaded from the GRIN-Global downloads page.
+  Requires `cabextract` to be installed on the host system.
+  Distribution data uses ISO 3166 country codes derived from the GRIN geography hierarchy.
