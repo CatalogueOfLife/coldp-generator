@@ -25,10 +25,31 @@ public class Generator extends AbstractColdpGenerator {
   private static final String CAB_URL  = BASE + "/uploads/documents/taxonomy_data.cab";
 
   // In-memory lookups built before writing ColDP records
-  private final Map<Integer, String>  countryByGeoId        = new HashMap<>();
-  private final Map<Integer, String>  refIdByLitId          = new HashMap<>();
-  private final Map<Integer, String>  refIdBySpeciesId      = new HashMap<>();
-  private final Map<Integer, Integer> basionymByAcceptedId  = new HashMap<>(); // accepted_id → basionym_id
+  private final Map<Integer, String>       countryByGeoId       = new HashMap<>();
+  private final Map<Integer, String>       refIdByLitId         = new HashMap<>();
+  private final Map<Integer, List<String>> refIdsBySpeciesId    = new HashMap<>();
+  private final Map<Integer, Integer>      basionymByAcceptedId = new HashMap<>(); // accepted_id → basionym_id
+
+  private static final Map<String, String> USAGE_NAMES = Map.ofEntries(
+      Map.entry("ADDITIVE", "Food additives"),
+      Map.entry("ALTHOST",  "Harmful organism host"),
+      Map.entry("BEE",      "Bee plants"),
+      Map.entry("CITESI",   "CITES Appendix I"),
+      Map.entry("CITESII",  "CITES Appendix II"),
+      Map.entry("CPC",      "Center for Plant Conservation listed"),
+      Map.entry("ENVIRON",  "Environmental"),
+      Map.entry("FOOD",     "Human food"),
+      Map.entry("FORAGE",   "Animal food"),
+      Map.entry("FUEL",     "Fuels"),
+      Map.entry("GENETIC",  "Genetic resources"),
+      Map.entry("HOST",     "Invertebrate food"),
+      Map.entry("MATERIAL", "Materials"),
+      Map.entry("MEDICINE", "Medicines"),
+      Map.entry("PESTICIDE","Non-vertebrate poisons"),
+      Map.entry("POISON",   "Vertebrate poisons"),
+      Map.entry("SOCIAL",   "Social"),
+      Map.entry("WEED",     "Weed")
+  );
 
   private static final Map<String, String> LANG_MAP = buildLangMap();
 
@@ -64,12 +85,15 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.authorship,
         ColdpTerm.status,
         ColdpTerm.nameReferenceID,
+        ColdpTerm.publishedInPageLink,
+        ColdpTerm.referenceID,
         ColdpTerm.link,
         ColdpTerm.remarks
     ));
 
     initRefWriter(List.of(
         ColdpTerm.ID,
+        ColdpTerm.citation,
         ColdpTerm.author,
         ColdpTerm.title,
         ColdpTerm.year,
@@ -163,10 +187,8 @@ public class Generator extends AbstractColdpGenerator {
     LOG.info("{} geography entries loaded", countryByGeoId.size());
   }
 
-  /** Stream the large citation.txt file and record the best literature ref per species. */
+  /** Stream the large citation.txt file and collect all literature refs per species. */
   private void loadSpeciesCitations() throws IOException {
-    // species_id → ref from a non-primary citation (fallback if no Y citation found)
-    Map<Integer, String> fallback = new HashMap<>();
     var parser = tsvParser();
     parser.beginParsing(UTF8IoUtils.readerFromFile(sourceFile("citation.txt")));
     var idx = indexMap(parser.getContext().headers());
@@ -178,18 +200,10 @@ public class Generator extends AbstractColdpGenerator {
       if (litId == null) continue;
       var refId = refIdByLitId.get(litId);
       if (refId == null) continue;
-      if ("Y".equals(col(row, idx, "is_accepted_name"))) {
-        refIdBySpeciesId.put(speciesId, refId);
-      } else {
-        fallback.putIfAbsent(speciesId, refId);
-      }
+      refIdsBySpeciesId.computeIfAbsent(speciesId, k -> new ArrayList<>()).add(refId);
     }
     parser.stopParsing();
-    // fill in species that only have non-primary citations
-    for (var e : fallback.entrySet()) {
-      refIdBySpeciesId.putIfAbsent(e.getKey(), e.getValue());
-    }
-    LOG.info("{} species name citations loaded", refIdBySpeciesId.size());
+    LOG.info("{} species with citations loaded", refIdsBySpeciesId.size());
   }
 
   /** Pass 1 over taxonomy_species: record basionym_id for each accepted species. */
@@ -378,7 +392,26 @@ public class Generator extends AbstractColdpGenerator {
       writer.set(ColdpTerm.scientificName, col(row, idx, "name"));
       writer.set(ColdpTerm.authorship, col(row, idx, "name_authority"));
       writer.set(ColdpTerm.rank, determineRank(row, idx));
-      writer.set(ColdpTerm.nameReferenceID, refIdBySpeciesId.get(speciesId));
+
+      // Protologue = place of publication → nameReferenceID
+      String proto = col(row, idx, "protologue");
+      String protoPath = col(row, idx, "protologue_virtual_path");
+      if (proto != null) {
+        String protoRefId = "ref:proto:" + speciesId;
+        refWriter.set(ColdpTerm.ID, protoRefId);
+        refWriter.set(ColdpTerm.citation, proto);
+        refWriter.set(ColdpTerm.link, protoPath);
+        refWriter.next();
+        writer.set(ColdpTerm.nameReferenceID, protoRefId);
+      }
+      writer.set(ColdpTerm.publishedInPageLink, protoPath);
+
+      // Additional bibliography references from citation.txt
+      var refs = refIdsBySpeciesId.get(speciesId);
+      if (refs != null && !refs.isEmpty()) {
+        writer.set(ColdpTerm.referenceID, String.join(",", refs));
+      }
+
       writer.set(ColdpTerm.link, LINK + speciesId);
       writer.set(ColdpTerm.remarks, col(row, idx, "note"));
 
@@ -469,7 +502,8 @@ public class Generator extends AbstractColdpGenerator {
       var type      = col(row, idx, "usage_type");
       if (speciesId == null || usage == null) continue;
       propWriter.set(ColdpTerm.taxonID, "sp:" + speciesId);
-      propWriter.set(ColdpTerm.property, "Economic Use - " + capitalise(usage));
+      String usageName = USAGE_NAMES.getOrDefault(usage.toUpperCase(), capitalise(usage));
+      propWriter.set(ColdpTerm.property, "Economic Use - " + usageName);
       propWriter.set(ColdpTerm.value, type);
       propWriter.next();
       count++;
