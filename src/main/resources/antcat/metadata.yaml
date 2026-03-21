@@ -12,9 +12,10 @@ contact:
 creator:
  - family: Bolton
    given: Barry
-   country: US
+   country: GB
  - family: Fisher
    given: Brian
+   orcid: 0000-0002-4653-3270
    country: US
 license: CC-BY
 taxonomicScope: Ants

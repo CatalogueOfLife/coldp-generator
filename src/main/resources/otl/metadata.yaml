@@ -12,14 +12,18 @@ version: {version}
 creator:
  - given: Jonathan
    family: Rees
+   orcid: 0000-0001-7694-8250
  - given: Karen
    family: Cranston
+   orcid: 0000-0002-4798-9499
 contributor:
   - given: Ben
     family: Redelings
+    orcid: 0000-0002-3278-4343
     note: Postdoc
   - given: Luna Luisa Sanchez
     family: Reyes
+    orcid: 0000-0001-7668-2528
     note: Postdoc
 
   - given: Jim
@@ -27,28 +31,36 @@ contributor:
     note: Developer
   - given: Karen
     family: Cranston
+    orcid: 0000-0002-4798-9499
     note: Developer
   - given: Mark
     family: Holder
+    orcid: 0000-0001-5575-0536
     note: Developer
   - given: Emily Jane
     family: McTavish
+    orcid: 0000-0001-9766-5727
     note: Developer
   - given: Ben
     family: Redelings
+    orcid: 0000-0002-3278-4343
     note: Developer
   - given: Luna Luisa Sanchez
     family: Reyes
+    orcid: 0000-0001-7668-2528
     note: Developer
 
   - given: Karen
     family: Cranston
+    orcid: 0000-0002-4798-9499
     note: Principal investigator
   - given: Mark
     family: Holder
+    orcid: 0000-0001-5575-0536
     note: Principal investigator
   - given: Emily Jane
     family: McTavish
+    orcid: 0000-0001-9766-5727
     note: Principal investigator
 
 license: CC0

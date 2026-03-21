@@ -21,6 +21,7 @@ contributor:
     note: Tech Team
   - family: Peters
     given: Shanan
+    orcid: 0000-0002-3346-4317
     note: Tech Team
   - family: Behboudi
     given: Noushin
@@ -35,75 +36,72 @@ contributor:
 creator:
   - given: Mark
     family: Uhen
-    orcid:
-    organisation:
-    country:
+    orcid: 0000-0002-2689-0801
+    organisation: George Mason University
+    country: US
     note: Executive Committee (chair)
   - given: Philip
     family: Mannion
-    orcid:
-    organisation:
-    country:
+    orcid: 0000-0002-9361-6941
+    organisation: University College London
+    country: GB
     note: Executive Committee (secretary)
   - given: Bethany
     family: Allen
-    orcid:
-    organisation:
-    country:
+    orcid: 0000-0003-0282-6407
+    organisation: ETH Zurich
+    country: CH
     note: Executive Committee
   - given: Matthew
     family: Clapham
-    orcid:
-    organisation:
-    country:
+    orcid: 0000-0003-4867-7304
+    organisation: University of California Santa Cruz
+    country: US
     note: Executive Committee
   - given: Emma
     family: Dunne
-    orcid:
-    organisation:
-    country:
+    orcid: 0000-0002-4989-5904
+    organisation: Friedrich-Alexander University Erlangen-Nuremberg
+    country: DE
     note: Executive Committee
   - given: Phillip
     family: Jardine
-    orcid:
-    organisation:
-    country:
+    orcid: 0000-0002-8268-2353
+    organisation: University of Münster
+    country: DE
     note: Executive Committee
   - given: Ádám
     family: Kocsis
-    orcid:
-    organisation:
-    country:
+    orcid: 0000-0002-9028-665X
+    organisation: Friedrich-Alexander University Erlangen-Nuremberg
+    country: DE
     note: Executive Committee
   - given: Andrew
     family: Krug
-    orcid:
-    organisation:
-    country:
     note: Executive Committee
   - given: Noel
     family: Heim
-    orcid:
-    organisation:
-    country:
+    orcid: 0000-0002-4528-345X
+    organisation: Tufts University
+    country: US
     note: Executive Committee
   - given: Phil
     family: Novack-Gottshall
-    orcid:
-    organisation:
-    country:
+    orcid: 0000-0002-2583-2968
+    organisation: Benedictine University
+    country: US
     note: Executive Committee
   - given: Catalina
     family: Pimiento
-    orcid:
-    organisation:
-    country:
+    orcid: 0000-0002-5320-7246
+    organisation: University of Zurich
+    country: CH
     note: Executive Committee
   - given: Peter
     family: Wagner
-    orcid:
-    organisation:
-    country:
+    orcid: 0000-0002-9083-9787
+    organisation: University of Nebraska-Lincoln
+    country: US
     note: Executive Committee
 license: CC BY
 geographicScope: global

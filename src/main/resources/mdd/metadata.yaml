@@ -41,6 +41,7 @@ contact:
 creator:
   - family: Upham
     given: Nate
+    orcid: 0000-0001-5412-9342
     country: US
     organisation: Arizona State University
     notes: Chair, Biodiversity Committee
@@ -51,27 +52,31 @@ creator:
     notes: Chair, Mammal Images Library Committee
   - family: Burgin
     given: Connor
+    orcid: 0000-0001-6577-2739
     country: US
     organisation: University of New Mexico
     notes: Student Taxonomic Curator
   - family: Widness
     given: Jane
+    orcid: 0000-0002-9284-2066
     country: US
     organisation: Yale University
     notes: Student Research Assistant
   - family: Becker
     given: Madeleine
     country: US
-    organisation: George Mason University
+    organisation: Smithsonian Conservation Biology Institute
     notes: Student Research Assistant
   - family: Handika
     given: Heru
+    orcid: 0000-0002-2834-7175
     country: US
     organisation: Louisiana State University
     notes: Student Web Developer
   - family: Zijlstra
     given: Jelle
-    country: US
+    orcid: 0000-0003-1577-6568
+    country: NL
     organisation: Hesperomys Project
     notes: Volunteer Research Assistant
 
