@@ -5,9 +5,9 @@ import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
 import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
+import org.catalogueoflife.data.utils.AltIdBuilder;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.net.URI;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
@@ -24,8 +24,47 @@ public class Generator extends AbstractColdpGenerator {
   private TermWriter vernWriter;
   private TermWriter distWriter;
   private TermWriter propWriter;
+  private TermWriter nameRelWriter;
+  private PrintWriter duplicateLogWriter;
   private final Map<String, String> rankMap = new HashMap<>();
   private final Set<String> writtenRefs = new HashSet<>();
+
+  // Maps for nom status (P1135) and gender (P2433) QIDs — resolved during pass 1 / SPARQL
+  // Key: Wikidata label (lowercase) → ColDP nameStatus value
+  private static final Map<String, String> NOM_STATUS_LABEL_MAP = buildNomStatusLabelMap();
+  // Key: Wikidata label (lowercase) → ColDP gender value
+  private static final Map<String, String> GENDER_LABEL_MAP = Map.of(
+      "masculine", "masculine",
+      "masculine gender", "masculine",
+      "feminine", "feminine",
+      "feminine gender", "feminine",
+      "neuter", "neuter",
+      "neuter gender", "neuter"
+  );
+
+  private static Map<String, String> buildNomStatusLabelMap() {
+    Map<String, String> m = new HashMap<>();
+    // nomen validum / established
+    m.put("nomen validum", "established");
+    m.put("nomen novum", "established");
+    // nomen nudum / not established
+    m.put("nomen nudum", "not established");
+    m.put("not established", "not established");
+    // nomen conservandum / conserved
+    m.put("nomen conservandum", "conserved");
+    m.put("conserved name", "conserved");
+    // nomen rejectum / rejected
+    m.put("nomen rejectum", "rejected");
+    m.put("rejected name", "rejected");
+    // nomen illegitimum / unacceptable
+    m.put("nomen illegitimum", "unacceptable");
+    m.put("illegitimate name", "unacceptable");
+    // nomen ambiguum / nomen dubium → doubtful
+    m.put("nomen ambiguum", "doubtful");
+    m.put("nomen dubium", "doubtful");
+    m.put("doubtful name", "doubtful");
+    return Collections.unmodifiableMap(m);
+  }
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
@@ -73,7 +112,6 @@ public class Generator extends AbstractColdpGenerator {
   protected void prepare() throws Exception {
     File dumpFile = sourceFile(DUMP_FILENAME);
     if (dumpFile.exists()) {
-      // Check freshness via HTTP HEAD
       if (!PREVENT_DOWNLOAD && isRemoteNewer(dumpFile)) {
         LOG.info("Remote dump is newer, re-downloading...");
         dumpFile.delete();
@@ -114,40 +152,45 @@ public class Generator extends AbstractColdpGenerator {
 
     WikidataDumpReader reader = new WikidataDumpReader();
 
-    // Pass 1: collect lookup maps
     LOG.info("Starting pass 1: collecting lookup maps...");
     reader.collectLookups(dumpFile, rankMap);
 
-    // Resolve any remaining unresolved QIDs via small SPARQL VALUES queries
     resolveUnresolved(reader);
 
-    // Pass 2: emit ColDP records
+    // Write the identifier registry TSV to the archive
+    writeIdentifierRegistry(reader);
+
     LOG.info("Starting pass 2: emitting ColDP records...");
-    emitColdpRecords(dumpFile, reader);
+    try {
+      emitColdpRecords(dumpFile, reader);
+    } finally {
+      if (duplicateLogWriter != null) {
+        duplicateLogWriter.close();
+      }
+    }
   }
 
   private void resolveUnresolved(WikidataDumpReader reader) {
-    // Resolve unresolved rank QIDs
     if (!reader.neededRankQids.isEmpty()) {
       LOG.info("Resolving {} unresolved rank QIDs via SPARQL...", reader.neededRankQids.size());
       resolveLabels(reader.neededRankQids, reader.rankLabels, true);
     }
-    // Resolve unresolved IUCN status QIDs
     if (!reader.neededIucnQids.isEmpty()) {
       LOG.info("Resolving {} unresolved IUCN QIDs via SPARQL...", reader.neededIucnQids.size());
       resolveLabels(reader.neededIucnQids, reader.iucnLabels, false);
     }
-    // Resolve unresolved area QIDs
+    if (!reader.neededNomStatusQids.isEmpty()) {
+      LOG.info("Resolving {} unresolved nom-status/gender QIDs via SPARQL...", reader.neededNomStatusQids.size());
+      resolveLabels(reader.neededNomStatusQids, reader.nomStatusLabels, false);
+    }
     if (!reader.neededAreaQids.isEmpty()) {
       LOG.info("Resolving {} unresolved area QIDs via SPARQL...", reader.neededAreaQids.size());
       resolveAreas(reader.neededAreaQids, reader.areaInfo);
     }
-    // Resolve unresolved journal QIDs
     if (!reader.neededJournalQids.isEmpty()) {
       LOG.info("Resolving {} unresolved journal QIDs via SPARQL...", reader.neededJournalQids.size());
       resolveLabels(reader.neededJournalQids, reader.journalLabels, false);
     }
-    // Resolve unresolved publication QIDs
     if (!reader.neededPubQids.isEmpty()) {
       LOG.info("Resolving {} unresolved publication QIDs via SPARQL...", reader.neededPubQids.size());
       resolvePubs(reader.neededPubQids, reader.pubInfo, reader.neededJournalQids, reader.journalLabels);
@@ -269,10 +312,6 @@ public class Generator extends AbstractColdpGenerator {
     qids.clear();
   }
 
-  /**
-   * Execute a SPARQL query against the Wikidata Query Service.
-   * Returns the raw JSON response.
-   */
   private String querySparql(String sparql) throws IOException {
     try {
       URI uri = URI.create("https://query.wikidata.org/sparql?format=json&query=" +
@@ -358,49 +397,81 @@ public class Generator extends AbstractColdpGenerator {
     }
   }
 
+  /**
+   * Write a TSV registry of all discovered external identifier properties to the archive.
+   * Columns: prefix, property, propertyLink, label, formatterUrl, formatRegex
+   */
+  private void writeIdentifierRegistry(WikidataDumpReader reader) throws IOException {
+    File registryFile = new File(dir, "identifier-registry.tsv");
+    LOG.info("Writing identifier registry with {} properties to {}", reader.extIdProperties.size(), registryFile);
+    try (PrintWriter pw = new PrintWriter(new FileWriter(registryFile))) {
+      pw.println("prefix\tproperty\tpropertyLink\tlabel\tformatterUrl\tformatRegex");
+      for (var entry : reader.extIdProperties.entrySet()) {
+        String pid = entry.getKey();
+        WikidataDumpReader.ExtIdInfo info = entry.getValue();
+        pw.printf("%s\t%s\t%s\t%s\t%s\t%s%n",
+            info.prefix(),
+            pid,
+            "https://www.wikidata.org/wiki/Property:" + pid,
+            nullToEmpty(info.label()),
+            nullToEmpty(info.formatterUrl()),
+            nullToEmpty(info.formatRegex()));
+      }
+    }
+  }
+
+  private static String nullToEmpty(String s) {
+    return s == null ? "" : s;
+  }
+
   private void emitColdpRecords(File dumpFile, WikidataDumpReader reader) throws IOException {
     LOG.info("Pass 2: writing ColDP records...");
     int[] taxonCount = {0};
+    int[] synCount = {0};
+    int[] duplicateCount = {0};
     int[] vernCount = {0};
     int[] distCount = {0};
     int[] propCount = {0};
+    int[] nameRelCount = {0};
 
     reader.streamDump(dumpFile, line -> line.contains("\"P225\""), entity -> {
       if (!hasClaim(entity, P225)) return;
       String qid = entity.path("id").asText(null);
       if (qid == null) return;
 
+      // Skip Wikimedia duplicated pages (Q17362920) — log them instead
+      if (isInstanceOf(entity, Q17362920)) {
+        String name = getStringClaimValue(entity, P225);
+        String link = "https://www.wikidata.org/wiki/" + qid;
+        duplicateLogWriter.printf("%s\t%s\t%s%n", qid, link, name != null ? name : "");
+        duplicateCount[0]++;
+        return;
+      }
+
       try {
-        // Write NameUsage
         writeNameUsage(entity, qid, reader);
         taxonCount[0]++;
+        if (hasClaim(entity, P1420)) synCount[0]++;
 
-        // Write VernacularNames
         vernCount[0] += writeVernacularNames(entity, qid);
-
-        // Write Distributions (invasive)
         distCount[0] += writeInvasiveDistributions(entity, qid, reader);
-
-        // Write Distributions (taxon range)
         distCount[0] += writeTaxonRangeDistributions(entity, qid, reader);
-
-        // Write IUCN status as TaxonProperty
         propCount[0] += writeIucnStatus(entity, qid, reader);
+        nameRelCount[0] += writeNameRelations(entity, qid);
 
         if (taxonCount[0] % 100_000 == 0) {
-          LOG.info("Pass 2: {} taxa, {} vernaculars, {} distributions, {} properties",
-              taxonCount[0], vernCount[0], distCount[0], propCount[0]);
+          LOG.info("Pass 2: {} taxa ({} synonyms), {} duplicates skipped, {} vernaculars, {} distributions, {} properties, {} name relations",
+              taxonCount[0], synCount[0], duplicateCount[0], vernCount[0], distCount[0], propCount[0], nameRelCount[0]);
         }
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
     });
 
-    // Write Reference records for all collected publications
     writeReferences(reader);
 
-    LOG.info("Pass 2 complete: {} taxa, {} vernaculars, {} distributions, {} properties, {} references",
-        taxonCount[0], vernCount[0], distCount[0], propCount[0], writtenRefs.size());
+    LOG.info("Pass 2 complete: {} taxa ({} synonyms), {} duplicates skipped, {} vernaculars, {} distributions, {} properties, {} name relations, {} references",
+        taxonCount[0], synCount[0], duplicateCount[0], vernCount[0], distCount[0], propCount[0], nameRelCount[0], writtenRefs.size());
   }
 
   private void writeNameUsage(JsonNode entity, String qid, WikidataDumpReader reader) throws IOException {
@@ -411,8 +482,29 @@ public class Generator extends AbstractColdpGenerator {
 
     writer.set(ColdpTerm.ID, qid);
     writer.set(ColdpTerm.scientificName, name);
-    writer.set(ColdpTerm.status, "accepted");
     writer.set(ColdpTerm.link, "https://www.wikidata.org/wiki/" + qid);
+
+    // Synonym status: P1420 = "taxon synonym of" (accepted name)
+    JsonNode acceptedVal = getClaimValue(entity, P1420);
+    if (acceptedVal != null) {
+      String acceptedQid = getItemId(acceptedVal);
+      if (acceptedQid != null) {
+        writer.set(ColdpTerm.status, "synonym");
+        writer.set(ColdpTerm.parentID, acceptedQid);
+      } else {
+        writer.set(ColdpTerm.status, "accepted");
+      }
+    } else {
+      writer.set(ColdpTerm.status, "accepted");
+      // Parent taxon (only for accepted names)
+      JsonNode parentVal = getClaimValue(entity, P171);
+      if (parentVal != null) {
+        String parentQid = getItemId(parentVal);
+        if (parentQid != null) {
+          writer.set(ColdpTerm.parentID, parentQid);
+        }
+      }
+    }
 
     // Rank
     JsonNode rankVal = getClaimValue(entity, P105);
@@ -423,16 +515,7 @@ public class Generator extends AbstractColdpGenerator {
       }
     }
 
-    // Parent
-    JsonNode parentVal = getClaimValue(entity, P171);
-    if (parentVal != null) {
-      String parentQid = getItemId(parentVal);
-      if (parentQid != null) {
-        writer.set(ColdpTerm.parentID, parentQid);
-      }
-    }
-
-    // Authorship
+    // Authorship (author citation string)
     String auth = getStringClaimValue(entity, P835);
     if (auth != null) {
       writer.set(ColdpTerm.authorship, auth);
@@ -447,21 +530,115 @@ public class Generator extends AbstractColdpGenerator {
       }
     }
 
-    // Nomenclatural reference
+    // Nomenclatural reference (from pass 1 — "first valid description" reference on P225)
     WikidataDumpReader.NomRef ref = reader.nomRefs.get(qid);
+    String publishedInYear = null;
     if (ref != null) {
       writer.set(ColdpTerm.referenceID, ref.pubQid());
       writer.set(ColdpTerm.publishedInPage, ref.page());
       writer.set(ColdpTerm.publishedInPageLink, ref.bhlPageLink());
-      // Get year from pub info
       WikidataDumpReader.PubInfo pub = reader.pubInfo.get(ref.pubQid());
       if (pub != null && pub.date() != null) {
-        String year = extractYear(pub.date());
-        writer.set(ColdpTerm.publishedInYear, year);
+        publishedInYear = extractYear(pub.date());
       }
     }
 
+    // P225 statement qualifiers: year (P574), original spelling (P1353), nom status (P1135), gender (P2433)
+    JsonNode p225Claims = entity.path("claims").path(P225);
+    if (p225Claims.isArray() && !p225Claims.isEmpty()) {
+      JsonNode qualifiers = p225Claims.get(0).path("qualifiers");
+
+      // Year of publication (P574) — use if not already resolved from publication record
+      if (publishedInYear == null) {
+        String qualYear = getSnakStringValue(qualifiers, P574);
+        if (qualYear != null) {
+          publishedInYear = extractYear(qualYear);
+        }
+      }
+
+      // Original combination / spelling (P1353)
+      String origSpelling = getSnakStringValue(qualifiers, P1353);
+      if (origSpelling != null) {
+        writer.set(ColdpTerm.originalSpelling, origSpelling);
+      }
+
+      // Nomenclatural status (P1135)
+      String nomStatQid = getSnakItemId(qualifiers, P1135);
+      if (nomStatQid != null) {
+        String nomLabel = reader.nomStatusLabels.get(nomStatQid);
+        if (nomLabel != null) {
+          String mapped = mapNomStatus(nomLabel);
+          if (mapped != null) {
+            writer.set(ColdpTerm.nameStatus, mapped);
+          }
+        }
+      }
+
+      // Gender (P2433) — first try as qualifier on P225
+      String genderQid = getSnakItemId(qualifiers, P2433);
+      if (genderQid != null) {
+        String genderLabel = reader.nomStatusLabels.get(genderQid);
+        if (genderLabel != null) {
+          String mapped = mapGender(genderLabel);
+          if (mapped != null) writer.set(ColdpTerm.gender, mapped);
+        }
+      }
+    }
+
+    // Gender (P2433) — also try as direct property if not set from qualifier
+    if (p225Claims.isEmpty() || p225Claims.get(0).path("qualifiers").path(P2433).isMissingNode()) {
+      JsonNode genderVal = getClaimValue(entity, P2433);
+      if (genderVal != null) {
+        String genderQid = getItemId(genderVal);
+        if (genderQid != null) {
+          String genderLabel = reader.nomStatusLabels.get(genderQid);
+          if (genderLabel != null) {
+            String mapped = mapGender(genderLabel);
+            if (mapped != null) writer.set(ColdpTerm.gender, mapped);
+          }
+        }
+      }
+    }
+
+    if (publishedInYear != null) {
+      writer.set(ColdpTerm.publishedInYear, publishedInYear);
+    }
+
+    // English Wikipedia link → add to remarks
+    String wikiTitle = entity.path("sitelinks").path("enwiki").path("title").asText(null);
+    if (wikiTitle != null) {
+      String wikiLink = "https://en.wikipedia.org/wiki/" + wikiTitle.replace(' ', '_');
+      writer.set(ColdpTerm.remarks, wikiLink);
+    }
+
+    // External taxon identifiers → alternativeID as CURIEs
+    AltIdBuilder altIds = new AltIdBuilder();
+    JsonNode claims = entity.path("claims");
+    claims.fieldNames().forEachRemaining(pid -> {
+      WikidataDumpReader.ExtIdInfo extId = reader.extIdProperties.get(pid);
+      if (extId != null) {
+        String value = getStringClaimValue(entity, pid);
+        if (value != null) {
+          altIds.add(extId.prefix(), value);
+        }
+      }
+    });
+    String altIdStr = altIds.toString();
+    if (altIdStr != null) {
+      writer.set(ColdpTerm.alternativeID, altIdStr);
+    }
+
     writer.next();
+  }
+
+  private String mapNomStatus(String label) {
+    if (label == null) return null;
+    return NOM_STATUS_LABEL_MAP.get(label.toLowerCase());
+  }
+
+  private String mapGender(String label) {
+    if (label == null) return null;
+    return GENDER_LABEL_MAP.get(label.toLowerCase());
   }
 
   private int writeVernacularNames(JsonNode entity, String qid) throws IOException {
@@ -500,7 +677,6 @@ public class Generator extends AbstractColdpGenerator {
       String areaQid = getItemId(val);
       if (areaQid == null) continue;
 
-      // Check for reference publication
       String pubQid = null;
       JsonNode refs = stmt.path("references");
       if (refs.isArray()) {
@@ -556,15 +732,30 @@ public class Generator extends AbstractColdpGenerator {
     return count;
   }
 
+  /**
+   * Write NameRelation records for P694 (replaced synonym → this name is a replacement for P694 value).
+   */
+  private int writeNameRelations(JsonNode entity, String qid) throws IOException {
+    List<JsonNode> replacedSynonyms = getClaimValues(entity, P694);
+    int count = 0;
+    for (JsonNode val : replacedSynonyms) {
+      String relatedQid = getItemId(val);
+      if (relatedQid == null) continue;
+      nameRelWriter.set(ColdpTerm.nameID, qid);
+      nameRelWriter.set(ColdpTerm.relatedNameID, relatedQid);
+      nameRelWriter.set(ColdpTerm.type, "replacement name");
+      nameRelWriter.next();
+      count++;
+    }
+    return count;
+  }
+
   private void writeReferences(WikidataDumpReader reader) throws IOException {
     LOG.info("Writing {} reference records...", reader.pubInfo.size());
-    // Write references for all publications we have info for
     Set<String> allPubQids = new HashSet<>();
-    // Collect all pub QIDs referenced by taxa
     for (var ref : reader.nomRefs.values()) {
       allPubQids.add(ref.pubQid());
     }
-    // Also include any pub QIDs from the original needed set that got resolved
     allPubQids.addAll(reader.pubInfo.keySet());
 
     for (String pubQid : allPubQids) {
@@ -598,7 +789,6 @@ public class Generator extends AbstractColdpGenerator {
 
   private static String extractYear(String date) {
     if (date == null) return null;
-    // Wikidata time format: +2023-01-15T00:00:00Z or just 2023
     String clean = date.startsWith("+") ? date.substring(1) : date;
     return clean.length() >= 4 ? clean.substring(0, 4) : clean;
   }
@@ -606,12 +796,16 @@ public class Generator extends AbstractColdpGenerator {
   private void initWriters() throws Exception {
     newWriter(ColdpTerm.NameUsage, List.of(
         ColdpTerm.ID,
+        ColdpTerm.alternativeID,
         ColdpTerm.parentID,
         ColdpTerm.basionymID,
         ColdpTerm.status,
+        ColdpTerm.nameStatus,
         ColdpTerm.rank,
         ColdpTerm.scientificName,
         ColdpTerm.authorship,
+        ColdpTerm.originalSpelling,
+        ColdpTerm.gender,
         ColdpTerm.link,
         ColdpTerm.referenceID,
         ColdpTerm.publishedInYear,
@@ -640,6 +834,11 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.property,
         ColdpTerm.value
     ));
+    nameRelWriter = additionalWriter(ColdpTerm.NameRelation, List.of(
+        ColdpTerm.nameID,
+        ColdpTerm.relatedNameID,
+        ColdpTerm.type
+    ));
     refWriter = additionalWriter(ColdpTerm.Reference, List.of(
         ColdpTerm.ID,
         ColdpTerm.doi,
@@ -656,6 +855,11 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.publisher,
         ColdpTerm.link
     ));
+
+    // Duplicate page debug log (written to the archive directory as a plain TSV)
+    File duplicateLog = new File(dir, "wikidata-duplicates.tsv");
+    duplicateLogWriter = new PrintWriter(new FileWriter(duplicateLog));
+    duplicateLogWriter.println("qid\tlink\tname");
   }
 
   @Override

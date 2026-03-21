@@ -92,6 +92,52 @@ src/main/resources/
 
 AntCat, Birdlife (HBW), BioLib, CITES, Clements, Cycads, ICTV, IPNI, IPNI-crawl, LPSN, MDD, Mites, OTL, OTT, PBDB, WikiData, WikiSpecies, WSC
 
+## Wikidata Generator
+
+The Wikidata generator (`wikidata/`) is special — it processes the full Wikidata JSON dump (~160 GB compressed), which takes an entire day to download. Key design points:
+
+**`PREVENT_DOWNLOAD = true`** in `Generator.java` — this flag intentionally suppresses re-downloading the dump even when the remote is newer. **Do not remove this flag or change it to `false` in code.** It exists to protect against accidentally overwriting an existing dump during development and testing. The IDE will report dead code on the freshness-check branch; this is expected and harmless. To force a re-download, delete the local file manually.
+
+The dump is stored at `{sourceDir}/wikidata/latest-all.json.gz` (default: `/tmp/coldp-generator-sources/wikidata/`).
+
+### Two-pass streaming architecture
+
+**Pass 1** (`collectLookups`): streams the full dump to build in-memory lookup maps:
+- Rank labels (P105 QIDs), area info + ISO codes (P297), IUCN status labels (P141), publication info (P1476), journal labels (P1433), nomenclatural status / gender labels (P1135, P2433 qualifiers on P225), and external identifier property metadata (P entities with formatter URL P1630).
+- Pre-filter: lines containing `"P225"`, `"P297"`, `"P1476"`, `"P31"`, or `"P1630"`.
+- Any unresolved QIDs are batched and resolved via SPARQL against `query.wikidata.org` between passes.
+
+**Pass 2** (`emitColdpRecords`): streams again (filter: `"P225"`) and emits ColDP records:
+- Skips entities with P31=Q17362920 (Wikimedia duplicated pages) — logs them to `wikidata-duplicates.tsv`.
+- Writes `NameUsage` (accepted + synonyms via P1420), `VernacularName`, `Distribution`, `TaxonProperty`, `NameRelation`, `Reference`.
+
+### Property mapping
+
+| Wikidata | ColDP field | Notes |
+|----------|-------------|-------|
+| P225 | scientificName | primary filter |
+| P105 | rank | QID resolved via rankLabels map |
+| P171 | parentID | accepted taxa only |
+| P1420 | parentID + status=synonym | synonym taxa |
+| P835 | authorship | author citation string |
+| P566 | basionymID | |
+| P694 | NameRelation type="replacement name" | replaced synonym |
+| P574 (P225 qualifier) | publishedInYear | year of name publication |
+| P1353 (P225 qualifier) | originalSpelling | original combination |
+| P1135 (P225 qualifier) | nameStatus | nom status QID, label-mapped to ColDP enum |
+| P2433 (qualifier or direct) | gender | gender QID, label-mapped |
+| P141 | TaxonProperty property="IUCN" | |
+| P1843 | VernacularName | multilingual |
+| P5588 | Distribution establishmentMeans=invasive | |
+| P9714 | Distribution establishmentMeans=native | |
+| sitelinks.enwiki | remarks (Wikipedia URL) | |
+| all P entities with P1630 | alternativeID (CURIEs) | dynamically discovered |
+
+### Output files (in addition to standard ColDP)
+- `NameRelation.tsv` — replacement name relations (P694)
+- `wikidata-duplicates.tsv` — skipped duplicate-page entities
+- `identifier-registry.tsv` — all discovered external identifier properties with CURIE prefix, formatter URL, format regex
+
 ## Notes
 
 - Java 21 required

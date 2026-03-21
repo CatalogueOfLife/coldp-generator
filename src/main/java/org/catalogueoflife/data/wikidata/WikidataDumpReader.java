@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.net.URI;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -42,15 +43,29 @@ public class WikidataDumpReader {
   static final String P6184 = "P6184"; // nomenclatural status (reference qualifier)
   static final String P687 = "P687";   // BHL page ID
   static final String P31 = "P31";     // instance of
+  static final String P1420 = "P1420"; // taxon synonym of (accepted name)
+  static final String P694  = "P694";  // replaced synonym (this name replaced P694 value)
+  static final String P1135 = "P1135"; // nomenclatural status (qualifier on P225)
+  static final String P2433 = "P2433"; // gender of scientific name of a genus
+  static final String P1353 = "P1353"; // original combination (original spelling)
+  static final String P574  = "P574";  // year of taxon name publication (qualifier on P225)
+  // External taxon identifier properties
+  static final String P685  = "P685";  // NCBI taxonomy ID
+  static final String P846  = "P846";  // GBIF species ID
+  static final String P830  = "P830";  // Encyclopedia of Life ID
+  static final String P961  = "P961";  // ITIS taxonomic serial number (TSN)
 
-  static final String Q1361864 = "Q1361864"; // first valid description
-  static final String Q427626 = "Q427626";   // taxonomic rank
+  static final String Q1361864 = "Q1361864";   // first valid description
+  static final String Q427626 = "Q427626";     // taxonomic rank
   static final String Q13442814 = "Q13442814"; // scholarly article
+  static final String Q17362920 = "Q17362920"; // Wikimedia duplicated page
 
   // Data records for lookup maps
   record AreaInfo(String label, String isoCode) {}
   record PubInfo(String title, String doi, String date, String author,
                  String journalQid, String volume, String issue, String pages) {}
+  /** Info about a Wikidata external-identifier property (those that have a formatter URL P1630). */
+  record ExtIdInfo(String prefix, String label, String formatterUrl, String formatRegex) {}
 
   // Lookup maps populated during pass 1
   final Map<String, String> rankLabels = new HashMap<>();
@@ -58,6 +73,10 @@ public class WikidataDumpReader {
   final Map<String, String> iucnLabels = new HashMap<>();
   final Map<String, PubInfo> pubInfo = new HashMap<>();
   final Map<String, String> journalLabels = new HashMap<>();
+  /** Nomenclatural status / gender QID → resolved English label */
+  final Map<String, String> nomStatusLabels = new HashMap<>();
+  /** External identifier properties discovered during pass 1: PID → info */
+  final Map<String, ExtIdInfo> extIdProperties = new LinkedHashMap<>();
 
   // Sets of QIDs needed by taxa, collected during pass 1
   final Set<String> neededPubQids = new HashSet<>();
@@ -65,6 +84,7 @@ public class WikidataDumpReader {
   final Set<String> neededRankQids = new HashSet<>();
   final Set<String> neededIucnQids = new HashSet<>();
   final Set<String> neededJournalQids = new HashSet<>();
+  final Set<String> neededNomStatusQids = new HashSet<>();
 
   // Nomenclatural reference info collected during pass 1
   record NomRef(String pubQid, String page, String bhlPageLink) {}
@@ -120,11 +140,28 @@ public class WikidataDumpReader {
     // Pre-filter: lines containing any of these property strings
     Predicate<String> filter = line ->
         line.contains("\"P225\"") || line.contains("\"P297\"") ||
-        line.contains("\"P1476\"") || line.contains("\"P31\"");
+        line.contains("\"P1476\"") || line.contains("\"P31\"") ||
+        line.contains("\"P1630\""); // formatter URL → external identifier properties
+
+    // Track used prefixes to ensure uniqueness
+    Set<String> usedPrefixes = new HashSet<>();
 
     streamDump(gz, filter, entity -> {
       String qid = entity.path("id").asText(null);
       if (qid == null) return;
+
+      // Collect external identifier property metadata (P entities with formatter URL P1630)
+      if (qid.startsWith("P") && hasClaim(entity, "P1630")) {
+        String formatterUrl = getStringClaimValue(entity, "P1630");
+        String formatRegex = getStringClaimValue(entity, "P1793");
+        String label = getEnglishLabel(entity);
+        String prefix = deriveExtIdPrefix(formatterUrl, qid, usedPrefixes);
+        if (prefix != null && formatterUrl != null) {
+          extIdProperties.put(qid, new ExtIdInfo(prefix, label, formatterUrl, formatRegex));
+          usedPrefixes.add(prefix);
+        }
+        return; // property entities don't have taxon data
+      }
 
       // If entity has P225, it's a taxon - collect referenced QIDs
       if (hasClaim(entity, P225)) {
@@ -158,6 +195,12 @@ public class WikidataDumpReader {
         neededIucnQids.remove(qid);
       }
 
+      // Check if this entity is a needed nom status / gender item
+      if (label != null && neededNomStatusQids.contains(qid)) {
+        nomStatusLabels.put(qid, label);
+        neededNomStatusQids.remove(qid);
+      }
+
       // Check if this entity is a needed publication (scholarly article with P1476)
       if (neededPubQids.contains(qid) && hasClaim(entity, P1476)) {
         collectPubInfo(entity, qid);
@@ -171,11 +214,11 @@ public class WikidataDumpReader {
       }
     });
 
-    LOG.info("Pass 1 complete. Ranks: {}, Areas: {}, IUCN: {}, Pubs: {}, Journals: {}",
-        rankLabels.size(), areaInfo.size(), iucnLabels.size(), pubInfo.size(), journalLabels.size());
-    LOG.info("Unresolved: Ranks: {}, Areas: {}, IUCN: {}, Pubs: {}, Journals: {}",
+    LOG.info("Pass 1 complete. Ranks: {}, Areas: {}, IUCN: {}, Pubs: {}, Journals: {}, ExtIdProps: {}",
+        rankLabels.size(), areaInfo.size(), iucnLabels.size(), pubInfo.size(), journalLabels.size(), extIdProperties.size());
+    LOG.info("Unresolved: Ranks: {}, Areas: {}, IUCN: {}, Pubs: {}, Journals: {}, NomStatus: {}",
         neededRankQids.size(), neededAreaQids.size(), neededIucnQids.size(),
-        neededPubQids.size(), neededJournalQids.size());
+        neededPubQids.size(), neededJournalQids.size(), neededNomStatusQids.size());
   }
 
   private void collectTaxonReferences(JsonNode entity, String taxonQid) {
@@ -214,8 +257,33 @@ public class WikidataDumpReader {
       }
     }
 
-    // Collect nomenclatural reference info from P225 statement references
+    // Collect nom status and gender QIDs from P225 statement qualifiers and direct P2433 property
     JsonNode claims = entity.path("claims").path(P225);
+    if (claims.isArray()) {
+      for (JsonNode stmt : claims) {
+        JsonNode qualifiers = stmt.path("qualifiers");
+        // Nomenclatural status (P1135) qualifier → needs label resolution
+        String nomStatQid = getSnakItemId(qualifiers, P1135);
+        if (nomStatQid != null && !nomStatusLabels.containsKey(nomStatQid)) {
+          neededNomStatusQids.add(nomStatQid);
+        }
+        // Gender (P2433) qualifier → needs label resolution
+        String genderQid = getSnakItemId(qualifiers, P2433);
+        if (genderQid != null && !nomStatusLabels.containsKey(genderQid)) {
+          neededNomStatusQids.add(genderQid);
+        }
+      }
+    }
+    // Also collect P2433 as a direct property (some taxa store gender outside P225 qualifiers)
+    JsonNode genderVal = getClaimValue(entity, P2433);
+    if (genderVal != null) {
+      String genderQid = getItemId(genderVal);
+      if (genderQid != null && !nomStatusLabels.containsKey(genderQid)) {
+        neededNomStatusQids.add(genderQid);
+      }
+    }
+
+    // Collect nomenclatural reference info from P225 statement references
     if (claims.isArray()) {
       for (JsonNode stmt : claims) {
         JsonNode refs = stmt.path("references");
@@ -402,15 +470,56 @@ public class WikidataDumpReader {
   }
 
   /**
-   * Get a string value from reference snaks.
+   * Get a string value from qualifier/reference snaks (time, string, monolingualtext).
    */
-  private static String getSnakStringValue(JsonNode snaks, String prop) {
+  static String getSnakStringValue(JsonNode snaks, String prop) {
     JsonNode propSnaks = snaks.path(prop);
     if (!propSnaks.isArray() || propSnaks.isEmpty()) return null;
     JsonNode val = propSnaks.get(0).path("datavalue").path("value");
     if (val.isMissingNode()) return null;
     if (val.isTextual()) return val.asText(null);
+    if (val.has("time")) return val.path("time").asText(null);
     if (val.has("text")) return val.path("text").asText(null);
     return val.asText(null);
+  }
+
+  /**
+   * Get a Wikidata item ID (QID) from qualifier/reference snaks.
+   */
+  static String getSnakItemId(JsonNode snaks, String prop) {
+    JsonNode propSnaks = snaks.path(prop);
+    if (!propSnaks.isArray() || propSnaks.isEmpty()) return null;
+    return getItemId(propSnaks.get(0).path("datavalue").path("value"));
+  }
+
+  /**
+   * Derive a short unique CURIE prefix for an external identifier property.
+   * Tries to extract a meaningful slug from the formatter URL host, falling back to the PID.
+   */
+  static String deriveExtIdPrefix(String formatterUrl, String pid, Set<String> usedPrefixes) {
+    String prefix = null;
+    if (formatterUrl != null) {
+      try {
+        String url = formatterUrl.replace("$1", "placeholder");
+        URI uri = URI.create(url);
+        String host = uri.getHost();
+        if (host != null) {
+          // Strip common non-distinctive sub-domains
+          host = host.replaceFirst("^(www|data|species|api|taxa|taxonomy|search|portal|itis|eol)\\.", "");
+          // Take the first segment before first dot
+          String[] parts = host.split("\\.");
+          prefix = parts[0].toLowerCase().replaceAll("[^a-z0-9]", "");
+          if (prefix.isBlank()) prefix = null;
+        }
+      } catch (Exception ignored) {
+        // fall through to PID fallback
+      }
+    }
+    if (prefix == null) prefix = pid.toLowerCase();
+    // Ensure uniqueness by appending PID suffix if needed
+    if (usedPrefixes.contains(prefix)) {
+      prefix = prefix + "_" + pid.toLowerCase();
+    }
+    return prefix;
   }
 }
