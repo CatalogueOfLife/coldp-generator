@@ -51,7 +51,8 @@ public class Generator extends AbstractColdpGenerator {
       Map.entry("WEED",     "Weed")
   );
 
-  private static final Map<String, String> LANG_MAP = buildLangMap();
+  private static final Map<String, String> LANG_MAP         = buildLangMap();
+  private static final Map<String, String> COUNTRY_NAME_MAP = buildCountryNameMap();
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true, Map.of(CAB_FN, URI.create(CAB_URL)));
@@ -114,6 +115,7 @@ public class Generator extends AbstractColdpGenerator {
     ));
     var distWriter = additionalWriter(ColdpTerm.Distribution, List.of(
         ColdpTerm.taxonID,
+        ColdpTerm.areaID,
         ColdpTerm.area,
         ColdpTerm.gazetteer,
         ColdpTerm.status
@@ -480,8 +482,9 @@ public class Generator extends AbstractColdpGenerator {
       var country = countryByGeoId.get(geoId);
       if (country == null) continue;
       distWriter.set(ColdpTerm.taxonID, "sp:" + speciesId);
-      distWriter.set(ColdpTerm.area, country);
-      distWriter.set(ColdpTerm.gazetteer, "ISO");
+      distWriter.set(ColdpTerm.areaID, "iso:" + country);
+      distWriter.set(ColdpTerm.area, COUNTRY_NAME_MAP.get(country));
+      distWriter.set(ColdpTerm.gazetteer, "iso");
       distWriter.set(ColdpTerm.status, geoStatus(col(row, idx, "geography_status_code")));
       distWriter.next();
       count++;
@@ -589,6 +592,20 @@ public class Generator extends AbstractColdpGenerator {
     String base = lang.replaceAll("\\s*\\(.*\\)", "").strip().toLowerCase();
     String code = LANG_MAP.get(base);
     return code != null ? code : lang;
+  }
+
+  /** Builds a map from ISO 3166-1 alpha-3 country code → English display name using Java Locale. */
+  private static Map<String, String> buildCountryNameMap() {
+    var map = new HashMap<String, String>();
+    for (String alpha2 : Locale.getISOCountries()) {
+      @SuppressWarnings("deprecation") var locale = new Locale("", alpha2);
+      String alpha3 = locale.getISO3Country();
+      String name = locale.getDisplayCountry(Locale.ENGLISH);
+      if (!alpha3.isEmpty() && !name.isEmpty()) {
+        map.put(alpha3, name);
+      }
+    }
+    return Collections.unmodifiableMap(map);
   }
 
   private static Map<String, String> buildLangMap() {
