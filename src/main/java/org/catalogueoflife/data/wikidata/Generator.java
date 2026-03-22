@@ -29,7 +29,8 @@ public class Generator extends AbstractColdpGenerator {
   private TermWriter mediaWriter; // null when media crawling is disabled (--media-threads 0)
   private PrintWriter duplicateLogWriter;
   private final Map<String, String> rankMap = new HashMap<>();
-  private final Set<String> writtenRefs = new HashSet<>();
+  private final Set<String> writtenRefs    = new HashSet<>();
+  private final Set<String> usedExtIdPids  = new HashSet<>();
 
   // Maps for nom status (P1135) and gender (P2433) QIDs — resolved during pass 1 / SPARQL
   // Key: Wikidata label (lowercase) → ColDP nameStatus value
@@ -159,9 +160,6 @@ public class Generator extends AbstractColdpGenerator {
 
     resolveUnresolved(reader);
 
-    // Write the identifier registry TSV to the archive
-    writeIdentifierRegistry(reader);
-
     LOG.info("Starting pass 2: emitting ColDP records...");
     Map<String, String> pendingGalleries = new LinkedHashMap<>();
     try {
@@ -171,6 +169,9 @@ public class Generator extends AbstractColdpGenerator {
         duplicateLogWriter.close();
       }
     }
+
+    // Write only the identifier properties actually used in the generated archive
+    writeIdentifierRegistry(reader);
 
     if (cfg.mediaThreads > 0 && !pendingGalleries.isEmpty()) {
       LOG.info("Starting media crawl: {} galleries, {} threads", pendingGalleries.size(), cfg.mediaThreads);
@@ -411,11 +412,13 @@ public class Generator extends AbstractColdpGenerator {
    */
   private void writeIdentifierRegistry(WikidataDumpReader reader) throws IOException {
     File registryFile = new File(dir, "identifier-registry.tsv");
-    LOG.info("Writing identifier registry with {} properties to {}", reader.extIdProperties.size(), registryFile);
+    LOG.info("Writing identifier registry with {}/{} used properties to {}",
+        usedExtIdPids.size(), reader.extIdProperties.size(), registryFile);
     try (PrintWriter pw = new PrintWriter(new FileWriter(registryFile))) {
       pw.println("prefix\tproperty\tpropertyLink\tlabel\tformatterUrl\tformatRegex");
       for (var entry : reader.extIdProperties.entrySet()) {
         String pid = entry.getKey();
+        if (!usedExtIdPids.contains(pid)) continue;
         WikidataDumpReader.ExtIdInfo info = entry.getValue();
         pw.printf("%s\t%s\t%s\t%s\t%s\t%s%n",
             info.prefix(),
@@ -660,6 +663,9 @@ public class Generator extends AbstractColdpGenerator {
         String value = getStringClaimValue(entity, pid);
         if (value != null) {
           altIds.add(extId.prefix(), value);
+          if (!value.isBlank() && !value.contains(",")) {
+            usedExtIdPids.add(pid);
+          }
         }
       }
     });
