@@ -44,7 +44,6 @@ src/main/java/org/catalogueoflife/data/
 ├── cycads/                     # Cycads generator
 ├── ictv/                       # ICTV MSL generator
 ├── ipni/                       # IPNI generator (API-based)
-├── ipnicrawl/                  # IPNI crawl generator
 ├── lpsn/                       # LPSN prokaryotes generator
 ├── mdd/                        # Mammal Diversity Database generator
 ├── mites/                      # Mites generator
@@ -89,9 +88,9 @@ src/main/resources/
 | SWC parser | Wikitext parsing |
 | coldp / dwc-api | ColDP and Darwin Core types |
 
-## Supported Sources (19)
+## Supported Sources (18)
 
-AntCat, Birdlife (HBW), BioLib, CITES, Clements, Cycads, GRIN, ICTV, IPNI, IPNI-crawl, LPSN, MDD, Mites, OTL, OTT, PBDB, WikiData, WikiSpecies, WSC
+AntCat, Birdlife (HBW), BioLib, CITES, Clements, Cycads, GRIN, ICTV, IPNI, LPSN, MDD, Mites, OTL, OTT, PBDB, WikiData, WikiSpecies, WSC
 
 ### GRIN Generator
 

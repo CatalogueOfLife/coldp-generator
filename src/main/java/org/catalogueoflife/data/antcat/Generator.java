@@ -69,6 +69,8 @@ public class Generator extends AbstractColdpGenerator {
   private static final TypeReference<List<Map<String, RefDoc>>> refDocTYPE = new TypeReference<>() {};
   private static final TypeReference<List<Map<String, Publisher>>> publisherTYPE = new TypeReference<>() {};
   private static final TypeReference<List<Map<String, Journal>>> journalTYPE = new TypeReference<>() {};
+  private static final TypeReference<List<Map<String, HistoryItem>>> historyItemsTYPE = new TypeReference<>() {};
+  private static final TypeReference<List<Map<String, ReferenceSection>>> referenceSectionsTYPE = new TypeReference<>() {};
 
   private static final TypeReference<List<Taxon>> taxaListType = new TypeReference<>() {};
   private static final TypeReference<List<Name>> namesListType = new TypeReference<>() {};
@@ -77,9 +79,14 @@ public class Generator extends AbstractColdpGenerator {
   private static final TypeReference<List<RefDoc>> refDocListType = new TypeReference<>() {};
   private static final TypeReference<List<Publisher>> publisherListType = new TypeReference<>() {};
   private static final TypeReference<List<Journal>> journalListType = new TypeReference<>() {};
+  private static final TypeReference<List<HistoryItem>> historyItemsListType = new TypeReference<>() {};
+  private static final TypeReference<List<ReferenceSection>> referenceSectionsListType = new TypeReference<>() {};
 
   private TermWriter typeWriter;
+  private TermWriter nameRelWriter;
   Pattern refPattern = Pattern.compile("\\{(ref|tax|pro)(?:tt)?(?:ac)? (\\d+)\\}");
+  private static final Pattern TAX_REF = Pattern.compile("\\{tax(?:tt)?(?:ac)? (\\d+)\\}");
+  private static final Set<String> HIGHER_RANK_TYPES = Set.of("family", "subfamily", "tribe", "subtribe", "genus", "subgenus");
   private Int2ObjectMap<Publisher> publisher = new Int2ObjectOpenHashMap<>();
   private Int2ObjectMap<Journal> journals = new Int2ObjectOpenHashMap<>();
   private Int2ObjectMap<Reference> refs = new Int2ObjectOpenHashMap<>();
@@ -89,6 +96,8 @@ public class Generator extends AbstractColdpGenerator {
   private Int2ObjectMap<CsvName> csvNames = new Int2ObjectOpenHashMap<>();
   private Int2ObjectMap<Protonym> protonyms = new Int2ObjectOpenHashMap<>();
   private Int2IntMap protonym2taxonID = new Int2IntOpenHashMap();
+  private Map<Integer, List<HistoryItem>> historyByProtonymId = new HashMap<>();
+  private Map<Integer, List<ReferenceSection>> sectionsByTaxonId = new HashMap<>();
   private Map<String, String> forms = Map.ofEntries(
       Map.entry("aq", "alate queen"),
       Map.entry("dq", "dealate queen"),
@@ -142,6 +151,7 @@ public class Generator extends AbstractColdpGenerator {
             ColdpTerm.gender,
             ColdpTerm.extinct,
             ColdpTerm.nameReferenceID,
+            ColdpTerm.referenceID,
             ColdpTerm.publishedInYear,
             ColdpTerm.family,
             ColdpTerm.alternativeID,
@@ -171,6 +181,12 @@ public class Generator extends AbstractColdpGenerator {
             ColdpTerm.locality,
             ColdpTerm.citation,
             ColdpTerm.extinct,
+            ColdpTerm.remarks
+    ));
+    nameRelWriter = additionalWriter(ColdpTerm.NameRelation, List.of(
+            ColdpTerm.nameID,
+            ColdpTerm.relatedNameID,
+            ColdpTerm.type,
             ColdpTerm.remarks
     ));
   }
@@ -217,6 +233,22 @@ public class Generator extends AbstractColdpGenerator {
       LOG.info("Taxon type {}", tt);
     }
     load(Protonym.class, protonymsListType, protonyms, "protonyms", this::readProtonyms);
+
+    // Load history items (taxonomic history text per protonym) and group by protonym_id
+    var historyItems = new Int2ObjectOpenHashMap<HistoryItem>();
+    load(HistoryItem.class, historyItemsListType, historyItems, "history_items", this::readHistoryItems);
+    for (var h : historyItems.values()) {
+      historyByProtonymId.computeIfAbsent(h.protonym_id, k -> new ArrayList<>()).add(h);
+    }
+    historyByProtonymId.values().forEach(list -> list.sort(Comparator.comparingInt(h -> h.position)));
+
+    // Load reference sections and group by taxon_id
+    var referenceSections = new Int2ObjectOpenHashMap<ReferenceSection>();
+    load(ReferenceSection.class, referenceSectionsListType, referenceSections, "reference_sections", this::readReferenceSections);
+    for (var rs : referenceSections.values()) {
+      sectionsByTaxonId.computeIfAbsent(rs.taxon_id, k -> new ArrayList<>()).add(rs);
+    }
+    sectionsByTaxonId.values().forEach(list -> list.sort(Comparator.comparingInt(rs -> rs.position)));
 
     // use tsv file for taxa/synonyms
     var settings = new TsvParserSettings();
@@ -414,14 +446,23 @@ public class Generator extends AbstractColdpGenerator {
         var pn = names.get(p.name_id);
         if (original) {
           writeTypeMaterial(key, p);
+          if (HIGHER_RANK_TYPES.contains(t.type != null ? t.type.toLowerCase() : "")) {
+            writeTypeNameRelations(key, p);
+          }
         } else if (protonym2taxonID.containsKey(p.id)) {
           writer.set(ColdpTerm.basionymID, protonym2taxonID.get(p.id));
         } else {
           LOG.warn("Taxon not found for protonym {}", t.protonym_id);
           writer.set(ColdpTerm.basionymID, p.id);
         }
+        remarks.append(replVars(p.notes_taxt));
+        if (p.sic) remarks.append("sic");
+        if (p.ichnotaxon) remarks.append("ichnotaxon");
       }
     }
+    if (t.unresolved_homonym) remarks.append("unresolved homonym");
+    if (t.collective_group_name) remarks.append("collective group name");
+    if (!StringUtils.isBlank(t.incertae_sedis_in)) remarks.append("incertae sedis in " + t.incertae_sedis_in);
     if (t.name_id > 0) {
       var name = names.get(t.name_id);
       if (name != null) {
@@ -434,12 +475,38 @@ public class Generator extends AbstractColdpGenerator {
       writer.set(ColdpTerm.alternativeID, ids.toString());
     }
     remarks.append(HtmlUtils.replaceHtml(row[17], true));
+    // Taxonomic history items for the protonym
+    if (t.protonym_id != null) {
+      for (var h : historyByProtonymId.getOrDefault(t.protonym_id, List.of())) {
+        remarks.append(replVars(h.taxt));
+      }
+    }
+    // Reference sections: extract {ref NNN} IDs as bibliographic referenceIDs
+    List<String> refIDs = new ArrayList<>();
+    for (var rs : sectionsByTaxonId.getOrDefault(key, List.of())) {
+      extractRefIds(rs.references_taxt, refIDs);
+    }
+    if (!refIDs.isEmpty()) {
+      writer.set(ColdpTerm.referenceID, String.join(",", refIDs));
+    }
     writer.set(ColdpTerm.remarks, remarks.toString());
     writer.set(ColdpTerm.link, link(row[0]));
     writer.next();
   }
 
 
+
+  /** Extracts all {ref NNN} reference IDs from a taxt string into the given list (deduplicating). */
+  private void extractRefIds(String taxt, List<String> into) {
+    if (StringUtils.isBlank(taxt)) return;
+    var m = refPattern.matcher(taxt);
+    while (m.find()) {
+      if (m.group(1).equalsIgnoreCase("ref")) {
+        String id = m.group(2);
+        if (!into.contains(id)) into.add(id);
+      }
+    }
+  }
 
   /**
    * https://antcat.org/wiki/6
@@ -468,9 +535,28 @@ public class Generator extends AbstractColdpGenerator {
     return null;
   }
 
+  /**
+   * Extracts {tax NNN} taxon IDs from primary_type_information_taxt and writes a NameRelation
+   * of type=TYPE for each (type species/genus designation for genera and higher ranks).
+   */
+  private void writeTypeNameRelations(int genusID, Protonym p) {
+    if (StringUtils.isBlank(p.primary_type_information_taxt)) return;
+    try {
+      var m = TAX_REF.matcher(p.primary_type_information_taxt);
+      while (m.find()) {
+        int typeSpeciesID = Integer.parseInt(m.group(1));
+        nameRelWriter.set(ColdpTerm.nameID, typeSpeciesID);
+        nameRelWriter.set(ColdpTerm.relatedNameID, genusID);
+        nameRelWriter.set(ColdpTerm.type, "type");
+        nameRelWriter.next();
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
   private void writeTypeMaterial(int nameID, Protonym p) {
     try {
-      // protonyms can be a type specimen or a type species/genus
       if (p.isSpecimen()) {
         typeWriter.set(ColdpTerm.nameID, nameID);
         typeWriter.set(ColdpTerm.citation, replVars(p.primary_type_information_taxt));
@@ -502,17 +588,24 @@ public class Generator extends AbstractColdpGenerator {
           }
           sb.append(".");
         }
-        if (!StringUtils.isBlank(replVars(p.notes_taxt))) {
+        String typeNotes = replVars(p.notes_taxt);
+        if (!StringUtils.isBlank(typeNotes)) {
           if (sb.length()>0) {
             sb.append(" ");
           }
-          sb.append(p.notes_taxt);
+          sb.append(typeNotes);
         }
         if (!StringUtils.isBlank(p.secondary_type_information_taxt)) {
           if (sb.length()>0) {
             sb.append(" ");
           }
           sb.append(replVars(p.secondary_type_information_taxt));
+        }
+        if (!StringUtils.isBlank(p.type_notes_taxt)) {
+          if (sb.length()>0) {
+            sb.append(" ");
+          }
+          sb.append(replVars(p.type_notes_taxt));
         }
         typeWriter.set(ColdpTerm.remarks, sb.toString());
         typeWriter.next();
@@ -581,6 +674,12 @@ public class Generator extends AbstractColdpGenerator {
   }
   private List<Protonym> readProtonyms(URI uri) {
     return read(uri, protonymsTYPE);
+  }
+  private List<HistoryItem> readHistoryItems(URI uri) {
+    return read(uri, historyItemsTYPE);
+  }
+  private List<ReferenceSection> readReferenceSections(URI uri) {
+    return read(uri, referenceSectionsTYPE);
   }
 
   private <T extends IDBase> List<T> read(URI uri, TypeReference<List<Map<String, T>>> typeRef) {
@@ -725,6 +824,7 @@ public class Generator extends AbstractColdpGenerator {
     public String bioregion;
     public String forms;
     public String notes_taxt;
+    public String type_name; // type species/genus name for higher-rank protonyms
 
     boolean isSpecimen() {
       return primary_type_information_taxt != null || locality != null;
@@ -828,6 +928,18 @@ public class Generator extends AbstractColdpGenerator {
   }
   static class Journal extends IDBase {
     public String name;
+  }
+  static class HistoryItem extends IDBase {
+    public int protonym_id;
+    public int position;
+    public String taxt;
+  }
+  static class ReferenceSection extends IDBase {
+    public int taxon_id;
+    public int position;
+    public String title_taxt;
+    public String subtitle_taxt;
+    public String references_taxt;
   }
 
   @Override

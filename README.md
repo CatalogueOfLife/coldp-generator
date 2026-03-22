@@ -38,7 +38,6 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 | `grin` | [GRIN](https://npgsweb.ars-grin.gov/gringlobal/taxon/abouttaxonomy) | GRIN-Global Taxonomy (cultivated plants) |
 | `ictv` | [ICTV](https://talk.ictvonline.org/taxonomy/) | ICTV Master Species List |
 | `ipni` | [IPNI](https://www.ipni.org) | International Plant Names Index |
-| `ipnicrawl` | [IPNI crawl](https://www.ipni.org) | IPNI via web crawl |
 | `lpsn` | [LPSN](https://lpsn.dsmz.de/) | List of Prokaryotic names with Standing in Nomenclature |
 | `mdd` | [MDD](https://www.mammaldiversity.org) | Mammal Diversity Database |
 | `mites` | [Mites](https://www.miteresearch.org) | |
