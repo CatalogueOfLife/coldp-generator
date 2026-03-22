@@ -30,6 +30,7 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 | Source key | Name | Notes |
 |------------|------|-------|
 | `antcat` | [AntCat](https://antcat.org) | Online Catalog of the Ants of the World |
+| `bats` | [Bats of the World](https://batnames.org) | Chiroptera taxonomy by Simmons & Cirranello (AMNH) |
 | `birdlife` | [Birdlife HBW](http://datazone.birdlife.org/species/taxonomy) | Handbook of the Birds of the World |
 | `biolib` | [BioLib](https://www.biolib.cz) | |
 | `cites` | [CITES](https://checklist.cites.org) | CITES species checklist |

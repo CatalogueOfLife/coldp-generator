@@ -13,7 +13,7 @@ public class ManualCli {
     //                "--lpsn-pass", "xxx"
     //} );
     //GeneratorCLI.main( new String[]{"-s", "wikispecies", "-r", "/tmp/coldp/archives"} );
-    GeneratorCLI.main( new String[]{"-s", "wikidata", "-r", "/tmp/coldp/archives", "--tmp", "/Users/markus/Downloads/coldp-gen-src", "--no-download", "true"} );
+    GeneratorCLI.main( new String[]{"-s", "wikidata", "-r", "/tmp/coldp/archives", "--tmp", "/Users/markus/Downloads/coldp-gen-src", "--no-download"} );
     //GeneratorCLI.main( new String[]{"-s", "clements", "-r", "/tmp/coldp/archives"} );
     //GeneratorCLI.main( new String[]{"-s", "antcat", "-r", "/tmp/coldp/archives"} );
     //GeneratorCLI.main( new String[]{"-s", "wsc", "-r", "/tmp/coldp/archives",
