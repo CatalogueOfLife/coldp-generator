@@ -13,20 +13,25 @@ import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import static org.catalogueoflife.data.wikidata.WikidataDumpReader.*;
 
 public class Generator extends AbstractColdpGenerator {
   private static final String DUMP_URL = "https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.gz";
   private static final String DUMP_FILENAME = "latest-all.json.gz";
-  private final boolean PREVENT_DOWNLOAD = true;
+  private static final String COMMONS_DUMP_URL =
+      "https://dumps.wikimedia.org/commonswiki/latest/commonswiki-latest-pages-articles.xml.bz2";
+  private static final String COMMONS_DUMP_FILENAME = "commonswiki-latest-pages-articles.xml.bz2";
 
   private TermWriter vernWriter;
   private TermWriter distWriter;
   private TermWriter propWriter;
   private TermWriter nameRelWriter;
-  private TermWriter mediaWriter; // null when media crawling is disabled (--media-threads 0)
+  private TermWriter mediaWriter;
+  private CompletableFuture<File> commonsDumpFuture;
   private PrintWriter duplicateLogWriter;
   private final Map<String, String> rankMap = new HashMap<>();
   private final Set<String> writtenRefs    = new HashSet<>();
@@ -113,23 +118,43 @@ public class Generator extends AbstractColdpGenerator {
 
   @Override
   protected void prepare() throws Exception {
+    // Wikidata dump — main thread
     File dumpFile = sourceFile(DUMP_FILENAME);
     if (dumpFile.exists()) {
-      if (!PREVENT_DOWNLOAD && isRemoteNewer(dumpFile)) {
-        LOG.info("Remote dump is newer, re-downloading...");
+      if (!cfg.noDownload && isRemoteNewer(dumpFile, DUMP_URL)) {
+        LOG.info("Remote Wikidata dump is newer, re-downloading...");
         dumpFile.delete();
-        downloadDump(dumpFile);
+        downloadFile(DUMP_URL, dumpFile);
       } else {
-        LOG.info("Reusing cached dump file: {}", dumpFile);
+        LOG.info("Reusing cached Wikidata dump: {}", dumpFile);
       }
+    } else if (cfg.noDownload) {
+      throw new IllegalStateException("--no-download set but Wikidata dump not found: " + dumpFile);
     } else {
-      downloadDump(dumpFile);
+      downloadFile(DUMP_URL, dumpFile);
     }
+
+    // Commons dump — background thread (runs in parallel with Wikidata passes)
+    File commonsDumpFile = sourceFile(COMMONS_DUMP_FILENAME);
+    commonsDumpFuture = CompletableFuture.supplyAsync(() -> {
+      try {
+        if (cfg.noDownload || (commonsDumpFile.exists() && !isRemoteNewer(commonsDumpFile, COMMONS_DUMP_URL))) {
+          LOG.info("Reusing cached Commons dump: {}", commonsDumpFile);
+        } else {
+          LOG.info("Downloading Commons dump (~106 GB, running in background)...");
+          http.download(COMMONS_DUMP_URL, commonsDumpFile);
+          LOG.info("Commons dump download complete: {}", commonsDumpFile);
+        }
+        return commonsDumpFile;
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+    });
   }
 
-  private boolean isRemoteNewer(File localFile) {
+  private boolean isRemoteNewer(File localFile, String url) {
     try {
-      var resp = http.head(DUMP_URL);
+      var resp = http.head(url);
       var lastModHeader = resp.headers().firstValue("Last-Modified").orElse(null);
       if (lastModHeader != null) {
         var remoteDate = ZonedDateTime.parse(lastModHeader, DateTimeFormatter.RFC_1123_DATE_TIME);
@@ -137,14 +162,14 @@ public class Generator extends AbstractColdpGenerator {
         return remoteMillis > localFile.lastModified();
       }
     } catch (Exception e) {
-      LOG.warn("Failed to check remote dump freshness, will reuse local file", e);
+      LOG.warn("Failed to check remote freshness for {}, will reuse local file", url, e);
     }
     return false;
   }
 
-  private void downloadDump(File target) throws IOException {
-    LOG.info("Downloading Wikidata dump from {} to {} (this may take a while...)", DUMP_URL, target);
-    http.download(DUMP_URL, target);
+  private void downloadFile(String url, File target) throws IOException {
+    LOG.info("Downloading {} to {} (this may take a while...)", url, target);
+    http.download(url, target);
     LOG.info("Download complete: {}", target);
   }
 
@@ -161,9 +186,8 @@ public class Generator extends AbstractColdpGenerator {
     resolveUnresolved(reader);
 
     LOG.info("Starting pass 2: emitting ColDP records...");
-    Map<String, String> pendingGalleries = new LinkedHashMap<>();
     try {
-      emitColdpRecords(dumpFile, reader, pendingGalleries);
+      emitColdpRecords(dumpFile, reader);
     } finally {
       if (duplicateLogWriter != null) {
         duplicateLogWriter.close();
@@ -173,10 +197,15 @@ public class Generator extends AbstractColdpGenerator {
     // Write only the identifier properties actually used in the generated archive
     writeIdentifierRegistry(reader);
 
-    if (cfg.mediaThreads > 0 && !pendingGalleries.isEmpty()) {
-      LOG.info("Starting media crawl: {} galleries, {} threads", pendingGalleries.size(), cfg.mediaThreads);
-      crawlMedia(pendingGalleries);
+    // Wait for Commons dump download (typically already done; Wikidata passes take many hours)
+    File commonsDumpFile;
+    try {
+      commonsDumpFile = commonsDumpFuture.get();
+    } catch (ExecutionException e) {
+      LOG.error("Commons dump download failed, skipping media gallery phase", e.getCause());
+      return;
     }
+    crawlCommonsMedia(commonsDumpFile, reader);
   }
 
   private void resolveUnresolved(WikidataDumpReader reader) {
@@ -435,8 +464,7 @@ public class Generator extends AbstractColdpGenerator {
     return s == null ? "" : s;
   }
 
-  private void emitColdpRecords(File dumpFile, WikidataDumpReader reader,
-                                Map<String, String> pendingGalleries) throws IOException {
+  private void emitColdpRecords(File dumpFile, WikidataDumpReader reader) throws IOException {
     LOG.info("Pass 2: writing ColDP records...");
     int[] taxonCount = {0};
     int[] synCount = {0};
@@ -445,6 +473,7 @@ public class Generator extends AbstractColdpGenerator {
     int[] distCount = {0};
     int[] propCount = {0};
     int[] nameRelCount = {0};
+    int[] mediaCount = {0};
 
     reader.streamDump(dumpFile, line -> line.contains("\"P225\""), entity -> {
       if (!hasClaim(entity, P225)) return;
@@ -470,12 +499,7 @@ public class Generator extends AbstractColdpGenerator {
         distCount[0] += writeTaxonRangeDistributions(entity, qid, reader);
         propCount[0] += writeIucnStatus(entity, qid, reader);
         nameRelCount[0] += writeNameRelations(entity, qid);
-
-        // Collect gallery name for later media crawling
-        String gallery = reader.galleryNames.get(qid);
-        if (gallery != null && cfg.mediaThreads > 0) {
-          pendingGalleries.put(qid, gallery);
-        }
+        mediaCount[0]  += writeP18Media(entity, qid);
 
         if (taxonCount[0] % 100_000 == 0) {
           LOG.info("Pass 2: {} taxa ({} synonyms), {} duplicates skipped, {} vernaculars, {} distributions, {} properties, {} name relations",
@@ -488,33 +512,55 @@ public class Generator extends AbstractColdpGenerator {
 
     writeReferences(reader);
 
-    LOG.info("Pass 2 complete: {} taxa ({} synonyms), {} duplicates skipped, {} vernaculars, {} distributions, {} properties, {} name relations, {} references",
-        taxonCount[0], synCount[0], duplicateCount[0], vernCount[0], distCount[0], propCount[0], nameRelCount[0], writtenRefs.size());
+    LOG.info("Pass 2 complete: {} taxa ({} synonyms), {} duplicates skipped, {} vernaculars, {} distributions, {} properties, {} name relations, {} references, {} P18 media",
+        taxonCount[0], synCount[0], duplicateCount[0], vernCount[0], distCount[0], propCount[0], nameRelCount[0], writtenRefs.size(), mediaCount[0]);
   }
 
-  private void crawlMedia(Map<String, String> galleries) throws InterruptedException {
-    CommonsMediaCrawler crawler = new CommonsMediaCrawler(cfg.mediaThreads, http);
-    AtomicInteger mediaCount = new AtomicInteger();
+  private void crawlCommonsMedia(File dumpFile, WikidataDumpReader reader) throws Exception {
+    // Pass A: gallery name → file list
+    Set<String> galleryNames = new HashSet<>(reader.galleryNames.values());
+    LOG.info("Commons pass A: scanning {} galleries...", galleryNames.size());
+    Map<String, List<String>> galleryFiles = new LinkedHashMap<>();
+    new CommonsXmlDumpReader(dumpFile).streamGalleryPages(galleryNames, galleryFiles::put);
 
-    crawler.submitAll(galleries);
-    crawler.awaitAndDrain(r -> {
-      try {
-        mediaWriter.set(ColdpTerm.taxonID, r.taxonID());
-        mediaWriter.set(ColdpTerm.url, r.url());
-        mediaWriter.set(ColdpTerm.type, r.type());
-        mediaWriter.set(ColdpTerm.format, r.format());
-        mediaWriter.set(ColdpTerm.title, r.title());
-        mediaWriter.set(ColdpTerm.created, r.created());
-        mediaWriter.set(ColdpTerm.creator, r.creator());
-        mediaWriter.set(ColdpTerm.license, r.license());
-        mediaWriter.set(ColdpTerm.link, r.link());
+    // Pass B: file metadata for files found in galleries
+    Set<String> neededFiles = galleryFiles.values().stream()
+        .flatMap(List::stream).collect(Collectors.toSet());
+    LOG.info("Commons pass B: extracting metadata for {} files...", neededFiles.size());
+    Map<String, CommonsXmlDumpReader.FileMetadata> fileMeta = new HashMap<>();
+    new CommonsXmlDumpReader(dumpFile).streamFilePages(neededFiles, fileMeta::put);
+
+    // Write Media records: taxon → gallery → files → metadata
+    int count = 0;
+    Set<String> writtenUrls = new HashSet<>(); // dedup vs P18 records
+    for (var e : reader.galleryNames.entrySet()) {
+      String qid = e.getKey();
+      List<String> files = galleryFiles.get(e.getValue());
+      if (files == null) continue;
+      for (String filename : files) {
+        String norm = filename.replace(' ', '_');
+        String url  = "https://commons.wikimedia.org/wiki/Special:FilePath/" + norm;
+        if (!writtenUrls.add(qid + "\t" + url)) continue; // dedup
+        CommonsXmlDumpReader.FileMetadata meta = fileMeta.get(filename);
+        String mime = CommonsXmlDumpReader.mimeFromFilename(filename);
+        mediaWriter.set(ColdpTerm.taxonID, qid);
+        mediaWriter.set(ColdpTerm.url,     url);
+        mediaWriter.set(ColdpTerm.type,    CommonsXmlDumpReader.typeFromMime(mime));
+        mediaWriter.set(ColdpTerm.format,  mime);
+        mediaWriter.set(ColdpTerm.link,    "https://commons.wikimedia.org/wiki/File:" + norm);
+        if (meta != null) {
+          mediaWriter.set(ColdpTerm.title,   meta.title());
+          mediaWriter.set(ColdpTerm.created, meta.created());
+          mediaWriter.set(ColdpTerm.creator, meta.creator());
+          mediaWriter.set(ColdpTerm.license, meta.license());
+          mediaWriter.set(ColdpTerm.remarks, meta.remarks());
+        }
         mediaWriter.next();
-        mediaCount.incrementAndGet();
-      } catch (IOException e) {
-        throw new RuntimeException(e);
+        count++;
       }
-    });
-    LOG.info("Media records written: {}", mediaCount.get());
+    }
+    LOG.info("Commons media: {} records from {} galleries ({} files with metadata)",
+        count, galleryFiles.size(), fileMeta.size());
   }
 
   private void writeNameUsage(JsonNode entity, String qid, WikidataDumpReader reader) throws IOException {
@@ -796,6 +842,26 @@ public class Generator extends AbstractColdpGenerator {
     return count;
   }
 
+  /**
+   * Writes a col:Media record for the P18 (image) property of a taxon.
+   * The Commons filename is available directly from the Wikidata dump — no HTTP calls needed.
+   * URL format: https://commons.wikimedia.org/wiki/Special:FilePath/{filename}
+   */
+  private int writeP18Media(JsonNode entity, String qid) throws IOException {
+    String filename = getStringClaimValue(entity, P18);
+    if (filename == null) return 0;
+    // MediaWiki convention: spaces → underscores in URLs
+    String normalized = filename.replace(' ', '_');
+    String url  = "https://commons.wikimedia.org/wiki/Special:FilePath/" + normalized;
+    String link = "https://commons.wikimedia.org/wiki/File:" + normalized;
+    mediaWriter.set(ColdpTerm.taxonID, qid);
+    mediaWriter.set(ColdpTerm.url, url);
+    mediaWriter.set(ColdpTerm.type, "image");
+    mediaWriter.set(ColdpTerm.link, link);
+    mediaWriter.next();
+    return 1;
+  }
+
   private void writeReferences(WikidataDumpReader reader) throws IOException {
     LOG.info("Writing {} reference records...", reader.pubInfo.size());
     Set<String> allPubQids = new HashSet<>();
@@ -902,19 +968,18 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.link
     ));
 
-    if (cfg.mediaThreads > 0) {
-      mediaWriter = additionalWriter(ColdpTerm.Media, List.of(
-          ColdpTerm.taxonID,
-          ColdpTerm.url,
-          ColdpTerm.type,
-          ColdpTerm.format,
-          ColdpTerm.title,
-          ColdpTerm.created,
-          ColdpTerm.creator,
-          ColdpTerm.license,
-          ColdpTerm.link
-      ));
-    }
+    mediaWriter = additionalWriter(ColdpTerm.Media, List.of(
+        ColdpTerm.taxonID,
+        ColdpTerm.url,
+        ColdpTerm.type,
+        ColdpTerm.format,
+        ColdpTerm.title,
+        ColdpTerm.created,
+        ColdpTerm.creator,
+        ColdpTerm.license,
+        ColdpTerm.link,
+        ColdpTerm.remarks
+    ));
 
     // Duplicate page debug log (written to the archive directory as a plain TSV)
     File duplicateLog = new File(dir, "wikidata-duplicates.tsv");

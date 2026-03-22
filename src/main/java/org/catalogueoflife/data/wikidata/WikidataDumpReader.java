@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -19,6 +20,34 @@ import java.util.zip.GZIPInputStream;
 public class WikidataDumpReader {
   private static final Logger LOG = LoggerFactory.getLogger(WikidataDumpReader.class);
   private static final ObjectMapper MAPPER = new ObjectMapper();
+
+  /**
+   * Preconfigured CURIE prefixes for known Wikidata external-identifier properties,
+   * loaded from {@code wikidata/identifier-scopes.tsv} (classpath resource).
+   * Key: Wikidata property ID (e.g. "P1746"), value: desired prefix (e.g. "zoobank").
+   * Overrides the auto-derived prefix from the formatter URL.
+   */
+  private static final Map<String, String> PRECONFIGURED_PREFIXES = loadPreconfiguredPrefixes();
+
+  private static Map<String, String> loadPreconfiguredPrefixes() {
+    Map<String, String> map = new HashMap<>();
+    try (InputStream in = WikidataDumpReader.class.getResourceAsStream("/wikidata/identifier-scopes.tsv");
+         BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+      String line;
+      boolean header = true;
+      while ((line = br.readLine()) != null) {
+        if (header) { header = false; continue; } // skip header row
+        String[] cols = line.split("\t", -1);
+        if (cols.length >= 2 && !cols[0].isBlank() && !cols[1].isBlank()) {
+          map.put(cols[1].trim(), cols[0].trim()); // PID → prefix
+        }
+      }
+    } catch (Exception e) {
+      LOG.warn("Could not load identifier-scopes.tsv: {}", e.getMessage());
+    }
+    LOG.info("Loaded {} preconfigured identifier prefixes from identifier-scopes.tsv", map.size());
+    return Collections.unmodifiableMap(map);
+  }
 
   // Wikidata property IDs
   static final String P225 = "P225";   // taxon name
@@ -49,6 +78,7 @@ public class WikidataDumpReader {
   static final String P2433 = "P2433"; // gender of scientific name of a genus
   static final String P1353 = "P1353"; // original combination (original spelling)
   static final String P574  = "P574";  // year of taxon name publication (qualifier on P225)
+  static final String P18   = "P18";   // image (representative taxon image on Wikimedia Commons)
   // External taxon identifier properties
   static final String P935  = "P935";  // Commons gallery
   static final String P685  = "P685";  // NCBI taxonomy ID
@@ -146,8 +176,8 @@ public class WikidataDumpReader {
         line.contains("\"P1476\"") || line.contains("\"P31\"") ||
         line.contains("\"P1630\"") || line.contains("\"P935\""); // P935 = Commons gallery
 
-    // Track used prefixes to ensure uniqueness
-    Set<String> usedPrefixes = new HashSet<>();
+    // Track used prefixes to ensure uniqueness; pre-seed with configured prefixes to avoid collisions
+    Set<String> usedPrefixes = new HashSet<>(PRECONFIGURED_PREFIXES.values());
 
     streamDump(gz, filter, entity -> {
       String qid = entity.path("id").asText(null);
@@ -158,7 +188,9 @@ public class WikidataDumpReader {
         String formatterUrl = getStringClaimValue(entity, "P1630");
         String formatRegex = getStringClaimValue(entity, "P1793");
         String label = getEnglishLabel(entity);
-        String prefix = deriveExtIdPrefix(formatterUrl, qid, usedPrefixes);
+        String prefix = PRECONFIGURED_PREFIXES.containsKey(qid)
+            ? PRECONFIGURED_PREFIXES.get(qid)
+            : deriveExtIdPrefix(formatterUrl, qid, usedPrefixes);
         if (prefix != null && formatterUrl != null) {
           extIdProperties.put(qid, new ExtIdInfo(prefix, label, formatterUrl, formatRegex));
           usedPrefixes.add(prefix);

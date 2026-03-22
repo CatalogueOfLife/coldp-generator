@@ -23,7 +23,7 @@ mvn test
 - `--api-key` — API key for authenticated sources
 - `--lpsn-user / --lpsn-pass` — LPSN credentials
 - `--date` — date filter for incremental updates
-- `--media-threads` — number of threads for Wikimedia Commons media crawling (default: 0 = disabled; Wikidata only)
+- `--no-download` — skip downloading source files; reuse existing local copies (useful for development re-runs)
 
 ## Project Structure
 
@@ -131,9 +131,7 @@ The PBDB generator (`pbdb/`) uses the [Paleobiology Database API](https://paleob
 
 The Wikidata generator (`wikidata/`) is special — it processes the full Wikidata JSON dump (~160 GB compressed), which takes an entire day to download. Key design points:
 
-**`PREVENT_DOWNLOAD = true`** in `Generator.java` — this flag intentionally suppresses re-downloading the dump even when the remote is newer. **Do not remove this flag or change it to `false` in code.** It exists to protect against accidentally overwriting an existing dump during development and testing. The IDE will report dead code on the freshness-check branch; this is expected and harmless. To force a re-download, delete the local file manually.
-
-The dump is stored at `{sourceDir}/wikidata/latest-all.json.gz` (default: `/tmp/coldp-generator-sources/wikidata/`).
+Dumps are stored under `{sourceDir}/wikidata/` (default: `/tmp/coldp-generator-sources/wikidata/`). Both dumps are downloaded with a Last-Modified freshness check and re-downloaded only if the remote is newer. Use `--no-download` to skip all downloads and reuse existing local files.
 
 #### Two-pass streaming architecture
 
@@ -145,7 +143,7 @@ The dump is stored at `{sourceDir}/wikidata/latest-all.json.gz` (default: `/tmp/
 **Pass 2** (`emitColdpRecords`): streams again (filter: `"P225"`) and emits ColDP records:
 - Skips entities with P31=Q17362920 (Wikimedia duplicated pages) — logs them to `wikidata-duplicates.tsv`.
 - Writes `NameUsage` (accepted + synonyms via P1420), `VernacularName`, `Distribution`, `TaxonProperty`, `NameRelation`, `Reference`.
-- Collects P935 (Commons gallery) names into `pendingGalleries` for the optional media crawl phase.
+- Writes one `Media` record per taxon for P18 (representative image) directly from the dump — no HTTP calls.
 
 #### Property mapping
 
@@ -167,17 +165,24 @@ The dump is stored at `{sourceDir}/wikidata/latest-all.json.gz` (default: `/tmp/
 | P5588 | Distribution establishmentMeans=invasive | |
 | P9714 | Distribution establishmentMeans=native | |
 | sitelinks.enwiki | remarks (Wikipedia URL) | |
+| P18 | Media.url (representative image) | filename → Special:FilePath URL |
 | all P entities with P1630 | alternativeID (CURIEs) | dynamically discovered |
 
 #### Output files (in addition to standard ColDP)
 - `NameRelation.tsv` — replacement name relations (P694)
 - `wikidata-duplicates.tsv` — skipped duplicate-page entities
 - `identifier-registry.tsv` — all discovered external identifier properties with CURIE prefix, formatter URL, format regex
-- `Media.tsv` — taxon images/audio/video from Wikimedia Commons (only produced when `--media-threads` > 0)
+- `Media.tsv` — taxon images from P18 (one per taxon, from Wikidata dump) plus full gallery images from the Commons dump
 
-#### Wikimedia Commons media crawling (`--media-threads N`)
+#### Wikimedia Commons dump processing
 
-After pass 2, if `--media-threads` is set to a positive value, `CommonsMediaCrawler` fetches images for all taxa that have a P935 (Commons gallery) property. The crawl uses the MediaWiki API (`commons.wikimedia.org/w/api.php`) with `generator=images` and paginates via `gimcontinue`. HTTP fetches run in a thread pool of size N; results are collected in a `LinkedBlockingQueue` and written to `Media.tsv` from the main thread (TSV writer is not thread-safe). Fields populated: `url`, `type` (image/audio/video/other), `format` (MIME type), `title`, `created`, `creator`, `license`, `link` (description page). HTML tags are stripped from `creator` and `title`. Default (0) skips media crawling entirely and produces no `Media.tsv`.
+**Parallel download:** At the top of `prepare()`, the Commons XML dump (`commonswiki-latest-pages-articles.xml.bz2`, ~106 GB) is downloaded in a background `CompletableFuture` thread while the Wikidata dump download (main thread) and Wikidata passes 1+2 run. Since Wikidata processing takes many hours, the Commons download is typically complete before it is needed.
+
+**After pass 2**, `crawlCommonsMedia()` in `Generator.java` runs two passes over `CommonsXmlDumpReader`:
+- **Commons pass A** (`streamGalleryPages`): namespace-0 pages → builds `Map<galleryName, List<filename>>` for all taxa with P935 gallery names
+- **Commons pass B** (`streamFilePages`): namespace-6 File: pages → builds `Map<filename, FileMetadata>` for the needed files
+
+File metadata is parsed from `{{Information|description=...|date=...|author=...}}` templates and the first recognized license template. MIME type and media type are derived from the file extension. Fields written: `url` (`Special:FilePath/{filename}`), `type`, `format`, `title`, `created`, `creator`, `license`, `link` (`File:{filename}`), `remarks`. P18 records (one per taxon) are also included; duplicates by URL within a taxon are suppressed.
 
 ## Notes
 

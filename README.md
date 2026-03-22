@@ -23,7 +23,7 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 | `--api-key` | | API key for authenticated sources |
 | `--lpsn-user / --lpsn-pass` | | Credentials for LPSN |
 | `--date` | | Date filter for incremental updates |
-| `--media-threads` | `0` | Threads for Wikimedia Commons media crawling (Wikidata only; 0 = disabled) |
+| `--no-download` | `false` | Skip downloading source files; reuse existing local copies |
 
 ## Supported Sources
 
@@ -45,7 +45,7 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 | `otl` | [OTL](https://tree.opentreeoflife.org/about/synthesis-release) | Open Tree of Life Synthesis Tree |
 | `ott` | [OTT](https://tree.opentreeoflife.org/about/taxonomy-version) | Open Tree of Life Reference Taxonomy |
 | `pbdb` | [PBDB](https://paleobiodb.org/) | The Paleobiology Database |
-| `wikidata` | [Wikidata](https://www.wikidata.org) | Wikidata taxonomy (requires full dump, ~160 GB) |
+| `wikidata` | [Wikidata](https://www.wikidata.org) | Wikidata taxonomy (downloads full Wikidata + Commons dumps, ~260 GB total) |
 | `wikispecies` | [WikiSpecies](https://species.wikimedia.org) | |
 | `wsc` | [WSC](https://wsc.nmbe.ch/) | World Spider Catalog |
 
@@ -61,10 +61,23 @@ Requires `--lpsn-user` and `--lpsn-pass` credentials.
 
 ### Wikidata
 
-Processes the full Wikidata JSON dump (~160 GB compressed), which takes an entire day to download. The dump is stored in `--tmp` and reused across runs (re-download is suppressed by default — delete the file manually to force a fresh download).
+Downloads and processes two large dumps automatically:
 
-**`--media-threads N`** — after the main dump processing, crawls Wikimedia Commons gallery pages (Wikidata P935) to produce a `Media.tsv` with images, audio, and video for each taxon. Uses N parallel HTTP threads. Omitted or set to 0 to skip media crawling.
+| Dump | Size | Purpose |
+|------|------|---------|
+| `latest-all.json.gz` (Wikidata) | ~160 GB | Taxonomy, names, synonyms, distributions, references |
+| `commonswiki-latest-pages-articles.xml.bz2` (Commons) | ~106 GB | Taxon gallery images with metadata |
+
+Both dumps are downloaded in parallel at startup (the Commons dump in a background thread while Wikidata processing runs). Freshness is checked via `Last-Modified` headers; files are only re-downloaded when the remote is newer. Use `--no-download` to skip all downloads and reuse existing local files.
+
+**Output includes `Media.tsv`** populated from two sources:
+- **P18** (Wikidata property): one representative image per taxon, URL built directly from the filename in the Wikidata dump — no extra HTTP calls.
+- **P935 gallery pages** (Commons dump): all images listed in the taxon's curated Commons gallery, with `title`, `created`, `creator`, `license`, and `remarks` extracted from the file description pages.
 
 ```bash
-java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s wikidata --media-threads 4
+# Standard run (downloads everything automatically):
+java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s wikidata
+
+# Re-run without re-downloading (both dumps already cached):
+java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s wikidata --no-download
 ```
