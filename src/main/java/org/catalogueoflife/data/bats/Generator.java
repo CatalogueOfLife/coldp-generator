@@ -40,7 +40,7 @@ public class Generator extends AbstractColdpGenerator {
 
   private static final String BASE = "https://batnames.org";
   private static final URI EXPLORE_URL = URI.create(BASE + "/explore.html");
-  private static final Pattern AUTH_YEAR = Pattern.compile("^(.*?),\\s*(\\d{4})\\s*[.,]?(.*)$", Pattern.DOTALL);
+  private static final Pattern AUTH_YEAR = Pattern.compile("^(.*?),\\s*(\\d{4})\\s*(\\)?)\\s*[.,]?(.*)$", Pattern.DOTALL);
   private static final Pattern GBIF_KEY = Pattern.compile("[?&]key=(\\d+)");
   // Splits journal line into citation (group 1) and page (group 2).
   // Handles ": 533", ": p. 533", ": pp. 87-88", " p. 107.", " pp. 87-88."
@@ -166,18 +166,15 @@ public class Generator extends AbstractColdpGenerator {
       String dist = null;
       List<String> refIds = new ArrayList<>();
 
-      // Parse name + authorship from button text: first word = scientificName, rest = authorship.
+      // Parse name + authorship from button text: first word = uninomial, rest = complete authorship.
       // The div.author field is often corrupt (e.g. ", . ,"), so we ignore it.
       String buttonText = clean(button.ownText()); // ownText() excludes the <p> child
       if (!StringUtils.isBlank(buttonText)) {
         int sp = buttonText.indexOf(' ');
         if (sp > 0) {
-          String[] ayp = parseAuthorYear(buttonText.substring(sp + 1).trim() + ".");
-          authorRaw = ayp[0];
-          year = ayp[1];
-          if (authorRaw != null && year != null) {
-            authorRaw = authorRaw + ", " + year;
-          }
+          String remainder = buttonText.substring(sp + 1).replaceAll("[.,]+$", "").trim();
+          authorRaw = StringUtils.trimToNull(remainder);
+          year = parseAuthorYear(remainder)[1]; // extract year for publishedInYear only
         }
       }
 
@@ -494,10 +491,13 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   private String writeBibEntry(Element bib) throws IOException {
-    String citation = clean(bib.text());
-    String link = null;
     Element anchor = bib.selectFirst("a[href]");
-    if (anchor != null) link = anchor.attr("href");
+    String link = anchor != null ? anchor.attr("href") : null;
+    // Remove the anchor element before extracting text so link labels
+    // ("Read abstract.", "Read article.", etc.) don't end up in the citation.
+    Element bibClone = bib.clone();
+    bibClone.select("a").remove();
+    String citation = clean(bibClone.text());
     return writeRef(citation, link);
   }
 
@@ -546,10 +546,16 @@ public class Generator extends AbstractColdpGenerator {
     raw = raw.trim();
     Matcher m = AUTH_YEAR.matcher(raw);
     if (m.matches()) {
+      // group(1)=author, group(2)=year, group(3)=optional closing ")", group(4)=publication
+      String author = m.group(1);
+      String year = m.group(2);
+      String closingParen = m.group(3);
+      // Full authorship = "Author, Year" (+ closing paren if parenthetical)
+      String authorship = author + ", " + year + closingParen;
       return new String[]{
-          StringUtils.trimToNull(m.group(1)),
-          m.group(2),
-          StringUtils.trimToNull(m.group(3))
+          StringUtils.trimToNull(authorship),
+          year,
+          StringUtils.trimToNull(m.group(4))
       };
     }
     return new String[]{StringUtils.trimToNull(raw), null, null};
