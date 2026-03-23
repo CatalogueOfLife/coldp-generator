@@ -57,6 +57,7 @@ public class Generator extends AbstractColdpGenerator {
   private final List<String> genusNames = new ArrayList<>();
   private final Map<String, String> genusParents = new HashMap<>();  // genusName → parentTaxonId
   private final Map<String, String> refByCitation = new HashMap<>(); // citation → Reference ID
+  private final Map<String, String> refIdToCitation = new HashMap<>(); // Reference ID → citation
   private int refCounter = 1;
   private TermWriter vnWriter;
   private TermWriter distWriter;
@@ -283,9 +284,17 @@ public class Generator extends AbstractColdpGenerator {
    * Processes one div.speciestest block (one species and all its associated data divs).
    */
   private void processSpeciesBlock(Element speciestest, String parentId, String genusName) throws IOException {
-    // Pre-scan for comments since it appears after the taxon div (already written by then)
+    // Pre-scan for comments (appears after the taxon div, but needed before writing NameUsage)
     Element commentsEl = speciestest.selectFirst("div.comments");
     String remarks = commentsEl != null ? StringUtils.trimToNull(clean(commentsEl.text())) : null;
+
+    // Pre-collect all references from the "References:" section so we can link them to the
+    // species NameUsage and match the nomenclatural reference by year+author.
+    List<String> bibRefIds = new ArrayList<>();
+    for (Element bib : speciestest.select("div.bibentry")) {
+      String refId = writeBibEntry(bib);
+      if (refId != null) bibRefIds.add(refId);
+    }
 
     String currentSpeciesId = null;
 
@@ -293,7 +302,7 @@ public class Generator extends AbstractColdpGenerator {
       String cls = el.className();
 
       if ("taxon".equals(cls) && "species".equals(el.id())) {
-        currentSpeciesId = parseSpecies(el, parentId, genusName, remarks);
+        currentSpeciesId = parseSpecies(el, parentId, genusName, remarks, bibRefIds);
 
       } else if (currentSpeciesId != null) {
         switch (cls) {
@@ -315,7 +324,6 @@ public class Generator extends AbstractColdpGenerator {
               distWriter.next();
             }
           }
-          case "bibentry" -> writeBibEntry(el);
           case "map" -> {
             Element iframe = el.selectFirst("iframe");
             if (iframe != null) {
@@ -323,6 +331,7 @@ public class Generator extends AbstractColdpGenerator {
               if (m.find()) LOG.debug("GBIF key {} for {}", m.group(1), currentSpeciesId);
             }
           }
+          // div.bibentry: already pre-collected above; skip here
         }
       }
     }
@@ -353,7 +362,8 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   /** Parses a species div and writes the NameUsage. Returns the species ID. */
-  private String parseSpecies(Element div, String parentId, String genusName, String remarks) throws IOException {
+  private String parseSpecies(Element div, String parentId, String genusName, String remarks,
+                               List<String> bibRefIds) throws IOException {
     Element nameEl = div.selectFirst("b i, b");
     if (nameEl == null) {
       LOG.warn("No name element in species div under {}", genusName);
@@ -373,26 +383,34 @@ public class Generator extends AbstractColdpGenerator {
     String journal = lines.length > 1 ? clean(lines[1]) : null;
     String commonName = lines.length > 2 ? clean(lines[2]) : null;
 
-    // Split journal line into citation (without page) and page
+    // Extract page from the journal line on the taxon div (e.g. "Bull. Soc. Zool. France 5: 71.")
     String page = null;
-    String journalRef = journal;
     if (!StringUtils.isBlank(journal)) {
       Matcher pm = PAGE_SEP.matcher(journal);
-      if (pm.matches()) {
-        journalRef = pm.group(1).trim();
-        if (!journalRef.endsWith(".")) journalRef += ".";
-        page = pm.group(2).trim();
-      }
+      if (pm.matches()) page = pm.group(2).trim();
     }
 
-    // Build nomenclatural reference from author+year+journal (without page) and write it
+    // Match nomenclatural reference from the pre-collected bibentries by year (+ author family name).
+    // Remaining bibentries become referenceID links on the taxon.
     String nameRefId = null;
-    if (!StringUtils.isBlank(journalRef)) {
-      StringBuilder citation = new StringBuilder();
-      if (!StringUtils.isBlank(ayp[0])) citation.append(ayp[0]).append(", ");
-      if (!StringUtils.isBlank(ayp[1])) citation.append(ayp[1]).append(". ");
-      citation.append(journalRef);
-      nameRefId = writeRef(citation.toString(), (String) null);
+    List<String> otherRefIds = new ArrayList<>(bibRefIds);
+    if (ayp[1] != null && !bibRefIds.isEmpty()) {
+      // Family name: first token of authorship after stripping parentheses
+      String auth = ayp[0] != null ? ayp[0].replaceAll("[()]", "").trim() : "";
+      String family = auth.contains(",") ? auth.substring(0, auth.indexOf(',')).trim() : auth;
+      String year = ayp[1];
+      String bestId = null;
+      for (String refId : bibRefIds) {
+        String cit = refIdToCitation.get(refId);
+        if (cit == null || !cit.contains(year)) continue;
+        if (!family.isEmpty() && cit.toLowerCase().contains(family.toLowerCase())) {
+          bestId = refId; // strong match: year + author family name
+          break;
+        }
+        if (bestId == null) bestId = refId; // year-only match, keep searching
+      }
+      nameRefId = bestId;
+      otherRefIds.remove(nameRefId);
     }
 
     writer.set(ColdpTerm.ID, speciesId);
@@ -405,6 +423,7 @@ public class Generator extends AbstractColdpGenerator {
     writer.set(ColdpTerm.extinct, "false");
     writer.set(ColdpTerm.nameReferenceID, nameRefId);
     writer.set(ColdpTerm.publishedInPage, page);
+    if (!otherRefIds.isEmpty()) writer.set(ColdpTerm.referenceID, String.join(",", otherRefIds));
     writer.set(ColdpTerm.link, BASE + "/genera/" + genusName);
     writer.set(ColdpTerm.remarks, remarks);
     writer.next();
@@ -487,6 +506,7 @@ public class Generator extends AbstractColdpGenerator {
     refWriter.set(ColdpTerm.link, link);
     refWriter.next();
     refByCitation.put(citation, id);
+    refIdToCitation.put(id, citation);
     return id;
   }
 
