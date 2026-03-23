@@ -15,15 +15,20 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.catalogueoflife.data.wikidata.WikidataDumpReader.*;
 
 public class Generator extends AbstractColdpGenerator {
-  private static final String DUMP_URL = "https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.gz";
-  private static final String DUMP_FILENAME = "latest-all.json.gz";
-  private static final String COMMONS_DUMP_URL = "https://ftp.acc.umu.se/mirror/wikimedia.org/dumps/commonswiki/20260301/commonswiki-20260301-pages-articles.xml.bz2";
-  private static final String COMMONS_DUMP_URL2 = "https://dumps.wikimedia.org/commonswiki/latest/commonswiki-latest-pages-articles.xml.bz2";
+  // Swedish mirror — much faster from Copenhagen; has both dumps at stable "latest" paths.
+  private static final String WIKIDATA_MIRROR_URL  = "https://ftp.acc.umu.se/mirror/wikimedia.org/other/wikibase/wikidatawiki/latest-all.json.gz";
+  private static final String COMMONS_MIRROR_BASE  = "https://ftp.acc.umu.se/mirror/wikimedia.org/dumps/commonswiki/";
+  // Main Wikimedia site — fallback when the mirror is unreachable or has no matching dump.
+  private static final String WIKIDATA_FALLBACK_URL = "https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.gz";
+  private static final String COMMONS_FALLBACK_URL  = "https://dumps.wikimedia.org/commonswiki/latest/commonswiki-latest-pages-articles.xml.bz2";
+  private static final String DUMP_FILENAME         = "latest-all.json.gz";
   private static final String COMMONS_DUMP_FILENAME = "commonswiki-latest-pages-articles.xml.bz2";
 
   private TermWriter vernWriter;
@@ -118,31 +123,34 @@ public class Generator extends AbstractColdpGenerator {
 
   @Override
   protected void prepare() throws Exception {
-    // Wikidata dump — main thread
+    // Wikidata dump — main thread; prefer Swedish mirror, fall back to main site.
+    String wikidataUrl = resolveUrl("Wikidata", WIKIDATA_MIRROR_URL, WIKIDATA_FALLBACK_URL);
     File dumpFile = sourceFile(DUMP_FILENAME);
     if (dumpFile.exists()) {
-      if (!cfg.noDownload && isRemoteNewer(dumpFile, DUMP_URL)) {
+      if (!cfg.noDownload && isRemoteNewer(dumpFile, wikidataUrl)) {
         LOG.info("Remote Wikidata dump is newer, re-downloading...");
         dumpFile.delete();
-        downloadFile(DUMP_URL, dumpFile);
+        downloadFile(wikidataUrl, dumpFile);
       } else {
         LOG.info("Reusing cached Wikidata dump: {}", dumpFile);
       }
     } else if (cfg.noDownload) {
       throw new IllegalStateException("--no-download set but Wikidata dump not found: " + dumpFile);
     } else {
-      downloadFile(DUMP_URL, dumpFile);
+      downloadFile(wikidataUrl, dumpFile);
     }
 
-    // Commons dump — background thread (runs in parallel with Wikidata passes)
+    // Commons dump — background thread (runs in parallel with Wikidata passes).
+    // The mirror uses dated directories (e.g. 20260301/); we discover the latest one.
+    String commonsDumpUrl = resolveCommonsDumpUrl();
     File commonsDumpFile = sourceFile(COMMONS_DUMP_FILENAME);
     commonsDumpFuture = CompletableFuture.supplyAsync(() -> {
       try {
-        if (cfg.noDownload || (commonsDumpFile.exists() && !isRemoteNewer(commonsDumpFile, COMMONS_DUMP_URL))) {
+        if (cfg.noDownload || (commonsDumpFile.exists() && !isRemoteNewer(commonsDumpFile, commonsDumpUrl))) {
           LOG.info("Reusing cached Commons dump: {}", commonsDumpFile);
         } else {
-          LOG.info("Downloading Commons dump (~106 GB, running in background)... {}", COMMONS_DUMP_URL);
-          http.download(COMMONS_DUMP_URL, commonsDumpFile);
+          LOG.info("Downloading Commons dump (~106 GB, running in background)... {}", commonsDumpUrl);
+          http.download(commonsDumpUrl, commonsDumpFile);
           LOG.info("Commons dump download complete: {}", commonsDumpFile);
         }
         return commonsDumpFile;
@@ -150,6 +158,55 @@ public class Generator extends AbstractColdpGenerator {
         throw new UncheckedIOException(e);
       }
     });
+  }
+
+  /**
+   * Returns the mirror URL if reachable (HTTP 2xx), otherwise the fallback URL.
+   */
+  private String resolveUrl(String label, String mirrorUrl, String fallbackUrl) {
+    try {
+      if (http.exists(mirrorUrl)) {
+        LOG.info("{} dump: using Swedish mirror {}", label, mirrorUrl);
+        return mirrorUrl;
+      }
+    } catch (Exception e) {
+      LOG.warn("{} dump: mirror check failed ({}), falling back to main site", label, e.getMessage());
+    }
+    LOG.info("{} dump: using main Wikimedia site {}", label, fallbackUrl);
+    return fallbackUrl;
+  }
+
+  /**
+   * Discovers the latest Commons dump on the Swedish mirror by parsing its directory listing.
+   * The mirror has dated subdirectories (YYYYMMDD); we pick the largest (most recent) date,
+   * verify the dump file exists there, and return its URL.
+   * Falls back to the main Wikimedia site if the mirror is unreachable or yields no valid date.
+   */
+  private String resolveCommonsDumpUrl() {
+    try {
+      String listing = http.get(URI.create(COMMONS_MIRROR_BASE));
+      Pattern p = Pattern.compile("href=\"(\\d{8})/\"");
+      Matcher m = p.matcher(listing);
+      String latest = null;
+      while (m.find()) {
+        String date = m.group(1);
+        if (latest == null || date.compareTo(latest) > 0) latest = date;
+      }
+      if (latest != null) {
+        String url = COMMONS_MIRROR_BASE + latest + "/commonswiki-" + latest + "-pages-articles.xml.bz2";
+        if (http.exists(url)) {
+          LOG.info("Commons dump: using Swedish mirror, date={}, url={}", latest, url);
+          return url;
+        }
+        LOG.warn("Commons dump: mirror date {} found but file not available, falling back", latest);
+      } else {
+        LOG.warn("Commons dump: no dated directories found in mirror listing");
+      }
+    } catch (Exception e) {
+      LOG.warn("Commons dump: mirror resolution failed ({}), falling back to main site", e.getMessage());
+    }
+    LOG.info("Commons dump: using main Wikimedia site {}", COMMONS_FALLBACK_URL);
+    return COMMONS_FALLBACK_URL;
   }
 
   private boolean isRemoteNewer(File localFile, String url) {
