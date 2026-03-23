@@ -398,8 +398,8 @@ public class Generator extends AbstractColdpGenerator {
     String extUrl = null;
     for (Element a : container.select("a")) {
       if ("link".equalsIgnoreCase(a.text().trim())) {
-        extUrl = a.attr("abs:href");
-        if (extUrl.isBlank()) extUrl = a.attr("href");
+        String abs = a.attr("abs:href");
+        extUrl = (abs != null && !abs.isBlank()) ? abs : a.attr("href");
         a.remove(); // remove from DOM so afterLabel won't see its text
         break;
       }
@@ -421,7 +421,7 @@ public class Generator extends AbstractColdpGenerator {
     }
     // Strip trailing comma/whitespace left by the removed "link" anchor
     String citation = sb.toString().replaceAll("[,\\s]+$", "").trim();
-    return new String[]{citation.isEmpty() ? null : citation, extUrl.isBlank() ? null : extUrl};
+    return new String[]{citation.isEmpty() ? null : citation, (extUrl == null || extUrl.isBlank()) ? null : extUrl};
   }
 
   /**
