@@ -25,7 +25,8 @@ public class Generator extends AbstractColdpGenerator {
   private static final String CAB_URL  = BASE + "/uploads/documents/taxonomy_data.cab";
 
   // In-memory lookups built before writing ColDP records
-  private final Map<Integer, String>       countryByGeoId       = new HashMap<>();
+  private final Map<Integer, String>       countryByGeoId       = new HashMap<>(); // geoId → ISO alpha-3
+  private final Map<Integer, String>       geoNameByGeoId       = new HashMap<>(); // geoId → display name (all entries)
   private final Map<Integer, String>       refIdByLitId         = new HashMap<>();
   private final Map<Integer, List<String>> refIdsBySpeciesId    = new HashMap<>();
   private final Map<Integer, Integer>      basionymByAcceptedId = new HashMap<>(); // accepted_id → basionym_id
@@ -118,7 +119,8 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.areaID,
         ColdpTerm.area,
         ColdpTerm.gazetteer,
-        ColdpTerm.status
+        ColdpTerm.status,
+        ColdpTerm.referenceID
     ));
     var propWriter = additionalWriter(ColdpTerm.TaxonProperty, List.of(
         ColdpTerm.taxonID,
@@ -179,14 +181,28 @@ public class Generator extends AbstractColdpGenerator {
     var parser = tsvParser();
     parser.beginParsing(UTF8IoUtils.readerFromFile(sourceFile("geography.txt")));
     var idx = indexMap(parser.getContext().headers());
+    // geography.txt may use "geography_name", "geo_name", or "name" for the display name
+    String nameCol = idx.containsKey("geography_name") ? "geography_name"
+                   : idx.containsKey("geo_name")       ? "geo_name"
+                   : idx.containsKey("name")            ? "name"
+                   : null;
+    if (nameCol == null) LOG.warn("geography.txt: no name column found (tried geography_name, geo_name, name)");
     String[] row;
     while ((row = parser.parseNext()) != null) {
       var geoId   = intCol(row, idx, "geography_id");
       var country = col(row, idx, "country_code");
-      if (geoId != null && country != null) countryByGeoId.put(geoId, country);
+      if (geoId == null) continue;
+      // Store display name for all entries (used as fallback area text for non-ISO codes)
+      var name = nameCol != null ? col(row, idx, nameCol) : null;
+      if (name != null) geoNameByGeoId.put(geoId, name);
+      // Only map to ISO country code for valid alpha-3 entries; skip numeric UN M.49 region codes
+      if (country != null && COUNTRY_NAME_MAP.containsKey(country))
+        countryByGeoId.put(geoId, country);
     }
     parser.stopParsing();
-    LOG.info("{} geography entries loaded", countryByGeoId.size());
+    LOG.info("{} geography entries loaded ({} with ISO country codes, {} with names)",
+        Math.max(countryByGeoId.size(), geoNameByGeoId.size()),
+        countryByGeoId.size(), geoNameByGeoId.size());
   }
 
   /** Stream the large citation.txt file and collect all literature refs per species. */
@@ -480,12 +496,21 @@ public class Generator extends AbstractColdpGenerator {
       var geoId     = intCol(row, idx, "geography_id");
       if (speciesId == null || geoId == null) continue;
       var country = countryByGeoId.get(geoId);
-      if (country == null) continue;
+      // Skip entries with no usable area information at all
+      if (country == null && !geoNameByGeoId.containsKey(geoId)) continue;
+      var litId = intCol(row, idx, "literature_id");
       distWriter.set(ColdpTerm.taxonID, "sp:" + speciesId);
-      distWriter.set(ColdpTerm.areaID, "iso:" + country);
-      distWriter.set(ColdpTerm.area, COUNTRY_NAME_MAP.get(country));
-      distWriter.set(ColdpTerm.gazetteer, "iso");
+      if (country != null) {
+        distWriter.set(ColdpTerm.areaID, "iso:" + country);
+        distWriter.set(ColdpTerm.area, COUNTRY_NAME_MAP.get(country));
+        distWriter.set(ColdpTerm.gazetteer, "iso");
+      } else {
+        // Non-ISO regional entry (UN M.49 code): use the GRIN geography name as free text
+        distWriter.set(ColdpTerm.area, geoNameByGeoId.get(geoId));
+        distWriter.set(ColdpTerm.gazetteer, "text");
+      }
       distWriter.set(ColdpTerm.status, geoStatus(col(row, idx, "geography_status_code")));
+      if (litId != null) distWriter.set(ColdpTerm.referenceID, refIdByLitId.get(litId));
       distWriter.next();
       count++;
     }
