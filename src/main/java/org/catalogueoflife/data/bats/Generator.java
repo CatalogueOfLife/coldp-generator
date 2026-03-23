@@ -42,6 +42,10 @@ public class Generator extends AbstractColdpGenerator {
   private static final URI EXPLORE_URL = URI.create(BASE + "/explore.html");
   private static final Pattern AUTH_YEAR = Pattern.compile("^(.*?),\\s*(\\d{4})\\s*[.,]?(.*)$", Pattern.DOTALL);
   private static final Pattern GBIF_KEY = Pattern.compile("[?&]key=(\\d+)");
+  // Splits journal line into citation (group 1) and page (group 2).
+  // Handles ": 533", ": p. 533", ": pp. 87-88", " p. 107.", " pp. 87-88."
+  private static final Pattern PAGE_SEP = Pattern.compile(
+      "^(.+?)(?::\\s*(?:pp?\\.\\s*)?|\\s+pp?\\.\\s+)(\\S.*?)\\s*\\.?$");
   private static final String EXPLORE_FILE = "explore.html";
 
   // Rank ordering for parent-tracking in the flat accordion
@@ -52,6 +56,7 @@ public class Generator extends AbstractColdpGenerator {
 
   private final List<String> genusNames = new ArrayList<>();
   private final Map<String, String> genusParents = new HashMap<>();  // genusName → parentTaxonId
+  private final Map<String, String> refByCitation = new HashMap<>(); // citation → Reference ID
   private int refCounter = 1;
   private TermWriter vnWriter;
   private TermWriter distWriter;
@@ -71,8 +76,8 @@ public class Generator extends AbstractColdpGenerator {
     newWriter(ColdpTerm.NameUsage, List.of(
         ColdpTerm.ID, ColdpTerm.parentID, ColdpTerm.rank,
         ColdpTerm.scientificName, ColdpTerm.authorship, ColdpTerm.publishedInYear,
-        ColdpTerm.status, ColdpTerm.nameReferenceID, ColdpTerm.referenceID,
-        ColdpTerm.extinct, ColdpTerm.link, ColdpTerm.remarks
+        ColdpTerm.status, ColdpTerm.nameReferenceID, ColdpTerm.publishedInPage,
+        ColdpTerm.referenceID, ColdpTerm.extinct, ColdpTerm.link, ColdpTerm.remarks
     ));
     initRefWriter(List.of(
         ColdpTerm.ID, ColdpTerm.citation, ColdpTerm.link
@@ -161,13 +166,22 @@ public class Generator extends AbstractColdpGenerator {
       String dist = null;
       List<String> refIds = new ArrayList<>();
 
-      if (uppertbl != null) {
-        Element authorEl = uppertbl.selectFirst("div.author");
-        if (authorEl != null) {
-          String[] ayp = parseAuthorYear(clean(authorEl.text()));
+      // Parse name + authorship from button text: first word = scientificName, rest = authorship.
+      // The div.author field is often corrupt (e.g. ", . ,"), so we ignore it.
+      String buttonText = clean(button.ownText()); // ownText() excludes the <p> child
+      if (!StringUtils.isBlank(buttonText)) {
+        int sp = buttonText.indexOf(' ');
+        if (sp > 0) {
+          String[] ayp = parseAuthorYear(buttonText.substring(sp + 1).trim() + ".");
           authorRaw = ayp[0];
           year = ayp[1];
+          if (authorRaw != null && year != null) {
+            authorRaw = authorRaw + ", " + year;
+          }
         }
+      }
+
+      if (uppertbl != null) {
         Element synsEl = uppertbl.selectFirst("div.syns");
         if (synsEl != null) writeSynonyms(name, clean(synsEl.text()));
         Element distEl = uppertbl.selectFirst("div.dist");
@@ -272,13 +286,17 @@ public class Generator extends AbstractColdpGenerator {
    * Processes one div.speciestest block (one species and all its associated data divs).
    */
   private void processSpeciesBlock(Element speciestest, String parentId, String genusName) throws IOException {
+    // Pre-scan for comments since it appears after the taxon div (already written by then)
+    Element commentsEl = speciestest.selectFirst("div.comments");
+    String remarks = commentsEl != null ? StringUtils.trimToNull(clean(commentsEl.text())) : null;
+
     String currentSpeciesId = null;
 
     for (Element el : speciestest.children()) {
       String cls = el.className();
 
       if ("taxon".equals(cls) && "species".equals(el.id())) {
-        currentSpeciesId = parseSpecies(el, parentId, genusName);
+        currentSpeciesId = parseSpecies(el, parentId, genusName, remarks);
 
       } else if (currentSpeciesId != null) {
         switch (cls) {
@@ -338,7 +356,7 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   /** Parses a species div and writes the NameUsage. Returns the species ID. */
-  private String parseSpecies(Element div, String parentId, String genusName) throws IOException {
+  private String parseSpecies(Element div, String parentId, String genusName, String remarks) throws IOException {
     Element nameEl = div.selectFirst("b i, b");
     if (nameEl == null) {
       LOG.warn("No name element in species div under {}", genusName);
@@ -355,7 +373,30 @@ public class Generator extends AbstractColdpGenerator {
       authYear = nameEndIdx >= 0 ? lines[0].substring(nameEndIdx + sciName.length()).trim() : lines[0];
     }
     String[] ayp = parseAuthorYear(authYear.endsWith(".") ? authYear : authYear + ".");
+    String journal = lines.length > 1 ? clean(lines[1]) : null;
     String commonName = lines.length > 2 ? clean(lines[2]) : null;
+
+    // Split journal line into citation (without page) and page
+    String page = null;
+    String journalRef = journal;
+    if (!StringUtils.isBlank(journal)) {
+      Matcher pm = PAGE_SEP.matcher(journal);
+      if (pm.matches()) {
+        journalRef = pm.group(1).trim();
+        if (!journalRef.endsWith(".")) journalRef += ".";
+        page = pm.group(2).trim();
+      }
+    }
+
+    // Build nomenclatural reference from author+year+journal (without page) and write it
+    String nameRefId = null;
+    if (!StringUtils.isBlank(journalRef)) {
+      StringBuilder citation = new StringBuilder();
+      if (!StringUtils.isBlank(ayp[0])) citation.append(ayp[0]).append(", ");
+      if (!StringUtils.isBlank(ayp[1])) citation.append(ayp[1]).append(". ");
+      citation.append(journalRef);
+      nameRefId = writeRef(citation.toString(), (String) null);
+    }
 
     writer.set(ColdpTerm.ID, speciesId);
     writer.set(ColdpTerm.parentID, parentId);
@@ -365,7 +406,10 @@ public class Generator extends AbstractColdpGenerator {
     writer.set(ColdpTerm.publishedInYear, ayp[1]);
     writer.set(ColdpTerm.status, TaxonomicStatus.ACCEPTED);
     writer.set(ColdpTerm.extinct, "false");
+    writer.set(ColdpTerm.nameReferenceID, nameRefId);
+    writer.set(ColdpTerm.publishedInPage, page);
     writer.set(ColdpTerm.link, BASE + "/genera/" + genusName);
+    writer.set(ColdpTerm.remarks, remarks);
     writer.next();
 
     if (!StringUtils.isBlank(commonName)) {
@@ -435,18 +479,26 @@ public class Generator extends AbstractColdpGenerator {
 
   // ── Shared helpers ────────────────────────────────────────────────────────
 
-  private String writeBibEntry(Element bib) throws IOException {
-    String citation = clean(bib.text());
+  /** Writes a Reference record, deduplicating by citation text. Returns the Reference ID. */
+  private String writeRef(String citation, String link) throws IOException {
     if (StringUtils.isBlank(citation)) return null;
-    String link = null;
-    Element anchor = bib.selectFirst("a[href]");
-    if (anchor != null) link = anchor.attr("href");
+    String existing = refByCitation.get(citation);
+    if (existing != null) return existing;
     String id = "R" + refCounter++;
     refWriter.set(ColdpTerm.ID, id);
     refWriter.set(ColdpTerm.citation, citation);
     refWriter.set(ColdpTerm.link, link);
     refWriter.next();
+    refByCitation.put(citation, id);
     return id;
+  }
+
+  private String writeBibEntry(Element bib) throws IOException {
+    String citation = clean(bib.text());
+    String link = null;
+    Element anchor = bib.selectFirst("a[href]");
+    if (anchor != null) link = anchor.attr("href");
+    return writeRef(citation, link);
   }
 
   /**
@@ -460,7 +512,7 @@ public class Generator extends AbstractColdpGenerator {
         current.append(tn.text());
       } else if (node instanceof Element el) {
         if (el.tagName().equals("br")) {
-          lines.add(current.toString().trim());
+          lines.add(clean(current.toString()));
           current = new StringBuilder();
         } else if (el.tagName().equals("p")) {
           for (Node pChild : el.childNodes()) {
@@ -468,7 +520,7 @@ public class Generator extends AbstractColdpGenerator {
               current.append(tn2.text());
             } else if (pChild instanceof Element pEl) {
               if (pEl.tagName().equals("br")) {
-                lines.add(current.toString().trim());
+                lines.add(clean(current.toString()));
                 current = new StringBuilder();
               } else {
                 current.append(pEl.text());
@@ -480,7 +532,7 @@ public class Generator extends AbstractColdpGenerator {
         }
       }
     }
-    String last = current.toString().trim();
+    String last = clean(current.toString());
     if (!last.isEmpty()) lines.add(last);
     return lines.toArray(new String[0]);
   }
@@ -503,10 +555,14 @@ public class Generator extends AbstractColdpGenerator {
     return new String[]{StringUtils.trimToNull(raw), null, null};
   }
 
-  /** Normalises nbsp and excess whitespace. */
+  /** Normalises nbsp (both well-formed &amp;nbsp; and malformed &amp;nbsp without semicolon) and excess whitespace. */
   static String clean(String s) {
     if (s == null) return null;
-    return s.replace('\u00a0', ' ').replaceAll("\\s+", " ").trim();
+    return s.replace("&nbsp;", " ")
+            .replace("&nbsp", " ")
+            .replace('\u00a0', ' ')
+            .replaceAll("\\s+", " ")
+            .trim();
   }
 
   @Override

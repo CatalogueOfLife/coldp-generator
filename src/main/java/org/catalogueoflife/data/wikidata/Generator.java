@@ -22,7 +22,8 @@ import static org.catalogueoflife.data.wikidata.WikidataDumpReader.*;
 public class Generator extends AbstractColdpGenerator {
   private static final String DUMP_URL = "https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.gz";
   private static final String DUMP_FILENAME = "latest-all.json.gz";
-  private static final String COMMONS_DUMP_URL = "https://dumps.wikimedia.org/commonswiki/latest/commonswiki-latest-pages-articles.xml.bz2";
+  private static final String COMMONS_DUMP_URL = "https://ftp.acc.umu.se/mirror/wikimedia.org/dumps/commonswiki/20260301/commonswiki-20260301-pages-articles.xml.bz2";
+  private static final String COMMONS_DUMP_URL2 = "https://dumps.wikimedia.org/commonswiki/latest/commonswiki-latest-pages-articles.xml.bz2";
   private static final String COMMONS_DUMP_FILENAME = "commonswiki-latest-pages-articles.xml.bz2";
 
   private TermWriter vernWriter;

@@ -294,6 +294,8 @@ public class CommonsXmlDumpReader {
   /** Streams all pages from the bzip2-compressed XML dump, calling handler per page. */
   private void streamPages(PageHandler handler) throws Exception {
     var factory = XMLInputFactory.newInstance();
+    factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+    factory.setProperty("http://www.oracle.com/xml/jaxp/properties/totalEntitySizeLimit", 0);
     try (InputStream in = new BZip2CompressorInputStream(new FileInputStream(dumpFile), true)) {
       XMLStreamReader xml = factory.createXMLStreamReader(
           new InputStreamReader(in, StandardCharsets.UTF_8));
