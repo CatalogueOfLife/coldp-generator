@@ -37,6 +37,7 @@ src/main/java/org/catalogueoflife/data/
 ├── AbstractTextTreeGenerator.java
 ├── utils/                      # HTTP, HTML, Markdown, bibjson utilities
 ├── antcat/                     # AntCat generator
+├── asw/                        # Amphibian Species of the World generator
 ├── birdlife/                   # Birdlife HBW generator
 ├── biolib/                     # BioLib generator
 ├── cites/                      # CITES generator
@@ -89,9 +90,33 @@ src/main/resources/
 | SWC parser | Wikitext parsing |
 | coldp / dwc-api | ColDP and Darwin Core types |
 
-## Supported Sources (19)
+## Supported Sources (20)
 
-AntCat, Birdlife (HBW), BioLib, CITES, Clements, Cycads, GRIN, ICTV, IPNI, LPSN, MDD, Mites, OTL, OTT, PBDB, PFNR, WikiData, WikiSpecies, WSC
+AntCat, ASW, Birdlife (HBW), BioLib, CITES, Clements, Cycads, GRIN, ICTV, IPNI, LPSN, MDD, Mites, OTL, OTT, PBDB, PFNR, WikiData, WikiSpecies, WSC
+
+### ASW Generator
+
+The ASW generator (`asw/`) scrapes [Amphibian Species of the World](https://amphibiansoftheworld.amnh.org) — the authoritative online reference for ~9,000 extant amphibian species maintained by Darrel Frost at the American Museum of Natural History.
+
+**Recursive crawl** starting at `/Amphibia`, following `<div class="taxa">` child links depth-first. Each taxon page is cached as `taxon-{path_with_underscores}.html` in the source directory; a 200 ms delay is inserted between new downloads. The site requires a browser-like User-Agent (Cloudflare protection); Jsoup.connect() is used rather than the project's HttpUtils.
+
+**Parsing per taxon page:**
+- Rank from CSS class attribute on `#aswContent` (e.g. `rank-Subfamily`)
+- Name and authorship from `<h1>`: italic text = scientificName for genera/species; for higher taxa the first word is the name and the rest is the authorship
+- `<div class="synonymy">` — each `<p>` with a `<b>` tag is a synonym: creates a NameUsage with `status=synonym` and `parentID` pointing to the accepted taxon. Bold names matching the accepted name are skipped. The first reference link gives `nameReferenceID` for the accepted name.
+- "Type genus: X" / "Type species: X" text in synonymy entries → deferred `NameRelation type="type genus"/"type species"` (resolved after crawl via name→ID map). Type text is excluded from citation strings.
+- `<h2>Common Names</h2>` → VernacularName (language=eng), one record per `<p>` (name = text before opening parenthesis)
+- `<h2>Geographic Occurrence</h2>` → Distribution records, one per country; "Natural Resident" maps to `status=native`, "Introduced" to `status=introduced`. Multi-word country names containing commas (e.g. "Congo, Democratic Republic of the") are handled by a pre-substitution step before splitting on ", ".
+- `<h2>Comment</h2>` → NameUsage.remarks
+
+**ColDP output:**
+- `NameUsage` (accepted + synonyms; no `extinct` flag — all amphibians are extant)
+- `NameRelation` (type genus/species, resolved post-crawl)
+- `VernacularName`
+- `Distribution`
+- `Reference` (from bibliography links in synonymy; ID = `ref:{bibliography-path}`)
+
+**ID scheme:** URL path without leading "/" for taxa (e.g. `Amphibia/Anura/Arthroleptidae/Arthroleptinae`); `syn:{n}` for synonym NameUsages; `ref:{bibliography-path}` for references.
 
 ### PFNR Generator
 
