@@ -34,7 +34,6 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 public class Generator extends AbstractXlsSrcGenerator {
-  // to be updated manually to current version !!!
   // https://talk.ictvonline.org/files/master-species-lists/
   private static final URI DOWNLOAD = URI.create("https://ictv.global/msl/current");
   // manually curated data
@@ -234,12 +233,6 @@ public class Generator extends AbstractXlsSrcGenerator {
     for (DOI doi : SOURCES) {
       addSource(doi);
     }
-    // now also use authors of the source as dataset authors!
-    //if (!sources.isEmpty()) {
-    //  asYaml(sources.get(0).getAuthor()).ifPresent(yaml -> {
-    //    metadata.put("authors", yaml);
-    //  });
-    //}
     super.addMetadata();
   }
 

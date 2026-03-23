@@ -18,6 +18,8 @@ import java.io.*;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -26,8 +28,9 @@ import java.util.regex.Pattern;
 import static org.catalogueoflife.data.wikispecies.WtUtils.*;
 
 public class Generator extends AbstractColdpGenerator {
-  static final URI DOWNLOAD = URI.create("https://dumps.wikimedia.org/specieswiki/latest/specieswiki-latest-pages-articles.xml.bz2");
   static final String srcFN = "data.xml.bz2";
+  private static final String MIRROR_BASE   = "https://ftp.acc.umu.se/mirror/wikimedia.org/dumps/specieswiki/";
+  private static final String FALLBACK_URL  = "https://dumps.wikimedia.org/specieswiki/latest/specieswiki-latest-pages-articles.xml.bz2";
 
   private static final Set<String> SKIP_TITLES = Set.of("Main Page", "MediaWiki:Sidebar");
   private static final Pattern TAXONBAR_PAT = Pattern.compile(
@@ -54,13 +57,29 @@ public class Generator extends AbstractColdpGenerator {
   record SynonymData(String name, String authorship, String status) {}
 
   public Generator(GeneratorConfig cfg) throws IOException {
-    super(cfg, true, Map.of(srcFN, DOWNLOAD));
+    super(cfg, true);
     ParserConfig pcfg = new SimpleParserConfig();
     parser = new WikitextParser(pcfg);
   }
 
   @Override
   protected void prepare() throws Exception {
+    // Download dump — prefer Swedish mirror, fall back to main Wikimedia site.
+    File dumpFile = sourceFile(srcFN);
+    if (dumpFile.exists()) {
+      if (!cfg.noDownload && isRemoteNewer(dumpFile)) {
+        LOG.info("Remote WikiSpecies dump is newer, re-downloading...");
+        dumpFile.delete();
+        downloadDump(dumpFile);
+      } else {
+        LOG.info("Reusing cached WikiSpecies dump: {}", dumpFile);
+      }
+    } else if (cfg.noDownload) {
+      throw new IllegalStateException("--no-download set but WikiSpecies dump not found: " + dumpFile);
+    } else {
+      downloadDump(dumpFile);
+    }
+
     initRefWriter(List.of(ColdpTerm.ID, ColdpTerm.citation));
     newWriter(ColdpTerm.NameUsage, List.of(
         ColdpTerm.ID,
@@ -623,6 +642,62 @@ public class Generator extends AbstractColdpGenerator {
         }
       }
     }
+  }
+
+  // ─── Mirror / download helpers ────────────────────────────────────────────
+
+  /**
+   * Resolves the WikiSpecies dump URL: discovers the latest dated directory on the Swedish mirror
+   * (same layout as commonswiki) and verifies the file is present.
+   * Falls back to the main Wikimedia "latest/" URL if the mirror is unreachable.
+   */
+  private String resolveDumpUrl() {
+    try {
+      String listing = http.get(URI.create(MIRROR_BASE));
+      Pattern p = Pattern.compile("href=\"(\\d{8})/\"");
+      Matcher m = p.matcher(listing);
+      String latest = null;
+      while (m.find()) {
+        String date = m.group(1);
+        if (latest == null || date.compareTo(latest) > 0) latest = date;
+      }
+      if (latest != null) {
+        String url = MIRROR_BASE + latest + "/specieswiki-" + latest + "-pages-articles.xml.bz2";
+        if (http.exists(url)) {
+          LOG.info("WikiSpecies dump: using Swedish mirror, date={}", latest);
+          return url;
+        }
+        LOG.warn("WikiSpecies dump: mirror date {} found but file unavailable, falling back", latest);
+      } else {
+        LOG.warn("WikiSpecies dump: no dated directories found on mirror");
+      }
+    } catch (Exception e) {
+      LOG.warn("WikiSpecies dump: mirror lookup failed ({}), falling back to main site", e.getMessage());
+    }
+    LOG.info("WikiSpecies dump: using main Wikimedia site");
+    return FALLBACK_URL;
+  }
+
+  private boolean isRemoteNewer(File localFile) {
+    String url = resolveDumpUrl();
+    try {
+      var resp = http.head(url);
+      var lastModHeader = resp.headers().firstValue("Last-Modified").orElse(null);
+      if (lastModHeader != null) {
+        var remoteDate = ZonedDateTime.parse(lastModHeader, DateTimeFormatter.RFC_1123_DATE_TIME);
+        return remoteDate.toInstant().toEpochMilli() > localFile.lastModified();
+      }
+    } catch (Exception e) {
+      LOG.warn("Failed to check WikiSpecies dump freshness, will reuse local file: {}", e.getMessage());
+    }
+    return false;
+  }
+
+  private void downloadDump(File target) throws IOException {
+    String url = resolveDumpUrl();
+    LOG.info("Downloading WikiSpecies dump from {} ...", url);
+    http.download(url, target);
+    LOG.info("WikiSpecies dump download complete: {}", target);
   }
 
   // ─── Metadata ─────────────────────────────────────────────────────────────
