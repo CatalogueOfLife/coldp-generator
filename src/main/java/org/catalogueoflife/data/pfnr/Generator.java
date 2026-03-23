@@ -39,11 +39,12 @@ public class Generator extends AbstractColdpGenerator {
 
   private TermWriter relWriter;
   private TermWriter tmWriter;
+  private TermWriter propWriter;
 
   // accumulated during name-page parsing; written after all name pages processed
   private final List<int[]> basionymRelations = new ArrayList<>(); // [nameId, basionymId]
-  // ref id → citation text (collected from name pages; DOI added in phase 2)
-  private final Map<Integer, String> refCitations = new LinkedHashMap<>();
+  // ref id → [citation text, external URL or null]  (collected from name pages; DOI added in phase 2)
+  private final Map<Integer, String[]> refCitations = new LinkedHashMap<>();
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
@@ -64,7 +65,15 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.publishedInYear,
         ColdpTerm.alternativeID,
         ColdpTerm.link,
-        ColdpTerm.remarks
+        ColdpTerm.remarks,
+        ColdpTerm.nameRemarks,
+        ColdpTerm.etymology
+    ));
+
+    propWriter = additionalWriter(ColdpTerm.TaxonProperty, List.of(
+        ColdpTerm.taxonID,
+        ColdpTerm.property,
+        ColdpTerm.value
     ));
 
     relWriter = additionalWriter(ColdpTerm.NameRelation, List.of(
@@ -123,9 +132,10 @@ public class Generator extends AbstractColdpGenerator {
     metadata.put("version", LocalDate.now().toString());
 
     // ── Phase 2: reference pages for DOIs ─────────────────────────────────
-    for (Map.Entry<Integer, String> e : refCitations.entrySet()) {
+    for (Map.Entry<Integer, String[]> e : refCitations.entrySet()) {
       int refId = e.getKey();
-      String citation = e.getValue();
+      String citation = e.getValue()[0];
+      String extUrl   = e.getValue()[1]; // external URL from "link" anchor, may be null
       File rf = sourceFile("ref-" + refId + ".html");
       if (!rf.exists()) {
         if (!cfg.noDownload) {
@@ -145,7 +155,8 @@ public class Generator extends AbstractColdpGenerator {
       refWriter.set(ColdpTerm.ID, "ref:" + refId);
       refWriter.set(ColdpTerm.citation, citation);
       if (doi != null) refWriter.set(ColdpTerm.doi, doi);
-      refWriter.set(ColdpTerm.link, BASE_URL + "/reference/" + refId + "/");
+      // prefer PFNR reference page; fall back to external URL from "link" anchor
+      refWriter.set(ColdpTerm.link, doi == null && extUrl != null ? extUrl : BASE_URL + "/reference/" + refId + "/");
       refWriter.next();
     }
   }
@@ -230,7 +241,9 @@ public class Generator extends AbstractColdpGenerator {
 
     // Reference: link to /reference/N/
     int refId = labelLinkId(doc, "Reference for this name:", "/reference/");
-    String refCitation = afterLabel(doc, "Reference for this name:");
+    String[] refParts = refCitationAndUrl(doc, "Reference for this name:");
+    String refCitation = refParts[0];
+    String refUrl     = refParts[1]; // external URL from "link" anchor, may be null
 
     // Basionym
     int basionymId = labelLinkId(doc, "Basionym:", "/name/");
@@ -238,8 +251,19 @@ public class Generator extends AbstractColdpGenerator {
     // Parent genus (for species)
     int parentId = labelLinkId(doc, "Genus:", "/name/");
 
+    // Free-text paragraph between Rank and Reference → nameRemarks
+    String nameRemarks = textBetweenLabels(doc, "Rank:", "Reference for this name:");
+
     // Stratigraphy → remarks
     String stratigraphy = sectionText(doc, "Stratigraphy");
+
+    // Etymology
+    String etymology = afterLabel(doc, "Etymology:");
+    if (etymology == null) etymology = sectionText(doc, "Etymology");
+
+    // Original diagnosis/description → TaxonProperty
+    String diagnosis = afterLabel(doc, "Original diagnosis/description:");
+    if (diagnosis == null) diagnosis = sectionText(doc, "Original diagnosis/description");
 
     // Published year: extract from citation text
     String year = null;
@@ -265,7 +289,17 @@ public class Generator extends AbstractColdpGenerator {
     if (!altIds.isEmpty()) writer.set(ColdpTerm.alternativeID, String.join(";", altIds));
     writer.set(ColdpTerm.link, BASE_URL + "/name/" + id + "/");
     writer.set(ColdpTerm.remarks, stratigraphy);
+    writer.set(ColdpTerm.nameRemarks, nameRemarks);
+    writer.set(ColdpTerm.etymology, etymology);
     writer.next();
+
+    // ── Diagnosis TaxonProperty ──────────────────────────────────────────
+    if (diagnosis != null) {
+      propWriter.set(ColdpTerm.taxonID, "pfn:" + id);
+      propWriter.set(ColdpTerm.property, "Diagnosis");
+      propWriter.set(ColdpTerm.value, diagnosis);
+      propWriter.next();
+    }
 
     // ── Accumulate basionym relation ────────────────────────────────────
     if (basionymId > 0) {
@@ -274,7 +308,7 @@ public class Generator extends AbstractColdpGenerator {
 
     // ── Accumulate reference citation ────────────────────────────────────
     if (refId > 0 && !refCitations.containsKey(refId) && refCitation != null) {
-      refCitations.put(refId, refCitation.trim());
+      refCitations.put(refId, new String[]{refCitation.trim(), refUrl});
     }
 
     // ── Type material ────────────────────────────────────────────────────
@@ -352,6 +386,45 @@ public class Generator extends AbstractColdpGenerator {
   // ── HTML parsing helpers ─────────────────────────────────────────────────
 
   /**
+   * Like {@link #afterLabel} but also strips any trailing anchor whose display text is "link"
+   * and returns its href as the second element. Returns a two-element array:
+   * [0] = citation text (cleaned), [1] = external URL or null.
+   */
+  private static String[] refCitationAndUrl(Document doc, String label) {
+    Element strong = findStrong(doc, label);
+    if (strong == null) return new String[]{null, null};
+    Element container = strong.parent();
+    // Find "link" anchor — an <a> whose trimmed text equals "link"
+    String extUrl = null;
+    for (Element a : container.select("a")) {
+      if ("link".equalsIgnoreCase(a.text().trim())) {
+        extUrl = a.attr("abs:href");
+        if (extUrl.isBlank()) extUrl = a.attr("href");
+        a.remove(); // remove from DOM so afterLabel won't see its text
+        break;
+      }
+    }
+    // Now collect text as usual
+    StringBuilder sb = new StringBuilder();
+    boolean after = false;
+    for (Node node : container.childNodes()) {
+      if (!after) {
+        if (node == strong) after = true;
+        continue;
+      }
+      if (node instanceof TextNode tn) {
+        sb.append(tn.text());
+      } else if (node instanceof Element el) {
+        if ("strong".equalsIgnoreCase(el.tagName()) || "h2".equalsIgnoreCase(el.tagName())) break;
+        sb.append(el.text());
+      }
+    }
+    // Strip trailing comma/whitespace left by the removed "link" anchor
+    String citation = sb.toString().replaceAll("[,\\s]+$", "").trim();
+    return new String[]{citation.isEmpty() ? null : citation, extUrl.isBlank() ? null : extUrl};
+  }
+
+  /**
    * Returns the text content following the given &lt;strong&gt; label in its parent element,
    * with the label text itself removed.
    */
@@ -413,6 +486,38 @@ public class Generator extends AbstractColdpGenerator {
     }
     String result = sb.toString().trim();
     return result.isEmpty() ? null : result;
+  }
+
+  /**
+   * Returns the concatenated text of all sibling elements between the container of
+   * {@code afterLabel}'s &lt;strong&gt; and the container of {@code beforeLabel}'s &lt;strong&gt;,
+   * skipping any sibling that itself contains a colon-terminated &lt;strong&gt; label.
+   * Returns null if the two containers are not siblings or no unlabelled content exists.
+   */
+  private static String textBetweenLabels(Document doc, String afterLabel, String beforeLabel) {
+    Element afterStrong  = findStrong(doc, afterLabel);
+    Element beforeStrong = findStrong(doc, beforeLabel);
+    if (afterStrong == null || beforeStrong == null) return null;
+
+    Element afterEl  = afterStrong.parent();
+    Element beforeEl = beforeStrong.parent();
+    if (afterEl == null || beforeEl == null || afterEl == beforeEl) return null;
+    if (afterEl.parent() == null || afterEl.parent() != beforeEl.parent()) return null;
+
+    StringBuilder sb = new StringBuilder();
+    boolean between = false;
+    for (Element sib : afterEl.parent().children()) {
+      if (sib == afterEl)  { between = true; continue; }
+      if (sib == beforeEl) break;
+      if (!between) continue;
+      // Skip elements that contain a labelled <strong> (e.g. Genus:, Basionym:)
+      boolean hasLabel = sib.select("strong").stream()
+          .anyMatch(s -> s.text().trim().endsWith(":"));
+      if (hasLabel) continue;
+      String t = sib.text().trim();
+      if (!t.isEmpty()) { if (sb.length() > 0) sb.append(" "); sb.append(t); }
+    }
+    return sb.isEmpty() ? null : sb.toString();
   }
 
   private static Element findStrong(Document doc, String labelPrefix) {
