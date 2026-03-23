@@ -139,7 +139,11 @@ public class Generator extends AbstractColdpGenerator {
       if (page.redirect != null) {
         redirects.add(page);
       } else if (page.text != null && "wikitext".equalsIgnoreCase(page.model)) {
-        try {
+        // Fast pre-filter: all taxon pages have a Name or Taxonavigation section;
+        // person/author pages (e.g. botanists, zoologists) have neither.
+        if (!page.text.contains("{{int:Name}}") && !page.text.contains("{{int:Taxonavigation}}")) {
+          LOG.debug("Skipping non-taxon page: {}", page.title);
+        } else try {
           processTaxonPage(page, navTemplates, taxonIds, writtenRefIds);
         } catch (Exception e) {
           LOG.warn("Failed to process page '{}': {}", page.title, e.getMessage());
@@ -179,8 +183,6 @@ public class Generator extends AbstractColdpGenerator {
     List<VernacularExtractor.VernacularName> vernaculars = new ArrayList<>();
     List<SynonymData> synonyms = new ArrayList<>();
     Set<String> refIds = new LinkedHashSet<>();
-    boolean hasTaxonavigation = false;
-
     // Scan for {{Taxonbar|from=Q...}} via regex (it often appears in the last section's body)
     Matcher tbMatcher = TAXONBAR_PAT.matcher(page.text);
     if (tbMatcher.find()) wikidataQid = tbMatcher.group(1);
@@ -193,7 +195,6 @@ public class Generator extends AbstractColdpGenerator {
 
       switch (key) {
         case "taxonavigation" -> {
-          hasTaxonavigation = true;
           String[] parentRank = parseTaxonavSection(sect.getBody(), page.title, navTemplates);
           if (parentRank != null) {
             parentId = parentRank[0];
@@ -245,13 +246,6 @@ public class Generator extends AbstractColdpGenerator {
           }
         }
       }
-    }
-
-    // Skip pages that lack a Taxonavigation section — these are person/author pages,
-    // disambiguation pages, or other non-taxon content.
-    if (!hasTaxonavigation) {
-      LOG.debug("Skipping non-taxon page (no Taxonavigation section): {}", page.title);
-      return;
     }
 
     // Fall back: use page title as scientific name if not extracted
