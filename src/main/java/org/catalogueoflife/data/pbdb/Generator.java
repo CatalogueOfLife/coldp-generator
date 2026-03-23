@@ -78,16 +78,27 @@ public class Generator extends AbstractColdpGenerator {
       authorWriter.set(ColdpTerm.ID, id);
       authorWriter.set(ColdpTerm.family, name);
       try {
-        String json = http.getJSON(URI.create(API + "/people/single.json?id=" + id));
-        var p = mapper.readValue(json, personTYPE).records.get(0);
-        LOG.info("Load person {} --> {}", id, p.getNam());
-        if (p.getNam() != null) {
-          name = p.getNam();
-        }
-        authorWriter.set(ColdpTerm.country, p.getCtr());
-        authorWriter.set(ColdpTerm.affiliation, p.getIst());
-        if (p.getOrc() != null) {
-          authorWriter.set(ColdpTerm.alternativeID, "orcid:" + p.getOrc());
+        // Skip sentinel / invalid person IDs (PBDB uses large unsigned values like 0xFFFFFFFC
+        // to indicate "no person"; the API returns 401 for these rather than a proper record).
+        boolean sentinel = false;
+        try {
+          String numPart = id.startsWith("prs:") ? id.substring(4) : id;
+          sentinel = Long.parseLong(numPart) >= 0x80000000L;
+        } catch (NumberFormatException ignored) {}
+        if (!sentinel) {
+          String json = http.getJSON(URI.create(API + "/people/single.json?id=" + id));
+          var p = mapper.readValue(json, personTYPE).records.get(0);
+          LOG.info("Load person {} --> {}", id, p.getNam());
+          if (p.getNam() != null) {
+            name = p.getNam();
+          }
+          authorWriter.set(ColdpTerm.country, p.getCtr());
+          authorWriter.set(ColdpTerm.affiliation, p.getIst());
+          if (p.getOrc() != null) {
+            authorWriter.set(ColdpTerm.alternativeID, "orcid:" + p.getOrc());
+          }
+        } else {
+          LOG.debug("Skipping sentinel person id {}", id);
         }
       } catch (IOException e) {
         LOG.warn("Person {} not found. Use {}", id, name, e);
