@@ -257,9 +257,9 @@ public class Generator extends AbstractColdpGenerator {
     // Stratigraphy → remarks
     String stratigraphy = sectionText(doc, "Stratigraphy");
 
-    // Etymology
+    // Etymology — only the first paragraph (avoid bleeding into subsequent labelled fields)
     String etymology = afterLabel(doc, "Etymology:");
-    if (etymology == null) etymology = sectionText(doc, "Etymology");
+    if (etymology == null) etymology = firstSectionParagraph(doc, "Etymology");
 
     // Original diagnosis/description → TaxonProperty
     String diagnosis = afterLabel(doc, "Original diagnosis/description:");
@@ -472,6 +472,24 @@ public class Generator extends AbstractColdpGenerator {
     if (a == null) return -1;
     Matcher m = Pattern.compile(Pattern.quote(pathPrefix) + "(\\d+)/").matcher(a.attr("href"));
     return m.find() ? Integer.parseInt(m.group(1)) : -1;
+  }
+
+  /**
+   * Returns the text of the first non-empty element after the &lt;h2&gt; with the given heading,
+   * stopping before any subsequent &lt;h2&gt;/&lt;h1&gt; or element containing a colon-terminated
+   * &lt;strong&gt; label. Used for single-paragraph sections like Etymology.
+   */
+  private static String firstSectionParagraph(Document doc, String heading) {
+    Element h2 = findH2(doc, heading);
+    if (h2 == null) return null;
+    for (Element sib : h2.nextElementSiblings()) {
+      if ("h2".equalsIgnoreCase(sib.tagName()) || "h1".equalsIgnoreCase(sib.tagName())) break;
+      boolean hasLabel = sib.select("strong").stream().anyMatch(s -> s.text().trim().endsWith(":"));
+      if (hasLabel) break;
+      String t = sib.text().trim();
+      if (!t.isEmpty()) return t;
+    }
+    return null;
   }
 
   /** Returns all text within the section introduced by an &lt;h2&gt; with the given heading. */
