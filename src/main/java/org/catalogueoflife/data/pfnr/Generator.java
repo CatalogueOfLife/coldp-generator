@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -117,6 +118,9 @@ public class Generator extends AbstractColdpGenerator {
       relWriter.set(ColdpTerm.type, "basionym");
       relWriter.next();
     }
+
+    metadata.put("issued", LocalDate.now().toString());
+    metadata.put("version", LocalDate.now().toString());
 
     // ── Phase 2: reference pages for DOIs ─────────────────────────────────
     for (Map.Entry<Integer, String> e : refCitations.entrySet()) {

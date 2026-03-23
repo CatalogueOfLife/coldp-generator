@@ -45,6 +45,7 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 | `otl` | [OTL](https://tree.opentreeoflife.org/about/synthesis-release) | Open Tree of Life Synthesis Tree |
 | `ott` | [OTT](https://tree.opentreeoflife.org/about/taxonomy-version) | Open Tree of Life Reference Taxonomy |
 | `pbdb` | [PBDB](https://paleobiodb.org/) | The Paleobiology Database |
+| `pfnr` | [PFNR](https://www.plantfossilnames.org) | International Fossil Plant Names Registry |
 | `wikidata` | [Wikidata](https://www.wikidata.org) | Wikidata taxonomy (downloads full Wikidata + Commons dumps, ~260 GB total) |
 | `wikispecies` | [WikiSpecies](https://species.wikimedia.org) | |
 | `wsc` | [WSC](https://wsc.nmbe.ch/) | World Spider Catalog |

@@ -50,6 +50,7 @@ src/main/java/org/catalogueoflife/data/
 ├── otl/                        # Open Tree of Life synthesis generator
 ├── ott/                        # Open Tree of Life taxonomy generator
 ├── pbdb/                       # Paleobiology Database generator
+├── pfnr/                       # Plant Fossil Names Registry generator
 ├── wikidata/                   # Wikidata generator
 ├── wikispecies/                # WikiSpecies generator
 └── wsc/                        # World Spider Catalog generator
@@ -88,9 +89,25 @@ src/main/resources/
 | SWC parser | Wikitext parsing |
 | coldp / dwc-api | ColDP and Darwin Core types |
 
-## Supported Sources (18)
+## Supported Sources (19)
 
-AntCat, Birdlife (HBW), BioLib, CITES, Clements, Cycads, GRIN, ICTV, IPNI, LPSN, MDD, Mites, OTL, OTT, PBDB, WikiData, WikiSpecies, WSC
+AntCat, Birdlife (HBW), BioLib, CITES, Clements, Cycads, GRIN, ICTV, IPNI, LPSN, MDD, Mites, OTL, OTT, PBDB, PFNR, WikiData, WikiSpecies, WSC
+
+### PFNR Generator
+
+The PFNR generator (`pfnr/`) scrapes the [International Fossil Plant Names Registry](https://www.plantfossilnames.org) — the authoritative nomenclatural registry for ~1,200 fossil plant names. There is no API or bulk download; HTML scraping is the only option (robots.txt permits crawling).
+
+**Two-phase scrape:**
+- **Phase 1**: fetches `sitemap-names-1.xml.gz` to enumerate all name IDs, then downloads and parses each `/name/{id}/` page → NameUsage, NameRelation (basionyms), TypeMaterial records. Pages are cached as `name-{id}.html` under the source directory; a 100 ms delay is inserted between new downloads.
+- **Phase 2**: for each unique `/reference/{id}/` encountered in phase 1, downloads the reference page (`ref-{id}.html`) and extracts the DOI → Reference records.
+
+**ColDP output:**
+- `NameUsage`: `status=accepted`, `extinct=true` for all entries; `alternativeID` carries the LSID and PFN registry number; `remarks` holds stratigraphy text.
+- `NameRelation type=basionym` for new combinations (from the Basionym: link on name pages).
+- `TypeMaterial`: holotype/paratype status with catalogue number and repository institution.
+- `Reference`: citation text from the name page + DOI from the reference page.
+
+**ID scheme:** `pfn:{pageId}` for taxa, `ref:{referencePageId}` for references.
 
 ### GRIN Generator
 
