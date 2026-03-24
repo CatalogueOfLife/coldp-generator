@@ -330,14 +330,79 @@ public class Generator extends AbstractColdpGenerator {
       }
     }
 
-    // Subgenus tracking; process each speciestest block
+    // Main traversal — index-based to allow look-ahead for subgenus header data and flat species.
+    // Two layouts exist:
+    //  (a) new-style: each species wrapped in div.speciestest (no subgenera)
+    //  (b) flat: div.taxon[id=subgenus|species] are direct children of resultsArea (subgenus pages)
+    List<Element> children = resultsArea.children();
     String currentParent = genusName;
-    for (Element el : resultsArea.children()) {
+    for (int i = 0; i < children.size(); i++) {
+      Element el = children.get(i);
       String cls = el.className();
-      if ("taxon".equals(cls) && "subgenus".equals(el.id())) {
-        currentParent = parseSubgenus(el, genusName);
-      } else if ("speciestest".equals(cls)) {
+      String id  = el.id();
+
+      if ("speciestest".equals(cls)) {
+        // New-style block
         processSpeciesBlock(el, currentParent, genusName);
+
+      } else if ("taxon".equals(cls) && "subgenus".equals(id)) {
+        // Look ahead to collect typesp and bibentry that immediately follow this subgenus div
+        List<Element> typeSps   = new ArrayList<>();
+        List<Element> bibEls    = new ArrayList<>();
+        int j = i + 1;
+        while (j < children.size()) {
+          Element sib = children.get(j);
+          if (!"subgenus".equals(sib.id())) break;
+          if ("typesp".equals(sib.className()))   typeSps.add(sib);
+          else if ("bibentry".equals(sib.className())) bibEls.add(sib);
+          else break;
+          j++;
+        }
+        currentParent = parseSubgenus(el, genusName, typeSps, bibEls);
+        i = j - 1;
+
+      } else if ("taxon".equals(cls) && "species".equals(id)) {
+        // Flat-style species — collect associated sibling data via look-ahead
+        String remarks = null;
+        List<String> bibRefIds  = new ArrayList<>();
+        List<Element> synGroups = new ArrayList<>();
+        Element typeLocEl = null;
+        String area = null;
+        int j = i + 1;
+        while (j < children.size()) {
+          Element sib = children.get(j);
+          if ("taxon".equals(sib.className()) || "speciestest".equals(sib.className())) break;
+          if ("species".equals(sib.id())) {
+            switch (sib.className()) {
+              case "bibentry"   -> { String rid = writeBibEntry(sib); if (rid != null) bibRefIds.add(rid); }
+              case "comments"   -> remarks = StringUtils.trimToNull(clean(sib.text()));
+              case "syn_group"  -> synGroups.add(sib);
+              case "type_local" -> typeLocEl = sib;
+              case "dist"       -> area = clean(sib.text());
+            }
+          }
+          j++;
+        }
+        int[] synIdx = {0};
+        String speciesId = parseSpecies(el, currentParent, genusName, remarks, bibRefIds);
+        if (speciesId != null) {
+          for (Element sg : synGroups) parseSynGroup(sg, speciesId, genusName, synIdx);
+          if (typeLocEl != null) {
+            String loc = clean(typeLocEl.text());
+            if (!StringUtils.isBlank(loc)) {
+              typeWriter.set(ColdpTerm.nameID, speciesId);
+              typeWriter.set(ColdpTerm.locality, loc);
+              typeWriter.next();
+            }
+          }
+          if (!StringUtils.isBlank(area)) {
+            distWriter.set(ColdpTerm.taxonID, speciesId);
+            distWriter.set(ColdpTerm.area, area);
+            distWriter.set(ColdpTerm.gazetteer, "text");
+            distWriter.next();
+          }
+        }
+        i = j - 1;
       }
     }
   }
@@ -401,17 +466,54 @@ public class Generator extends AbstractColdpGenerator {
     }
   }
 
-  /** Parses a subgenus div and writes it as a NameUsage. Returns the subgenus ID. */
-  private String parseSubgenus(Element div, String genusName) throws IOException {
+  /**
+   * Parses a subgenus div; typeSps and bibEls are the immediately-following typesp/bibentry
+   * siblings already collected by look-ahead. Returns the ID to use as parent for following species.
+   */
+  private String parseSubgenus(Element div, String genusName,
+                                List<Element> typeSps, List<Element> bibEls) throws IOException {
     Element nameEl = div.select("b i, b, i").first();
     if (nameEl == null) return genusName;
     String subgenusName = clean(nameEl.text()).replace("SUBGENUS", "").trim();
     if (StringUtils.isBlank(subgenusName)) return genusName;
 
-    String fullText = clean(div.text());
-    int nameEnd = fullText.indexOf(subgenusName);
-    String afterName = nameEnd >= 0 ? fullText.substring(nameEnd + subgenusName.length()).trim() : "";
-    String[] ayp = parseAuthorYear(afterName);
+    // Placeholder subgenera: species go directly under the genus
+    if ("Unassigned".equals(subgenusName) || "Unnamed".equals(subgenusName)) return genusName;
+
+    // Nominotypical subgenus (same name as genus) would duplicate the genus NameUsage ID — skip
+    if (subgenusName.equals(genusName)) return genusName;
+
+    // Extract authorship/year from line 0 and page from line 1 (br-split)
+    String[] lines = extractBrLines(div);
+    String line0 = lines.length > 0 ? lines[0] : "";
+    String prefix = "SUBGENUS " + subgenusName;
+    String afterName = line0.startsWith(prefix) ? line0.substring(prefix.length()).trim() : line0;
+    String[] ayp = parseAuthorYear(afterName.endsWith(".") ? afterName : afterName + ".");
+
+    String page = null;
+    if (lines.length > 1) {
+      Matcher pm = PAGE_SEP.matcher(lines[1].trim());
+      if (pm.matches()) page = pm.group(2).trim();
+    }
+
+    // Nomenclatural reference: prefer full bibentry, fall back to abbreviated citation
+    String nameRefId = null;
+    if (!bibEls.isEmpty()) {
+      nameRefId = writeBibEntry(bibEls.get(0));
+    } else if (ayp[0] != null && lines.length > 1) {
+      nameRefId = writeRef(ayp[0] + ". " + lines[1].trim() + ".", null);
+    }
+
+    // Type species of the subgenus
+    for (Element tsEl : typeSps) {
+      Element italic = tsEl.selectFirst("i");
+      if (italic != null) {
+        String typeSpName = clean(italic.text());
+        if (!StringUtils.isBlank(typeSpName)) {
+          pendingTypeSpecies.add(new String[]{subgenusName, typeSpName});
+        }
+      }
+    }
 
     writer.set(ColdpTerm.ID, subgenusName);
     writer.set(ColdpTerm.parentID, genusName);
@@ -421,7 +523,10 @@ public class Generator extends AbstractColdpGenerator {
     writer.set(ColdpTerm.publishedInYear, ayp[1]);
     writer.set(ColdpTerm.status, TaxonomicStatus.ACCEPTED);
     writer.set(ColdpTerm.extinct, "false");
+    writer.set(ColdpTerm.nameReferenceID, nameRefId);
+    writer.set(ColdpTerm.publishedInPage, page);
     writer.next();
+    nameToId.put(subgenusName, subgenusName);
     return subgenusName;
   }
 
@@ -475,6 +580,11 @@ public class Generator extends AbstractColdpGenerator {
       }
       nameRefId = bestId;
       otherRefIds.remove(nameRefId);
+    }
+    // Fallback: build a reference from the abbreviated citation in the taxon div
+    if (nameRefId == null && !StringUtils.isBlank(journal)) {
+      String cit = (ayp[0] != null ? ayp[0] + ". " : "") + journal.trim().replaceAll("\\.$", "") + ".";
+      nameRefId = writeRef(cit, null);
     }
 
     writer.set(ColdpTerm.ID, speciesId);
