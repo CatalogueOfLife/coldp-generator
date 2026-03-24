@@ -20,8 +20,10 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -57,11 +59,15 @@ public class Generator extends AbstractColdpGenerator {
 
   private final List<String> genusNames = new ArrayList<>();
   private final Map<String, String> genusParents = new HashMap<>();  // genusName → parentTaxonId
+  private final Set<String> phase1Ids = new HashSet<>(); // IDs written in accordion phase
   private final Map<String, String> refIdToCitation = new HashMap<>(); // Reference ID → citation (for bib matching)
+  private final Map<String, String> nameToId = new HashMap<>(); // scientificName → NameUsage ID (for type-species resolution)
+  private final List<String[]> pendingTypeSpecies = new ArrayList<>(); // [genusId, typeSpeciesName]
   private RefCache refCache;
   private TermWriter vnWriter;
   private TermWriter distWriter;
   private TermWriter typeWriter;
+  private TermWriter nameRelWriter;
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
@@ -93,6 +99,9 @@ public class Generator extends AbstractColdpGenerator {
     typeWriter = additionalWriter(ColdpTerm.TypeMaterial, List.of(
         ColdpTerm.nameID, ColdpTerm.locality
     ));
+    nameRelWriter = additionalWriter(ColdpTerm.NameRelation, List.of(
+        ColdpTerm.nameID, ColdpTerm.relatedNameID, ColdpTerm.type
+    ));
 
     // Phase 1: explore.html → higher-rank taxa + genus list
     File exploreFile = sourceFile(EXPLORE_FILE);
@@ -123,9 +132,25 @@ public class Generator extends AbstractColdpGenerator {
       }
     }
 
+    // Resolve deferred type-species NameRelations
+    for (String[] rel : pendingTypeSpecies) {
+      String genusId = rel[0];
+      String typeSpName = rel[1];
+      String typeId = nameToId.get(typeSpName);
+      if (typeId != null) {
+        nameRelWriter.set(ColdpTerm.nameID, genusId);
+        nameRelWriter.set(ColdpTerm.relatedNameID, typeId);
+        nameRelWriter.set(ColdpTerm.type, "type species");
+        nameRelWriter.next();
+      } else {
+        LOG.debug("Bats: could not resolve type species '{}' for genus '{}'", typeSpName, genusId);
+      }
+    }
+
     vnWriter.close();
     distWriter.close();
     typeWriter.close();
+    nameRelWriter.close();
   }
 
   // ── Phase 1: explore.html flat accordion parsing ─────────────────────────
@@ -210,6 +235,7 @@ public class Generator extends AbstractColdpGenerator {
       writer.set(ColdpTerm.link, BASE + "/family/" + name);
       writer.set(ColdpTerm.remarks, remarks);
       writer.next();
+      phase1Ids.add(name);
 
       if (!StringUtils.isBlank(dist)) {
         distWriter.set(ColdpTerm.taxonID, name);
@@ -249,14 +275,34 @@ public class Generator extends AbstractColdpGenerator {
       return;
     }
 
-    // Write genus NameUsage from div.taxon[id=genus]
+    // Prefer the family link on the genus page over the (often wrong) explore.html parent
     String parentId = genusParents.get(genusName);
+    Element familyLinkEl = resultsArea.selectFirst("div.link[id=genus] a[href]");
+    if (familyLinkEl != null) {
+      String href = familyLinkEl.attr("href");
+      String family = href.contains("/") ? href.substring(href.lastIndexOf('/') + 1) : href;
+      if (!StringUtils.isBlank(family)) parentId = family;
+    }
+
+    // Write genus NameUsage from div.taxon[id=genus]
+    // Skip if this name was already written as a higher-rank taxon in phase 1
+    // (e.g. monotypic tribes like Rhyneptesicus where tribe and genus share a name)
     Element genusTaxon = resultsArea.selectFirst("div.taxon[id=genus]");
-    if (genusTaxon != null) {
+    if (genusTaxon != null && !phase1Ids.contains(genusName)) {
       String fullText = clean(genusTaxon.text());
       String afterName = fullText.startsWith(genusName)
           ? fullText.substring(genusName.length()).trim() : fullText;
       String[] ayp = parseAuthorYear(afterName);
+
+      // Extract page from the abbreviated journal citation in ayp[2]
+      String page = null;
+      String nameRefId = null;
+      if (!StringUtils.isBlank(ayp[2])) {
+        Matcher pm = PAGE_SEP.matcher(ayp[2].trim());
+        if (pm.matches()) page = pm.group(2).trim();
+        nameRefId = writeRef(afterName.trim(), null);
+      }
+
       writer.set(ColdpTerm.ID, genusName);
       writer.set(ColdpTerm.parentID, parentId);
       writer.set(ColdpTerm.rank, "genus");
@@ -265,8 +311,23 @@ public class Generator extends AbstractColdpGenerator {
       writer.set(ColdpTerm.publishedInYear, ayp[1]);
       writer.set(ColdpTerm.status, TaxonomicStatus.ACCEPTED);
       writer.set(ColdpTerm.extinct, "false");
+      writer.set(ColdpTerm.nameReferenceID, nameRefId);
+      writer.set(ColdpTerm.publishedInPage, page);
       writer.set(ColdpTerm.link, BASE + "/genera/" + genusName);
       writer.next();
+      nameToId.put(genusName, genusName);
+    }
+
+    // Collect type species for deferred NameRelation resolution
+    Element typeSpEl = resultsArea.selectFirst("div.typesp[id=genus]");
+    if (typeSpEl != null) {
+      Element italic = typeSpEl.selectFirst("i");
+      if (italic != null) {
+        String typeSpName = clean(italic.text());
+        if (!StringUtils.isBlank(typeSpName)) {
+          pendingTypeSpecies.add(new String[]{genusName, typeSpName});
+        }
+      }
     }
 
     // Subgenus tracking; process each speciestest block
@@ -298,16 +359,18 @@ public class Generator extends AbstractColdpGenerator {
     }
 
     String currentSpeciesId = null;
+    int[] synIdx = {0}; // shared synonym counter across all syn_group divs of one species
 
     for (Element el : speciestest.children()) {
       String cls = el.className();
 
       if ("taxon".equals(cls) && "species".equals(el.id())) {
         currentSpeciesId = parseSpecies(el, parentId, genusName, remarks, bibRefIds);
+        synIdx[0] = 0; // reset counter for each new species
 
       } else if (currentSpeciesId != null) {
         switch (cls) {
-          case "syn_group" -> parseSynGroup(el, currentSpeciesId, genusName);
+          case "syn_group" -> parseSynGroup(el, currentSpeciesId, genusName, synIdx);
           case "type_local" -> {
             String locality = clean(el.text());
             if (!StringUtils.isBlank(locality)) {
@@ -428,6 +491,7 @@ public class Generator extends AbstractColdpGenerator {
     writer.set(ColdpTerm.link, BASE + "/genera/" + genusName);
     writer.set(ColdpTerm.remarks, remarks);
     writer.next();
+    nameToId.put(sciName, speciesId);
 
     if (!StringUtils.isBlank(commonName)) {
       vnWriter.set(ColdpTerm.taxonID, speciesId);
@@ -439,8 +503,7 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   /** Parses a syn_group div and writes synonym NameUsage records. */
-  private void parseSynGroup(Element synGroup, String acceptedId, String genusName) throws IOException {
-    int idx = 0;
+  private void parseSynGroup(Element synGroup, String acceptedId, String genusName, int[] idx) throws IOException {
     for (Element child : synGroup.children()) {
       if (!"synonyms".equals(child.className())) continue;
       String synText = clean(child.text()).replaceAll("[;.]$", "").trim();
@@ -452,7 +515,8 @@ public class Generator extends AbstractColdpGenerator {
           ? synText.substring(synEpithet.length()).trim() : "";
       String[] ayp = parseAuthorYear(afterEpithet.isEmpty() ? afterEpithet : afterEpithet + ".");
 
-      writer.set(ColdpTerm.ID, acceptedId + "_syn_" + idx++);
+      String synId = acceptedId + "_syn_" + idx[0]++;
+      writer.set(ColdpTerm.ID, synId);
       writer.set(ColdpTerm.parentID, acceptedId);
       writer.set(ColdpTerm.rank, "species");
       writer.set(ColdpTerm.scientificName, synName);
@@ -461,6 +525,7 @@ public class Generator extends AbstractColdpGenerator {
       writer.set(ColdpTerm.status, TaxonomicStatus.SYNONYM);
       writer.set(ColdpTerm.extinct, "false");
       writer.next();
+      nameToId.put(synName, synId);
     }
   }
 
