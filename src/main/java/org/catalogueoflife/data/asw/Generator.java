@@ -5,6 +5,7 @@ import life.catalogue.common.io.TermWriter;
 import org.apache.commons.io.FileUtils;
 import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
+import org.catalogueoflife.data.utils.JsoupUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -14,7 +15,6 @@ import org.jsoup.nodes.TextNode;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -113,6 +113,13 @@ public class Generator extends AbstractColdpGenerator {
   private final List<String[]> typeRelations = new ArrayList<>();
   // scientificName → taxonID (registered while crawling, used to resolve type relations)
   private final Map<String, String> nameToId = new HashMap<>();
+  // Buffered synonym NameUsage rows: written after type resolution so unresolved type
+  // names can be appended to remarks instead of being silently dropped.
+  private record PendingSyn(String id, String parentId, String name, String authorship,
+      String nameRefId, String publishedInPage, String referenceIDs, String remarks) {}
+  private final List<PendingSyn> pendingSyns = new ArrayList<>();
+  // synId → human-readable type text (e.g. "Type genus: Foo") for unresolved type names
+  private final Map<String, String> unresolvedTypeText = new HashMap<>();
 
   private int synCounter = 0;
 
@@ -181,7 +188,29 @@ public class Generator extends AbstractColdpGenerator {
         relWriter.next();
       } else {
         LOG.debug("ASW: could not resolve type '{}' for name '{}'", rel[1], rel[0]);
+        // Capitalise first letter: "type genus" → "Type genus"
+        String typeText = Character.toUpperCase(rel[2].charAt(0)) + rel[2].substring(1) + ": " + rel[1];
+        unresolvedTypeText.put(rel[0], typeText);
       }
+    }
+
+    // Write buffered synonym NameUsages, appending unresolved type names to remarks
+    for (PendingSyn syn : pendingSyns) {
+      writer.set(ColdpTerm.ID, syn.id());
+      writer.set(ColdpTerm.parentID, syn.parentId());
+      writer.set(ColdpTerm.scientificName, syn.name());
+      if (syn.authorship() != null) writer.set(ColdpTerm.authorship, syn.authorship());
+      writer.set(ColdpTerm.status, "synonym");
+      if (syn.nameRefId() != null) {
+        writer.set(ColdpTerm.nameReferenceID, syn.nameRefId());
+        if (syn.publishedInPage() != null) writer.set(ColdpTerm.publishedInPage, syn.publishedInPage());
+      }
+      if (syn.referenceIDs() != null) writer.set(ColdpTerm.referenceID, syn.referenceIDs());
+      String remarks = syn.remarks();
+      String typeText = unresolvedTypeText.get(syn.id());
+      if (typeText != null) remarks = remarks != null ? remarks + ". " + typeText : typeText;
+      if (remarks != null) writer.set(ColdpTerm.remarks, remarks);
+      writer.next();
     }
 
     // Fetch bibliography pages to get full citations, then write Reference records
@@ -197,13 +226,11 @@ public class Generator extends AbstractColdpGenerator {
       refWriter.next();
     }
 
-    metadata.put("issued",  LocalDate.now().toString());
-    metadata.put("version", LocalDate.now().toString());
   }
 
   // ── Crawling ──────────────────────────────────────────────────────────────
 
-  private void crawl(String path, String parentId) throws IOException, InterruptedException {
+  private void crawl(String path, String parentId) throws IOException {
     String fileKey = path.replaceFirst("^/", "").replace("/", "_");
     File f = sourceFile("taxon-" + fileKey + ".html");
 
@@ -223,7 +250,7 @@ public class Generator extends AbstractColdpGenerator {
         LOG.warn("ASW: failed to download {}: {}", path, e.getMessage());
         return;
       }
-      Thread.sleep(CRAWL_DELAY_MS);
+      crawlDelay(CRAWL_DELAY_MS);
     }
 
     try {
@@ -236,7 +263,7 @@ public class Generator extends AbstractColdpGenerator {
 
   // ── Page parsing ──────────────────────────────────────────────────────────
 
-  private void parseTaxon(Document doc, String path, String parentId) throws IOException, InterruptedException {
+  private void parseTaxon(Document doc, String path, String parentId) throws IOException {
     Element content = doc.selectFirst("#aswContent");
     if (content == null) {
       LOG.warn("ASW: no #aswContent at {}", path);
@@ -268,7 +295,7 @@ public class Generator extends AbstractColdpGenerator {
     if (synResult.nameRefId() != null) writer.set(ColdpTerm.nameReferenceID, synResult.nameRefId());
     if (synResult.namePublishedInPage() != null) writer.set(ColdpTerm.publishedInPage, synResult.namePublishedInPage());
     writer.set(ColdpTerm.link, BASE_URL + path);
-    String remarks = sectionText(content, "Comment");
+    String remarks = JsoupUtils.sectionText(content, "Comment");
     if (remarks != null) writer.set(ColdpTerm.remarks, remarks);
     writer.next();
 
@@ -324,22 +351,12 @@ public class Generator extends AbstractColdpGenerator {
         seenSynonymNames.add(entry.name().toLowerCase());
         String synId = "syn:" + (++synCounter);
 
-        writer.set(ColdpTerm.ID, synId);
-        writer.set(ColdpTerm.parentID, taxonId);
-        writer.set(ColdpTerm.scientificName, entry.name());
-        if (entry.authorship() != null) writer.set(ColdpTerm.authorship, entry.authorship());
-        writer.set(ColdpTerm.status, "synonym");
-        if (entry.nameRefPath() != null) {
-          writer.set(ColdpTerm.nameReferenceID, "ref:" + entry.nameRefPath());
-          if (entry.namePublishedInPage() != null)
-            writer.set(ColdpTerm.publishedInPage, entry.namePublishedInPage());
-        }
-        if (!entry.additionalRefPaths().isEmpty()) {
-          writer.set(ColdpTerm.referenceID,
-              entry.additionalRefPaths().stream().map(r -> "ref:" + r).collect(Collectors.joining(",")));
-        }
-        if (entry.remarks() != null) writer.set(ColdpTerm.remarks, entry.remarks());
-        writer.next();
+        String synNameRefId = entry.nameRefPath() != null ? "ref:" + entry.nameRefPath() : null;
+        String synPage = synNameRefId != null ? entry.namePublishedInPage() : null;
+        String refIds = entry.additionalRefPaths().isEmpty() ? null :
+            entry.additionalRefPaths().stream().map(r -> "ref:" + r).collect(Collectors.joining(","));
+        pendingSyns.add(new PendingSyn(synId, taxonId, entry.name(), entry.authorship(),
+            synNameRefId, synPage, refIds, entry.remarks()));
 
         nameToId.put(entry.name(), synId);
         parseTypeRelation(p, synId);
@@ -520,7 +537,7 @@ public class Generator extends AbstractColdpGenerator {
    * After the full crawl, download each unique bibliography page and parse
    * the full citation text + structured fields (author, issued).
    */
-  private void fetchBibPages() throws IOException, InterruptedException {
+  private void fetchBibPages() throws IOException {
     LOG.info("ASW: fetching {} bibliography pages", refs.size());
     for (Map.Entry<String, RefData> entry : refs.entrySet()) {
       String path = entry.getKey();
@@ -542,7 +559,7 @@ public class Generator extends AbstractColdpGenerator {
           LOG.warn("ASW: failed to download bib page {}: {}", path, e.getMessage());
           continue;
         }
-        Thread.sleep(CRAWL_DELAY_MS);
+        crawlDelay(CRAWL_DELAY_MS);
       }
 
       try {
@@ -607,11 +624,11 @@ public class Generator extends AbstractColdpGenerator {
   // ── Common Names ──────────────────────────────────────────────────────────
 
   private void parseCommonNames(Element content, String taxonId) throws IOException {
-    Element h2 = findH2(content, "Common Names");
+    Element h2 = JsoupUtils.findH2(content, "Common Names");
     if (h2 == null) return;
 
     for (Element sib : h2.nextElementSiblings()) {
-      if (isHeading(sib)) break;
+      if (JsoupUtils.isHeading(sib)) break;
       if (!sib.tagName().equals("p")) continue;
 
       String text = sib.text().trim();
@@ -632,11 +649,11 @@ public class Generator extends AbstractColdpGenerator {
   // ── Distribution ─────────────────────────────────────────────────────────
 
   private void parseGeographicOccurrence(Element content, String taxonId) throws IOException {
-    Element h2 = findH2(content, "Geographic Occurrence");
+    Element h2 = JsoupUtils.findH2(content, "Geographic Occurrence");
     if (h2 == null) return;
 
     for (Element sib : h2.nextElementSiblings()) {
-      if (isHeading(sib)) break;
+      if (JsoupUtils.isHeading(sib)) break;
       if (!sib.tagName().equals("p")) continue;
 
       Element bold = sib.selectFirst("b");
@@ -684,34 +701,6 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   // ── HTML helpers ──────────────────────────────────────────────────────────
-
-  /** Returns concatenated text of all siblings after an &lt;h2&gt; matching {@code heading}. */
-  private static String sectionText(Element parent, String heading) {
-    Element h2 = findH2(parent, heading);
-    if (h2 == null) return null;
-    StringBuilder sb = new StringBuilder();
-    for (Element sib : h2.nextElementSiblings()) {
-      if (isHeading(sib)) break;
-      String t = sib.text().trim();
-      if (!t.isEmpty()) {
-        if (sb.length() > 0) sb.append(" ");
-        sb.append(t);
-      }
-    }
-    return sb.isEmpty() ? null : sb.toString();
-  }
-
-  private static Element findH2(Element parent, String headingPrefix) {
-    for (Element h2 : parent.select("h2")) {
-      if (h2.text().trim().startsWith(headingPrefix)) return h2;
-    }
-    return null;
-  }
-
-  private static boolean isHeading(Element el) {
-    String tag = el.tagName();
-    return tag.equals("h1") || tag.equals("h2") || tag.equals("h3");
-  }
 
   private static String extractRank(String cssClass) {
     Matcher m = RANK_PATTERN.matcher(cssClass);

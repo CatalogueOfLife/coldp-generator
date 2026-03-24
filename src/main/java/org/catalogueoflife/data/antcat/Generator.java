@@ -19,7 +19,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.univocity.parsers.common.IterableResult;
 import com.univocity.parsers.common.ParsingContext;
 import com.univocity.parsers.tsv.TsvParser;
-import com.univocity.parsers.tsv.TsvParserSettings;
+import org.catalogueoflife.data.utils.CsvUtils;
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
@@ -251,9 +251,6 @@ public class Generator extends AbstractColdpGenerator {
     sectionsByTaxonId.values().forEach(list -> list.sort(Comparator.comparingInt(rs -> rs.position)));
 
     // use tsv file for taxa/synonyms
-    var settings = new TsvParserSettings();
-    settings.setMaxCharsPerColumn(1256000);
-
     // parse taxa once to just full the lookup cache
     File antFile = sourceFile(ANTWEB_FILE);
     if (CACHE && antFile.exists()) {
@@ -266,7 +263,7 @@ public class Generator extends AbstractColdpGenerator {
     var reader = UTF8IoUtils.readerFromFile(antFile);
 
     boolean first = true;
-    TsvParser parser = new TsvParser(settings);
+    TsvParser parser = CsvUtils.newTsvParser(1256000);
     IterableResult<String[], ParsingContext> it = parser.iterate(reader);
     for (var row : it) {
       if (first) {
@@ -279,7 +276,7 @@ public class Generator extends AbstractColdpGenerator {
 
     // now 2nd pass for real
     first = true;
-    parser = new TsvParser(settings);
+    parser = CsvUtils.newTsvParser(1256000);
     reader = UTF8IoUtils.readerFromFile(antFile);
     it = parser.iterate(reader);
     for (var row : it) {
@@ -291,7 +288,7 @@ public class Generator extends AbstractColdpGenerator {
     }
 
     for (var t : statusValues.entrySet()) {
-      System.out.println(t.getKey() + " -> " + t.getValue());
+      LOG.debug("{} -> {}", t.getKey(), t.getValue());
     }
 
     typeWriter.close();

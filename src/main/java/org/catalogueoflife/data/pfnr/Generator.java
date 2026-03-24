@@ -4,6 +4,7 @@ import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
 import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
+import org.catalogueoflife.data.utils.JsoupUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -15,7 +16,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -111,7 +111,7 @@ public class Generator extends AbstractColdpGenerator {
         }
         LOG.debug("PFNR: downloading name page {}", id);
         http.download(URI.create(BASE_URL + "/name/" + id + "/"), f);
-        try { Thread.sleep(100); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+        crawlDelay(100);
       }
       try {
         parseName(Jsoup.parse(f, StandardCharsets.UTF_8.name()), id);
@@ -128,9 +128,6 @@ public class Generator extends AbstractColdpGenerator {
       relWriter.next();
     }
 
-    metadata.put("issued", LocalDate.now().toString());
-    metadata.put("version", LocalDate.now().toString());
-
     // ── Phase 2: reference pages for DOIs ─────────────────────────────────
     for (Map.Entry<Integer, String[]> e : refCitations.entrySet()) {
       int refId = e.getKey();
@@ -141,7 +138,7 @@ public class Generator extends AbstractColdpGenerator {
         if (!cfg.noDownload) {
           LOG.debug("PFNR: downloading reference page {}", refId);
           http.download(URI.create(BASE_URL + "/reference/" + refId + "/"), rf);
-          try { Thread.sleep(100); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+          crawlDelay(100);
         }
       }
       String doi = null;
@@ -193,7 +190,7 @@ public class Generator extends AbstractColdpGenerator {
         if (!ids.contains(id)) { ids.add(id); found = true; }
       }
       if (!found) break;
-      try { Thread.sleep(100); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+      crawlDelay(100);
     }
   }
 
@@ -210,16 +207,16 @@ public class Generator extends AbstractColdpGenerator {
     if (sciName.isBlank()) sciName = h1.text();
 
     // Authorship: Authors: label
-    String authorship = afterLabel(doc, "Authors:");
+    String authorship = JsoupUtils.afterLabel(doc, "Authors:");
 
     // Rank
-    String rank = afterLabel(doc, "Rank:");
+    String rank = JsoupUtils.afterLabel(doc, "Rank:");
     if (rank != null) rank = rank.toLowerCase().trim();
 
     // PFN number and LSID
     String pfnNum = null;
     String lsid   = null;
-    Element pfnStrong = findStrong(doc, "Plant Fossil Names Registry Number:");
+    Element pfnStrong = JsoupUtils.findStrong(doc, "Plant Fossil Names Registry Number:");
     if (pfnStrong != null) {
       Element pfnLink = pfnStrong.parent().selectFirst("a[href*=/act/]");
       if (pfnLink != null) pfnNum = pfnLink.text().trim();
@@ -252,18 +249,18 @@ public class Generator extends AbstractColdpGenerator {
     int parentId = labelLinkId(doc, "Genus:", "/name/");
 
     // Free-text paragraph between Rank and Reference → nameRemarks
-    String nameRemarks = textBetweenLabels(doc, "Rank:", "Reference for this name:");
+    String nameRemarks = JsoupUtils.textBetweenLabels(doc, "Rank:", "Reference for this name:");
 
     // Stratigraphy → remarks
-    String stratigraphy = sectionText(doc, "Stratigraphy");
+    String stratigraphy = JsoupUtils.sectionText(doc, "Stratigraphy");
 
     // Etymology — only the first paragraph (avoid bleeding into subsequent labelled fields)
-    String etymology = afterLabel(doc, "Etymology:");
-    if (etymology == null) etymology = firstSectionParagraph(doc, "Etymology");
+    String etymology = JsoupUtils.afterLabel(doc, "Etymology:");
+    if (etymology == null) etymology = JsoupUtils.firstSectionParagraph(doc, "Etymology");
 
     // Original diagnosis/description → TaxonProperty
-    String diagnosis = afterLabel(doc, "Original diagnosis/description:");
-    if (diagnosis == null) diagnosis = sectionText(doc, "Original diagnosis/description");
+    String diagnosis = JsoupUtils.afterLabel(doc, "Original diagnosis/description:");
+    if (diagnosis == null) diagnosis = JsoupUtils.sectionText(doc, "Original diagnosis/description");
 
     // Published year: extract from citation text
     String year = null;
@@ -316,7 +313,7 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   private void parseTypes(Document doc, int nameId) throws IOException {
-    Element h2 = findH2(doc, "Types");
+    Element h2 = JsoupUtils.findH2(doc, "Types");
     if (h2 == null) return;
 
     for (Element sibling : h2.nextElementSiblings()) {
@@ -391,7 +388,7 @@ public class Generator extends AbstractColdpGenerator {
    * [0] = citation text (cleaned), [1] = external URL or null.
    */
   private static String[] refCitationAndUrl(Document doc, String label) {
-    Element strong = findStrong(doc, label);
+    Element strong = JsoupUtils.findStrong(doc, label);
     if (strong == null) return new String[]{null, null};
     Element container = strong.parent();
     // Find "link" anchor — an <a> whose trimmed text equals "link"
@@ -425,38 +422,11 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   /**
-   * Returns the text content following the given &lt;strong&gt; label in its parent element,
-   * with the label text itself removed.
-   */
-  private static String afterLabel(Document doc, String label) {
-    Element strong = findStrong(doc, label);
-    if (strong == null) return null;
-    // Collect text of all sibling nodes after this strong in the same parent
-    StringBuilder sb = new StringBuilder();
-    boolean after = false;
-    for (Node node : strong.parent().childNodes()) {
-      if (!after) {
-        if (node == strong) after = true;
-        continue;
-      }
-      if (node instanceof TextNode tn) {
-        sb.append(tn.text());
-      } else if (node instanceof Element el) {
-        // Stop at next strong that looks like a label
-        if ("strong".equalsIgnoreCase(el.tagName()) || "h2".equalsIgnoreCase(el.tagName())) break;
-        sb.append(el.text());
-      }
-    }
-    String result = sb.toString().trim();
-    return result.isEmpty() ? null : result;
-  }
-
-  /**
    * Extracts the numeric ID from a link href matching {@code pathPrefix} in the parent element
    * of the given label's &lt;strong&gt;.
    */
   private static int labelLinkId(Document doc, String label, String pathPrefix) {
-    Element strong = findStrong(doc, label);
+    Element strong = JsoupUtils.findStrong(doc, label);
     if (strong == null) return -1;
     // Search in parent and its immediate next siblings
     Element container = strong.parent();
@@ -474,81 +444,4 @@ public class Generator extends AbstractColdpGenerator {
     return m.find() ? Integer.parseInt(m.group(1)) : -1;
   }
 
-  /**
-   * Returns the text of the first non-empty element after the &lt;h2&gt; with the given heading,
-   * stopping before any subsequent &lt;h2&gt;/&lt;h1&gt; or element containing a colon-terminated
-   * &lt;strong&gt; label. Used for single-paragraph sections like Etymology.
-   */
-  private static String firstSectionParagraph(Document doc, String heading) {
-    Element h2 = findH2(doc, heading);
-    if (h2 == null) return null;
-    for (Element sib : h2.nextElementSiblings()) {
-      if ("h2".equalsIgnoreCase(sib.tagName()) || "h1".equalsIgnoreCase(sib.tagName())) break;
-      boolean hasLabel = sib.select("strong").stream().anyMatch(s -> s.text().trim().endsWith(":"));
-      if (hasLabel) break;
-      String t = sib.text().trim();
-      if (!t.isEmpty()) return t;
-    }
-    return null;
-  }
-
-  /** Returns all text within the section introduced by an &lt;h2&gt; with the given heading. */
-  private static String sectionText(Document doc, String heading) {
-    Element h2 = findH2(doc, heading);
-    if (h2 == null) return null;
-    StringBuilder sb = new StringBuilder();
-    for (Element sib : h2.nextElementSiblings()) {
-      if ("h2".equalsIgnoreCase(sib.tagName()) || "h1".equalsIgnoreCase(sib.tagName())) break;
-      String t = sib.text().trim();
-      if (!t.isEmpty()) { if (sb.length() > 0) sb.append(" "); sb.append(t); }
-    }
-    String result = sb.toString().trim();
-    return result.isEmpty() ? null : result;
-  }
-
-  /**
-   * Returns the concatenated text of all sibling elements between the container of
-   * {@code afterLabel}'s &lt;strong&gt; and the container of {@code beforeLabel}'s &lt;strong&gt;,
-   * skipping any sibling that itself contains a colon-terminated &lt;strong&gt; label.
-   * Returns null if the two containers are not siblings or no unlabelled content exists.
-   */
-  private static String textBetweenLabels(Document doc, String afterLabel, String beforeLabel) {
-    Element afterStrong  = findStrong(doc, afterLabel);
-    Element beforeStrong = findStrong(doc, beforeLabel);
-    if (afterStrong == null || beforeStrong == null) return null;
-
-    Element afterEl  = afterStrong.parent();
-    Element beforeEl = beforeStrong.parent();
-    if (afterEl == null || beforeEl == null || afterEl == beforeEl) return null;
-    if (afterEl.parent() == null || afterEl.parent() != beforeEl.parent()) return null;
-
-    StringBuilder sb = new StringBuilder();
-    boolean between = false;
-    for (Element sib : afterEl.parent().children()) {
-      if (sib == afterEl)  { between = true; continue; }
-      if (sib == beforeEl) break;
-      if (!between) continue;
-      // Skip elements that contain a labelled <strong> (e.g. Genus:, Basionym:)
-      boolean hasLabel = sib.select("strong").stream()
-          .anyMatch(s -> s.text().trim().endsWith(":"));
-      if (hasLabel) continue;
-      String t = sib.text().trim();
-      if (!t.isEmpty()) { if (sb.length() > 0) sb.append(" "); sb.append(t); }
-    }
-    return sb.isEmpty() ? null : sb.toString();
-  }
-
-  private static Element findStrong(Document doc, String labelPrefix) {
-    for (Element s : doc.select("strong")) {
-      if (s.text().startsWith(labelPrefix)) return s;
-    }
-    return null;
-  }
-
-  private static Element findH2(Document doc, String text) {
-    for (Element h2 : doc.select("h2")) {
-      if (h2.text().trim().equalsIgnoreCase(text)) return h2;
-    }
-    return null;
-  }
 }

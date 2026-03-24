@@ -1,10 +1,13 @@
 package org.catalogueoflife.data.utils.bibjson;
 
 import de.undercouch.citeproc.csl.CSLItemDataBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 
 public class BibIdentifier {
+    private static final Logger LOG = LoggerFactory.getLogger(BibIdentifier.class);
     private String type;
     private String id;
 
@@ -48,7 +51,7 @@ public class BibIdentifier {
                 builder.ISSN(id);
                 break;
             default:
-                System.out.println("Unknown identifier type " + type +": " + id);
+                LOG.warn("Unknown identifier type {}: {}", type, id);
         }
     }
 }

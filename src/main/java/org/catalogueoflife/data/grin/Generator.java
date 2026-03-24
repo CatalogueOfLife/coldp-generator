@@ -1,7 +1,7 @@
 package org.catalogueoflife.data.grin;
 
 import com.univocity.parsers.tsv.TsvParser;
-import com.univocity.parsers.tsv.TsvParserSettings;
+import org.catalogueoflife.data.utils.CsvUtils;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
 import life.catalogue.common.io.UTF8IoUtils;
@@ -543,12 +543,7 @@ public class Generator extends AbstractColdpGenerator {
   // ── helpers ───────────────────────────────────────────────────────────────
 
   private TsvParser tsvParser() {
-    var settings = new TsvParserSettings();
-    settings.setNullValue(null);
-    settings.setHeaderExtractionEnabled(true);
-    settings.setLineSeparatorDetectionEnabled(true);
-    settings.setMaxCharsPerColumn(65536);
-    return new TsvParser(settings);
+    return CsvUtils.newTsvParser(65536, true);
   }
 
   /** Build a column-name → index map, stripping BOM from the first header. */

@@ -12,11 +12,12 @@ import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 
+import org.catalogueoflife.data.utils.RefCache;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -56,9 +57,8 @@ public class Generator extends AbstractColdpGenerator {
 
   private final List<String> genusNames = new ArrayList<>();
   private final Map<String, String> genusParents = new HashMap<>();  // genusName → parentTaxonId
-  private final Map<String, String> refByCitation = new HashMap<>(); // citation → Reference ID
-  private final Map<String, String> refIdToCitation = new HashMap<>(); // Reference ID → citation
-  private int refCounter = 1;
+  private final Map<String, String> refIdToCitation = new HashMap<>(); // Reference ID → citation (for bib matching)
+  private RefCache refCache;
   private TermWriter vnWriter;
   private TermWriter distWriter;
   private TermWriter typeWriter;
@@ -83,6 +83,7 @@ public class Generator extends AbstractColdpGenerator {
     initRefWriter(List.of(
         ColdpTerm.ID, ColdpTerm.citation, ColdpTerm.link
     ));
+    refCache = new RefCache(refWriter);
     vnWriter   = additionalWriter(ColdpTerm.VernacularName, List.of(
         ColdpTerm.taxonID, ColdpTerm.name, ColdpTerm.language
     ));
@@ -113,7 +114,7 @@ public class Generator extends AbstractColdpGenerator {
         }
         String gHtml = http.get(URI.create(BASE + "/genera/" + genus));
         Files.writeString(gFile.toPath(), gHtml);
-        Thread.sleep(100);
+        crawlDelay(100);
       }
       Document gDoc = Jsoup.parse(Files.readString(gFile.toPath()));
       parseGenusPage(genus, gDoc);
@@ -498,15 +499,8 @@ public class Generator extends AbstractColdpGenerator {
   /** Writes a Reference record, deduplicating by citation text. Returns the Reference ID. */
   private String writeRef(String citation, String link) throws IOException {
     if (StringUtils.isBlank(citation)) return null;
-    String existing = refByCitation.get(citation);
-    if (existing != null) return existing;
-    String id = "R" + refCounter++;
-    refWriter.set(ColdpTerm.ID, id);
-    refWriter.set(ColdpTerm.citation, citation);
-    refWriter.set(ColdpTerm.link, link);
-    refWriter.next();
-    refByCitation.put(citation, id);
-    refIdToCitation.put(id, citation);
+    String id = refCache.getOrCreate(citation, w -> w.set(ColdpTerm.link, link));
+    refIdToCitation.putIfAbsent(id, citation.strip());
     return id;
   }
 
@@ -591,10 +585,4 @@ public class Generator extends AbstractColdpGenerator {
             .trim();
   }
 
-  @Override
-  protected void addMetadata() throws Exception {
-    metadata.put("issued", LocalDate.now().toString());
-    metadata.put("version", LocalDate.now().toString());
-    super.addMetadata();
-  }
 }

@@ -67,7 +67,7 @@ public class Generator extends AbstractColdpGenerator {
       var gm = genusID.matcher(a.attr("href"));
       if (gm.find()) {
         var id = gm.group(1);
-        System.out.println(genus + "  -->  " + id);
+        LOG.debug("{}  -->  {}", genus, id);
       }
     }
   }

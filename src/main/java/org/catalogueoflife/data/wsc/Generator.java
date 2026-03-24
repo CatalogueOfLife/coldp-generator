@@ -50,9 +50,9 @@ public class Generator extends AbstractColdpGenerator {
     super(cfg, true, null);
     apiKey = Preconditions.checkNotNull(cfg.apiKey, "API Key required");
     json = cfg.wscDataRepo;
-    System.out.println("Keep WSC API responses at " + json);
+    LOG.info("Keep WSC API responses at {}", json);
     if (!json.exists()) {
-      System.out.println("  creating missing JSON directory");
+      LOG.info("  creating missing JSON directory");
       json.mkdirs();
     }
   }
@@ -61,24 +61,24 @@ public class Generator extends AbstractColdpGenerator {
   protected void addData() throws Exception {
     if (cfg.date != null) {
       if (cfg.date.equalsIgnoreCase("skip")) {
-        System.out.println("Skip WSC updates");
+        LOG.info("Skip WSC updates");
       } else {
-        System.out.println("Look for WSC updates since " + cfg.date);
+        LOG.info("Look for WSC updates since {}", cfg.date);
         update();
       }
 
     } else {
       int max = ObjectUtils.coalesce(cfg.wscMaxKey, MAX_DEFAULT);
-      System.out.println("Crawl all of WSC up to " + max);
+      LOG.info("Crawl all of WSC up to {}", max);
       for (int id = 1; id <= max; id++) {
         crawl(String.format("urn:lsid:nmbe.ch:spidersp:%06d", id), false);
       }
-      System.out.println("\nCrawl " + higherLSIDs.size() + " higher taxa in WSC");
+      LOG.info("Crawl {} higher taxa in WSC", higherLSIDs.size());
       for (String lsid : higherLSIDs) {
         crawl(lsid, false);
       }
     }
-    System.out.println("\nParse JSON files");
+    LOG.info("Parse JSON files");
     initWriters();
     addRootClassification();
     parse();
@@ -111,11 +111,11 @@ public class Generator extends AbstractColdpGenerator {
       upd = mapper.readValue(http.getStreamJSON(upd.next()), Update.class);
       crawl(upd);
     }
-    System.out.println("All updated");
+    LOG.info("All updated");
   }
 
   private void crawl(Update upd) throws IOException {
-    System.out.println(String.format("Crawl %s updates", upd.updates.size()));
+    LOG.info("Crawl {} updates", upd.updates.size());
     for (String lsid : upd.updates) {
       crawl(lsid, true);
     }
@@ -167,17 +167,17 @@ public class Generator extends AbstractColdpGenerator {
             writer.set(ColdpTerm.rank, tax.taxon.taxonRank);
             writer.set(ColdpTerm.authorship, tax.taxon.author);
             if (tax.taxon.taxonRank.equalsIgnoreCase("family")) {
-              System.out.println(String.format("%s: %s %s", tax.taxon.lsid, tax.taxon.family, tax.taxon.author));
+              LOG.debug("{}: {} {}", tax.taxon.lsid, tax.taxon.family, tax.taxon.author);
               writer.set(ColdpTerm.uninomial, tax.taxon.family);
               writer.set(ColdpTerm.parentID, rootId);
 
             } else if (tax.taxon.taxonRank.equalsIgnoreCase("genus")) {
-              System.out.println(String.format("%s: %s %s - %s", tax.taxon.lsid, tax.taxon.genus, tax.taxon.author, tax.taxon.family));
+              LOG.debug("{}: {} {} - {}", tax.taxon.lsid, tax.taxon.genus, tax.taxon.author, tax.taxon.family);
               writer.set(ColdpTerm.uninomial, tax.taxon.genus);
 
             } else {
               String subsp = StringUtils.isBlank(tax.taxon.subspecies) ? "" : " "+tax.taxon.subspecies;
-              System.out.println(String.format("%s: %s %s%s %s", tax.taxon.lsid, tax.taxon.genus, tax.taxon.species, subsp, tax.taxon.author));
+              LOG.debug("{}: {} {}{} {}", tax.taxon.lsid, tax.taxon.genus, tax.taxon.species, subsp, tax.taxon.author);
               writer.set(ColdpTerm.genericName, tax.taxon.genus);
               writer.set(ColdpTerm.specificEpithet, tax.taxon.species);
               writer.set(ColdpTerm.infraspecificEpithet, tax.taxon.subspecies);
@@ -363,13 +363,13 @@ public class Generator extends AbstractColdpGenerator {
     // only load from API if it's not yet existing
     boolean failed = false;
     if (f.exists() && !forceUpdate) {
-      System.out.println(String.format("Reuse %s", f.getName()));
+      LOG.debug("Reuse {}", f.getName());
 
     } else {
       String uri = API + "lsid/" + lsid;
       try {
         http.downloadJSON(URI.create(uri + "?apiKey=" + apiKey), new HashMap<>(), f);
-        System.out.println(String.format("Crawled %s", lsid));
+        LOG.debug("Crawled {}", lsid);
 
       } catch (HttpException e) {
         failed = true;
@@ -380,7 +380,7 @@ public class Generator extends AbstractColdpGenerator {
           throw new IllegalStateException("Max daily API usage limit reached");
 
         } else {
-          System.out.println(String.format("Crawl error %s: %s", lsid, e.status));
+          LOG.warn("Crawl error {}: {}", lsid, e.status);
           FileUtils.write(f, ERROR + String.format("%d - %s - %s", e.status, e.uri, e.getMessage()), StandardCharsets.UTF_8);
         }
       }

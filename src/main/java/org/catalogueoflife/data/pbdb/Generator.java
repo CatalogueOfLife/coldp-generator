@@ -19,7 +19,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.univocity.parsers.common.IterableResult;
 import com.univocity.parsers.common.ParsingContext;
 import com.univocity.parsers.csv.CsvParser;
-import com.univocity.parsers.csv.CsvParserSettings;
+import org.catalogueoflife.data.utils.CsvUtils;
 import life.catalogue.api.model.Agent;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
@@ -220,9 +220,7 @@ public class Generator extends AbstractColdpGenerator {
     // https://dev.paleobiodb.org/data1.2/config.txt?show=ranks
     final Map<Integer, String> ranks = new HashMap<>();
     try (var in = UTF8IoUtils.readerFromFile(sourceFile(rankFN))) {
-      var settings = new CsvParserSettings();
-      settings.setMaxCharsPerColumn(1024);
-      CsvParser parser = new CsvParser(settings);
+      CsvParser parser = CsvUtils.newCsvParser(1024);
 
       boolean first = true;
       IterableResult<String[], ParsingContext> it = parser.iterate(in);

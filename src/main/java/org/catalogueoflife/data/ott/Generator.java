@@ -62,7 +62,7 @@ public class Generator extends AbstractColdpGenerator {
 
   @Override
   protected void prepare() throws IOException {
-    System.out.println("Unpack archive " + srcFN);
+    LOG.info("Unpack archive {}", srcFN);
     ottSources = new File(dir, "sources");
     CompressionUtil.decompressFile(ottSources, sourceFile(srcFN));
 
@@ -80,7 +80,7 @@ public class Generator extends AbstractColdpGenerator {
 
   @Override
   protected void addData() throws Exception {
-    System.out.println("Process taxonomy.tsv");
+    LOG.info("Process taxonomy.tsv");
     var iter = iterate("taxonomy.tsv");
     while(iter.hasNext()) {
       var row = iter.next();
@@ -97,7 +97,7 @@ public class Generator extends AbstractColdpGenerator {
       writer.next();
     }
 
-    System.out.println("Process synonyms.tsv");
+    LOG.info("Process synonyms.tsv");
     iter = iterate("synonyms.tsv");
     Map<String, AtomicInteger> types = new HashMap<>();
     while(iter.hasNext()) {
@@ -114,10 +114,10 @@ public class Generator extends AbstractColdpGenerator {
       writer.next();
     }
     for (var e : types.entrySet()) {
-      System.out.println(e.getKey() + " -> " + e.getValue());
+      LOG.debug("{} -> {}", e.getKey(), e.getValue());
     }
 
-    System.out.println("Remove source files");
+    LOG.info("Remove source files");
     FileUtils.deleteQuietly(ottSources);
   }
 

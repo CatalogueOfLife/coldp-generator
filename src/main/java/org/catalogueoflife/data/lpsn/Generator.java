@@ -92,7 +92,7 @@ public class Generator extends AbstractColdpGenerator {
 
     });
 
-    System.out.println("Refresh token");
+    LOG.info("Refresh token");
     token = http.<AccessTokenResponse>post(url)
             .authentication()
             .client()
@@ -307,9 +307,9 @@ public class Generator extends AbstractColdpGenerator {
   void lookup(String id) throws IOException {
     String json = callAPI("/fetch/" + id);
     var resp = mapper.readValue(json, FetchResult.class);
-    System.out.println(resp);
+    LOG.debug("{}", resp);
     var n = resp.results.get(0);
-    System.out.println(n);
+    LOG.debug("{}", n);
   }
   void writeNames(List<String> ids) throws IOException {
     LOG.info("Retrieve {} names from the API", ids.size());

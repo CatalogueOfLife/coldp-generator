@@ -1,6 +1,8 @@
 package org.catalogueoflife.data.wikispecies;
 
 import de.fau.cs.osr.ptk.common.AstVisitor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sweble.wikitext.parser.nodes.*;
 
 import java.util.stream.Collectors;
@@ -11,6 +13,7 @@ import java.util.stream.Collectors;
  * * {{int:Typus}}: ''Turdus leucurus'' {{a|Johann Friedrich Gmelin|Gmelin}}, 1789 = ''[[Oenanthe leucura]]''
  */
 public class TextExtractor extends AstVisitor<WtNode> {
+    private static final Logger LOG = LoggerFactory.getLogger(TextExtractor.class);
     private final StringBuilder sb = new StringBuilder();
 
     @Override
@@ -21,8 +24,8 @@ public class TextExtractor extends AstVisitor<WtNode> {
     }
 
     public void visit(WtNode n) {
-        System.out.println(n.getNodeTypeName() + "  " + n.getNodeName());
-        System.out.println(n.getAttributes().entrySet().stream()
+        LOG.debug("{}  {}", n.getNodeTypeName(), n.getNodeName());
+        LOG.debug("{}", n.getAttributes().entrySet().stream()
                 .map(e -> e.getKey()+"="+e.getValue())
                 .collect(Collectors.joining("|")));
         iterate(n);

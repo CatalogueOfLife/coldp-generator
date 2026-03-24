@@ -21,7 +21,7 @@ import com.google.common.base.Preconditions;
 import com.univocity.parsers.common.IterableResult;
 import com.univocity.parsers.common.ParsingContext;
 import com.univocity.parsers.csv.CsvParser;
-import com.univocity.parsers.csv.CsvParserSettings;
+import org.catalogueoflife.data.utils.CsvUtils;
 import life.catalogue.api.model.DOI;
 import life.catalogue.api.util.ObjectUtils;
 import life.catalogue.api.vocab.area.Gazetteer;
@@ -338,7 +338,7 @@ public class Generator extends AbstractColdpGenerator {
         //MDD_specificEpit 34,MDD_subspecificEpit 35,MDD_variant 36,MDD_senior_homo 37,MDD_variant_name_citati 38,Hesp 39,MDD_species 40,MDD_name_usa 41,MDD_comme 42
         var status = clean(row[7]);
         if (status != null && status.equalsIgnoreCase("species")) {
-          System.out.println("Ignore bad species entry in synonyms file: " + line);
+          LOG.warn("Ignore bad species entry in synonyms file: {}", line);
           continue;
         }
         var synRank = clean(row[9]);
@@ -346,7 +346,7 @@ public class Generator extends AbstractColdpGenerator {
                 synRank.equalsIgnoreCase("synonym_species") ||
                 synRank.equalsIgnoreCase("informal_species")
         )) {
-          System.out.println("Ignore "+synRank+" entry in synonyms file: " + line);
+          LOG.warn("Ignore {} entry in synonyms file: {}", synRank, line);
           continue;
         }
 
@@ -441,9 +441,7 @@ public class Generator extends AbstractColdpGenerator {
     super.addMetadata();
   }
 
-  private CsvParser newCsvParser() throws IOException {
-    var settings = new CsvParserSettings();
-    settings.setMaxCharsPerColumn(24000);
-    return new CsvParser(settings);
+  private CsvParser newCsvParser() {
+    return CsvUtils.newCsvParser(24000);
   }
 }

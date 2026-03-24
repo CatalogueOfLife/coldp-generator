@@ -62,11 +62,11 @@ public class Generator extends org.catalogueoflife.data.ott.Generator {
 
   @Override
   protected void prepare() throws IOException {
-    System.out.println("Unpack archive " + sourceFile(srcFN));
+    LOG.info("Unpack archive {}", sourceFile(srcFN));
     ottSources = new File(dir, "sources");
     CompressionUtil.decompressFile(ottSources, sourceFile(srcFN));
 
-    System.out.println("Read OTT taxonomy");
+    LOG.info("Read OTT taxonomy");
     var iter = iterate("taxonomy.tsv");
     while (iter.hasNext()) {
       var row = iter.next();
@@ -113,7 +113,7 @@ public class Generator extends org.catalogueoflife.data.ott.Generator {
       sn = lookupOTT(ott);
 
     } else {
-      System.out.println("Unknown node label " + n.getLabel());
+      LOG.warn("Unknown node label {}", n.getLabel());
     }
     writer.set(ColdpTerm.ID, n.getLabel());
     if (parent != null) {
@@ -135,15 +135,15 @@ public class Generator extends org.catalogueoflife.data.ott.Generator {
 
   @Override
   protected void addData() throws Exception {
-    System.out.println("Read Newick tree");
+    LOG.info("Read Newick tree");
     Reader br = UTF8IoUtils.readerFromFile(new File(ottSources, "labelled_supertree.tre"));
     var p = new SimpleParser(br);
     var root = p.parse();
 
-    System.out.println("Process tree");
+    LOG.info("Process tree");
     writeNode(root, null);
 
-    System.out.println("Remove source files");
+    LOG.info("Remove source files");
     FileUtils.deleteQuietly(ottSources);
   }
 

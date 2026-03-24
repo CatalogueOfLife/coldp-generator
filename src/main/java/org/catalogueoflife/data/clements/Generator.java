@@ -1,7 +1,7 @@
 package org.catalogueoflife.data.clements;
 
 import com.univocity.parsers.csv.CsvParser;
-import com.univocity.parsers.csv.CsvParserSettings;
+import org.catalogueoflife.data.utils.CsvUtils;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
 import org.apache.commons.lang3.StringUtils;
@@ -232,11 +232,6 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   private static CsvParser csvParser() {
-    var settings = new CsvParserSettings();
-    settings.setNullValue(null);
-    settings.setHeaderExtractionEnabled(false);
-    settings.setLineSeparatorDetectionEnabled(true);
-    settings.setMaxCharsPerColumn(8192);
-    return new CsvParser(settings);
+    return CsvUtils.newCsvParser(8192);
   }
 }

@@ -316,7 +316,7 @@ public class Generator extends AbstractColdpGenerator {
 
   private void addRefRecord(Reference ref, String[] row) throws IOException {
     if (!refIDs.add(ref.refId())) {
-      System.out.println("DUPLICATE REFERENCE ID: " + ref.refId());
+      LOG.warn("DUPLICATE REFERENCE ID: {}", ref.refId());
       return;
     }
     refIDs.add(ref.refId());

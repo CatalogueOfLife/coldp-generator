@@ -15,6 +15,7 @@ import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.*;
 
 public abstract class AbstractColdpGenerator extends AbstractGenerator {
@@ -68,6 +69,9 @@ public abstract class AbstractColdpGenerator extends AbstractGenerator {
     }
     prepare();
     addData();
+    // Default issued/version to today if not set by the generator
+    metadata.computeIfAbsent("issued",  k -> LocalDate.now().toString());
+    metadata.computeIfAbsent("version", k -> LocalDate.now().toString());
     if (writer != null) {
       writer.close();
     }
@@ -77,6 +81,39 @@ public abstract class AbstractColdpGenerator extends AbstractGenerator {
     for (var w : addWriter) {
       w.close();
     }
+  }
+
+  /**
+   * Sleeps for {@code ms} milliseconds, restoring interrupt status if interrupted.
+   * Use this for polite-crawl delays between page downloads.
+   */
+  protected static void crawlDelay(long ms) {
+    try {
+      Thread.sleep(ms);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+  }
+
+  /**
+   * Returns the cached file for {@code filename} under the sources directory, downloading
+   * it from {@code url} if it does not exist. Inserts a {@code delayMs} polite delay after
+   * each new download. If {@code --no-download} is set and the file is missing, logs a
+   * warning and returns {@code null} — callers should skip processing when null is returned.
+   */
+  @Nullable
+  protected File cachedPage(String filename, URI url, long delayMs) throws IOException {
+    File f = sourceFile(filename);
+    if (!f.exists()) {
+      if (cfg.noDownload) {
+        LOG.warn("--no-download set but {} not cached; skipping", filename);
+        return null;
+      }
+      LOG.debug("Downloading {}", url);
+      http.download(url, f);
+      crawlDelay(delayMs);
+    }
+    return f;
   }
 
   protected File download(String filename, URI url) throws IOException {
