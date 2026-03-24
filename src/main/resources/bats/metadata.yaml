@@ -1,4 +1,4 @@
-title: Bats of the World
+title: "Bat Species of the World: A taxonomic and geographic database"
 alias: Bats
 description: |-
   Taxonomic database of all bat species (Chiroptera), compiled and edited by
@@ -12,10 +12,12 @@ contact:
   organisation: American Museum of Natural History
   city: New York
   country: US
+  email: acirranello@batnames.org
 creator:
   -
     given: Nancy B.
     family: Simmons
+    orcid: 0000-0001-8807-7499
     organisation: American Museum of Natural History
     city: New York
     country: US

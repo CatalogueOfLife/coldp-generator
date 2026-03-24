@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -76,10 +77,6 @@ public class Generator extends AbstractColdpGenerator {
 
   @Override
   protected void prepare() throws Exception {
-    LinneanName ln = new ParsedName();
-    ln.setCode(NomCode.ZOOLOGICAL);
-    ln.setUninomial("Antrozoini");
-    var rank = RankUtils.inferRank(ln);
     download(EXPLORE_FILE, EXPLORE_URL);
   }
 
@@ -111,6 +108,7 @@ public class Generator extends AbstractColdpGenerator {
     // Phase 1: explore.html → higher-rank taxa + genus list
     File exploreFile = sourceFile(EXPLORE_FILE);
     Document doc = Jsoup.parse(Files.readString(exploreFile.toPath()));
+    parseMetadataFromFooter(doc);
     Element root = doc.selectFirst("div#homeresults");
     if (root == null) {
       throw new IllegalStateException("Could not find div#homeresults in explore.html");
@@ -687,6 +685,21 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   // ── Shared helpers ────────────────────────────────────────────────────────
+
+  /**
+   * Extracts version and issued year from the footer "Cite the database" text, e.g.:
+   *   "Simmons, N.B. and A.L. Cirranello. 2025. Bat Species of the World ... Version 1.9."
+   * Sets metadata keys "version" and "issued" so they are substituted into metadata.yaml.
+   */
+  private void parseMetadataFromFooter(Document doc) {
+    Element cite = doc.selectFirst("div.cite p");
+    if (cite == null) return;
+    String text = cite.text();
+    // Extract "Version X.Y"
+    java.util.regex.Matcher vm = Pattern.compile("Version\\s+([\\d.]+)").matcher(text);
+    if (vm.find()) metadata.put("version", vm.group(1));
+    metadata.put("issued", LocalDate.now());
+  }
 
   /** Writes a Reference record, deduplicating by citation text. Returns the Reference ID. */
   private String writeRef(String citation, String link) throws IOException {
