@@ -6,6 +6,11 @@ import life.catalogue.common.io.TermWriter;
 import org.apache.commons.lang3.StringUtils;
 import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
+import org.gbif.nameparser.api.LinneanName;
+import org.gbif.nameparser.api.NomCode;
+import org.gbif.nameparser.api.ParsedName;
+import org.gbif.nameparser.api.Rank;
+import org.gbif.nameparser.util.RankUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -24,6 +29,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,14 +57,9 @@ public class Generator extends AbstractColdpGenerator {
       "^(.+?)(?::\\s*(?:pp?\\.\\s*)?|\\s+pp?\\.\\s+)(\\S.*?)\\s*\\.?$");
   private static final String EXPLORE_FILE = "explore.html";
 
-  // Rank ordering for parent-tracking in the flat accordion
-  private static final Map<String, Integer> RANK_LEVEL = Map.of(
-      "order", 0, "suborder", 1, "superfamily", 2, "family", 3,
-      "subfamily", 4, "tribe", 5, "subtribe", 6
-  );
-
   private final List<String> genusNames = new ArrayList<>();
-  private final Map<String, String> genusParents = new HashMap<>();  // genusName → parentTaxonId
+  private final Map<String, String> genusParents = new HashMap<>();        // genusName → parentTaxonId
+  private final Map<String, Integer> genusParentOrdinals = new HashMap<>(); // genusName → best parent Rank.ordinal()
   private final Set<String> phase1Ids = new HashSet<>(); // IDs written in accordion phase
   private final Map<String, String> refIdToCitation = new HashMap<>(); // Reference ID → citation (for bib matching)
   private final Map<String, String> nameToId = new HashMap<>(); // scientificName → NameUsage ID (for type-species resolution)
@@ -75,6 +76,10 @@ public class Generator extends AbstractColdpGenerator {
 
   @Override
   protected void prepare() throws Exception {
+    LinneanName ln = new ParsedName();
+    ln.setCode(NomCode.ZOOLOGICAL);
+    ln.setUninomial("Antrozoini");
+    var rank = RankUtils.inferRank(ln);
     download(EXPLORE_FILE, EXPLORE_URL);
   }
 
@@ -157,12 +162,17 @@ public class Generator extends AbstractColdpGenerator {
 
   /**
    * explore.html accordion is flat: all button+panel pairs are direct children of the root div.
-   * Hierarchy is derived from the rank id on each panel using RANK_LEVEL ordering.
+   * Hierarchy is derived from the Rank inferred from each button name (via RankUtils), with the
+   * panel id used as a fallback. A TreeMap keyed by Rank.ordinal() tracks the active ancestor
+   * at each rank level — this handles any number of rank levels without a hardcoded map.
    * Genera are not accordion entries; they appear as links inside div.generatbl.
    */
   private void parseAccordionBlock(Element root) throws IOException {
-    // currentAtLevel[i] = taxon ID currently active at rank level i (0=order…6=subtribe)
-    String[] currentAtLevel = new String[RANK_LEVEL.size()];
+    // ordinal → current taxon ID at that rank level
+    TreeMap<Integer, String> currentByOrdinal = new TreeMap<>();
+    // Reusable LinneanName for rank inference
+    ParsedName ln = new ParsedName();
+    ln.setCode(NomCode.ZOOLOGICAL);
 
     for (Element button : root.select("> button.accordion")) {
       Element panel = button.nextElementSibling();
@@ -170,17 +180,27 @@ public class Generator extends AbstractColdpGenerator {
 
       String name = button.id();
       if (StringUtils.isBlank(name)) continue;
-      String rank = panel.id();
-      Integer level = RANK_LEVEL.get(rank);
-      if (level == null) continue;
 
-      // Parent = closest ancestor level that has a taxon
-      String parentId = null;
-      for (int i = level - 1; i >= 0; i--) {
-        if (currentAtLevel[i] != null) { parentId = currentAtLevel[i]; break; }
+      // Infer rank from the taxon name suffix (zoological nomenclature rules)
+      ln.setUninomial(name);
+      Rank rank = RankUtils.inferRank(ln);
+      // Fall back to panel id if rank cannot be inferred from the name
+      if (rank == null || rank == Rank.UNRANKED || !rank.isSuprageneric()) {
+        try { rank = Rank.valueOf(panel.id().toUpperCase()); }
+        catch (IllegalArgumentException e) {
+          LOG.warn("Cannot determine rank for button '{}' (panel id='{}')", name, panel.id());
+          continue;
+        }
       }
-      currentAtLevel[level] = name;
-      for (int i = level + 1; i < currentAtLevel.length; i++) currentAtLevel[i] = null;
+      int ordinal = rank.ordinal();
+
+      // Parent = most specific ancestor (highest ordinal strictly below current)
+      Map.Entry<Integer, String> parentEntry = currentByOrdinal.headMap(ordinal, false).lastEntry();
+      String parentId = parentEntry != null ? parentEntry.getValue() : null;
+
+      // Remove this rank and all more-specific ranks, then register current
+      currentByOrdinal.tailMap(ordinal, true).clear();
+      currentByOrdinal.put(ordinal, name);
 
       // Common name from <p> inside button
       Element cnEl = button.selectFirst("p");
@@ -250,16 +270,19 @@ public class Generator extends AbstractColdpGenerator {
         vnWriter.next();
       }
 
-      // Collect genera from div.generatbl — links like <a href="/genera/Acerodon">
+      // Collect genera from div.generatbl; keep the most-specific (highest ordinal) parent
       Element generatbl = panel.selectFirst("div.generatbl");
       if (generatbl != null) {
         for (Element a : generatbl.select("a[href]")) {
           String href = a.attr("href");
           String genusName = href.contains("/") ? href.substring(href.lastIndexOf('/') + 1) : a.text().trim();
           genusName = genusName.trim();
-          if (!StringUtils.isBlank(genusName) && !genusParents.containsKey(genusName)) {
-            genusNames.add(genusName);
+          if (StringUtils.isBlank(genusName)) continue;
+          Integer bestOrdinal = genusParentOrdinals.get(genusName);
+          if (bestOrdinal == null || ordinal > bestOrdinal) {
+            if (bestOrdinal == null) genusNames.add(genusName);
             genusParents.put(genusName, name);
+            genusParentOrdinals.put(genusName, ordinal);
           }
         }
       }
@@ -275,14 +298,8 @@ public class Generator extends AbstractColdpGenerator {
       return;
     }
 
-    // Prefer the family link on the genus page over the (often wrong) explore.html parent
+    // Use the accordion-derived parent (most-specific from explore.html)
     String parentId = genusParents.get(genusName);
-    Element familyLinkEl = resultsArea.selectFirst("div.link[id=genus] a[href]");
-    if (familyLinkEl != null) {
-      String href = familyLinkEl.attr("href");
-      String family = href.contains("/") ? href.substring(href.lastIndexOf('/') + 1) : href;
-      if (!StringUtils.isBlank(family)) parentId = family;
-    }
 
     // Write genus NameUsage from div.taxon[id=genus]
     // Skip if this name was already written as a higher-rank taxon in phase 1
