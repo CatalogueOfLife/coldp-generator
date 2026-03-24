@@ -52,6 +52,41 @@ public class GeneratorTest {
   }
 
   @Test
+  public void testExtractContainerTitleShort() {
+    assertEquals("Proc. Zool. Soc. London",
+        Generator.extractContainerTitleShort("Günther, 1858, Proc. Zool. Soc. London, 1858"));
+    assertEquals("Proc. Zool. Soc. London",
+        Generator.extractContainerTitleShort("Mivart, 1869, Proc. Zool. Soc. London, 1869"));
+    assertEquals("Ann. Mag. Nat. Hist., Ser. 3, 3",
+        Generator.extractContainerTitleShort("Günther, 1859, Ann. Mag. Nat. Hist., Ser. 3, 3"));
+    assertEquals("Cat. Batr. Sal. Coll. Brit. Mus.",
+        Generator.extractContainerTitleShort("Günther, 1859 \"1858\", Cat. Batr. Sal. Coll. Brit. Mus."));
+    assertNull(Generator.extractContainerTitleShort(null));
+  }
+
+  @Test
+  public void testExtractPageFromText() {
+    assertEquals("347", Generator.extractPageFromText(": 347. Coined as a Section"));
+    assertEquals("341", Generator.extractPageFromText(": 341; Günther, 1859,"));
+    assertEquals("69", Generator.extractPageFromText(": 69. A series"));
+    assertEquals("339-352", Generator.extractPageFromText(": 339-352."));
+    assertNull(Generator.extractPageFromText(null));
+    assertNull(Generator.extractPageFromText("   "));
+  }
+
+  @Test
+  public void testCleanRemarks() {
+    assertEquals("Coined as a Section, apparently above the family-group",
+        Generator.cleanRemarks("347", ": 347. Coined as a Section, apparently above the family-group."));
+    assertEquals("A series within Opisthoglossa",
+        Generator.cleanRemarks("69", ": 69. A series within Opisthoglossa."));
+    // Type text should be stripped
+    assertNull(Generator.cleanRemarks(null, ": 341. Type genus: Foo."));
+    assertEquals("Subsequent usage of Salientia Gray, 1850",
+        Generator.cleanRemarks("1", ": 1. Subsequent usage of Salientia Gray, 1850."));
+  }
+
+  @Test
   public void testSplitCountriesSimple() {
     List<String> result = Generator.splitCountries("Rwanda, Uganda, Burundi");
     assertEquals(List.of("Rwanda", "Uganda", "Burundi"), result);

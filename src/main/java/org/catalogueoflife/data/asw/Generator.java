@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Generator for Amphibian Species of the World (ASW).
@@ -33,8 +34,10 @@ import java.util.regex.Pattern;
  *  - Geographic Occurrence → Distribution records (one per country)
  *  - Comment → NameUsage.remarks
  *
- * Pages are cached as taxon-{path}.html in the source directory; 200 ms delay between
- * new downloads to respect the server.
+ * Bibliography pages are fetched for each unique reference to obtain full citations.
+ *
+ * Pages are cached as taxon-{path}.html / bib-{key}.html in the source directory;
+ * 200 ms delay between new downloads to respect the server.
  *
  * ID scheme: URL path without leading "/" (e.g. "Amphibia/Anura/Arthroleptidae") for taxa,
  *            "ref:{bibliography-path}" for references,
@@ -51,6 +54,8 @@ public class Generator extends AbstractColdpGenerator {
 
   private static final Pattern YEAR_PATTERN = Pattern.compile("\\b(\\d{4})\\b");
   private static final Pattern RANK_PATTERN = Pattern.compile("rank-(\\w+)");
+  private static final Pattern PAGE_PATTERN = Pattern.compile("^[\\s:,]*(\\d+(?:[-\u2013]\\d+)?)");
+
   // Country names that contain commas — must be recognised before splitting the country list
   private static final List<String> COMMA_COUNTRIES = List.of(
       "Congo, Democratic Republic of the",
@@ -69,8 +74,41 @@ public class Generator extends AbstractColdpGenerator {
       "Virgin Islands, U.S."
   );
 
-  // reference bibliography-path → citation text
-  private final Map<String, String> references = new LinkedHashMap<>();
+  // ── Inner data types ──────────────────────────────────────────────────────
+
+  /** Holds data for a bibliography reference, populated during crawl and bib-page fetch. */
+  static class RefData {
+    final String abbreviation;        // inline link text ("Günther, 1858, Proc. Zool. Soc. London, 1858")
+    final String containerTitleShort; // abbreviated journal, stripped of author+year
+    // Populated from the bibliography page:
+    String citation;    // full citation text (falls back to abbreviation)
+    String author;
+    String issued;
+
+    RefData(String abbreviation, String containerTitleShort) {
+      this.abbreviation = abbreviation;
+      this.containerTitleShort = containerTitleShort;
+      this.citation = abbreviation; // fallback until bib page is fetched
+    }
+  }
+
+  /** Parsed data from a single synonymy paragraph. */
+  private record SynEntry(
+      String name,
+      String authorship,
+      String nameRefPath,           // first bib link path → nameReferenceID
+      String namePublishedInPage,   // page number for the first ref
+      List<String> additionalRefPaths, // second+ bib link paths → referenceID
+      String remarks
+  ) {}
+
+  /** Result of parseSynonymy: the ref + page for the accepted taxon's name publication. */
+  private record SynonymyResult(String nameRefId, String namePublishedInPage) {}
+
+  // ── State ─────────────────────────────────────────────────────────────────
+
+  // bibliography-path → RefData (populated during crawl, enriched from bib pages)
+  private final Map<String, RefData> refs = new LinkedHashMap<>();
   // Deferred NameRelation: [synonymNameId, typeGenusOrSpeciesName, relType]
   private final List<String[]> typeRelations = new ArrayList<>();
   // scientificName → taxonID (registered while crawling, used to resolve type relations)
@@ -96,6 +134,8 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.authorship,
         ColdpTerm.status,
         ColdpTerm.nameReferenceID,
+        ColdpTerm.publishedInPage,
+        ColdpTerm.referenceID,
         ColdpTerm.link,
         ColdpTerm.remarks
     ));
@@ -122,6 +162,9 @@ public class Generator extends AbstractColdpGenerator {
     initRefWriter(List.of(
         ColdpTerm.ID,
         ColdpTerm.citation,
+        ColdpTerm.author,
+        ColdpTerm.issued,
+        ColdpTerm.containerTitleShort,
         ColdpTerm.link
     ));
 
@@ -141,10 +184,15 @@ public class Generator extends AbstractColdpGenerator {
       }
     }
 
-    // Write accumulated references
-    for (Map.Entry<String, String> e : references.entrySet()) {
+    // Fetch bibliography pages to get full citations, then write Reference records
+    fetchBibPages();
+    for (Map.Entry<String, RefData> e : refs.entrySet()) {
+      RefData r = e.getValue();
       refWriter.set(ColdpTerm.ID, "ref:" + e.getKey());
-      refWriter.set(ColdpTerm.citation, e.getValue());
+      refWriter.set(ColdpTerm.citation, r.citation);
+      if (r.author != null) refWriter.set(ColdpTerm.author, r.author);
+      if (r.issued != null) refWriter.set(ColdpTerm.issued, r.issued);
+      if (r.containerTitleShort != null) refWriter.set(ColdpTerm.containerTitleShort, r.containerTitleShort);
       refWriter.set(ColdpTerm.link, BASE_URL + "/Bibliography/" + e.getKey());
       refWriter.next();
     }
@@ -207,8 +255,8 @@ public class Generator extends AbstractColdpGenerator {
     String scientificName = nameAuth[0];
     String authorship     = nameAuth[1];
 
-    // Synonymy: collect nameReferenceID and build synonym NameUsages
-    String nameRefId = parseSynonymy(content, taxonId, scientificName);
+    // Synonymy: collect nameReferenceID, publishedInPage and build synonym NameUsages
+    SynonymyResult synResult = parseSynonymy(content, taxonId, scientificName);
 
     // Write accepted NameUsage
     writer.set(ColdpTerm.ID, taxonId);
@@ -217,7 +265,8 @@ public class Generator extends AbstractColdpGenerator {
     writer.set(ColdpTerm.scientificName, scientificName);
     if (authorship != null && !authorship.isBlank()) writer.set(ColdpTerm.authorship, authorship);
     writer.set(ColdpTerm.status, "accepted");
-    if (nameRefId != null) writer.set(ColdpTerm.nameReferenceID, nameRefId);
+    if (synResult.nameRefId() != null) writer.set(ColdpTerm.nameReferenceID, synResult.nameRefId());
+    if (synResult.namePublishedInPage() != null) writer.set(ColdpTerm.publishedInPage, synResult.namePublishedInPage());
     writer.set(ColdpTerm.link, BASE_URL + path);
     String remarks = sectionText(content, "Comment");
     if (remarks != null) writer.set(ColdpTerm.remarks, remarks);
@@ -243,106 +292,192 @@ public class Generator extends AbstractColdpGenerator {
   // ── Synonymy ──────────────────────────────────────────────────────────────
 
   /**
-   * Parses div.synonymy, writes synonym NameUsage records, accumulates references
-   * and deferred type-genus/species relations.
+   * Parses div.synonymy, writes synonym NameUsage records, registers references,
+   * and defers type-genus/species relations.
    *
-   * @return the reference ID to use as nameReferenceID for the accepted taxon
+   * @return nameRefId and publishedInPage for the accepted taxon (from first entry encountered)
    */
-  private String parseSynonymy(Element content, String taxonId, String acceptedName)
+  private SynonymyResult parseSynonymy(Element content, String taxonId, String acceptedName)
       throws IOException {
     Element synonymyDiv = content.selectFirst("div.synonymy");
-    if (synonymyDiv == null) return null;
+    if (synonymyDiv == null) return new SynonymyResult(null, null);
 
     String nameRefId = null;
+    String namePublishedInPage = null;
     Set<String> seenSynonymNames = new LinkedHashSet<>();
 
     for (Element p : synonymyDiv.select("p")) {
-      Element bold = p.selectFirst("b");
-      if (bold == null) continue;
+      SynEntry entry = parseSynEntry(p);
+      if (entry == null) continue;
 
-      String boldName = bold.text().trim();
-
-      // Collect first bibliography reference link
-      Element refLink = firstBibLink(p);
-      String refId = null;
-      if (refLink != null) {
-        refId = refLink.attr("href").replaceFirst("^/Bibliography/", "");
-        if (!references.containsKey(refId)) {
-          references.put(refId, buildCitation(p, refLink));
-        }
-      }
-
-      // Use the first reference we encounter as nameReferenceID for the accepted name
-      if (nameRefId == null && refId != null) {
-        nameRefId = refId;
+      // Use first ref as nameReferenceID + publishedInPage for the accepted taxon
+      if (nameRefId == null && entry.nameRefPath() != null) {
+        nameRefId = entry.nameRefPath();
+        namePublishedInPage = entry.namePublishedInPage();
       }
 
       // Skip entries that repeat the accepted name (subsequent usages, not new names)
-      if (boldName.equalsIgnoreCase(acceptedName)) continue;
+      if (entry.name().equalsIgnoreCase(acceptedName)) continue;
 
       // Create one synonym NameUsage per distinct bold name
-      if (!seenSynonymNames.contains(boldName.toLowerCase())) {
-        seenSynonymNames.add(boldName.toLowerCase());
+      if (!seenSynonymNames.contains(entry.name().toLowerCase())) {
+        seenSynonymNames.add(entry.name().toLowerCase());
         String synId = "syn:" + (++synCounter);
 
         writer.set(ColdpTerm.ID, synId);
         writer.set(ColdpTerm.parentID, taxonId);
-        writer.set(ColdpTerm.scientificName, boldName);
-        // Extract authorship from the first reference link text (Author, Year)
-        if (refLink != null) {
-          String auth = extractAuthorship(refLink.text());
-          if (auth != null) writer.set(ColdpTerm.authorship, auth);
-        }
+        writer.set(ColdpTerm.scientificName, entry.name());
+        if (entry.authorship() != null) writer.set(ColdpTerm.authorship, entry.authorship());
         writer.set(ColdpTerm.status, "synonym");
-        if (refId != null) writer.set(ColdpTerm.nameReferenceID, "ref:" + refId);
-        writer.set(ColdpTerm.link, BASE_URL + "/Amphibia"); // no dedicated page for synonyms
+        if (entry.nameRefPath() != null) {
+          writer.set(ColdpTerm.nameReferenceID, "ref:" + entry.nameRefPath());
+          if (entry.namePublishedInPage() != null)
+            writer.set(ColdpTerm.publishedInPage, entry.namePublishedInPage());
+        }
+        if (!entry.additionalRefPaths().isEmpty()) {
+          writer.set(ColdpTerm.referenceID,
+              entry.additionalRefPaths().stream().map(r -> "ref:" + r).collect(Collectors.joining(",")));
+        }
+        if (entry.remarks() != null) writer.set(ColdpTerm.remarks, entry.remarks());
         writer.next();
 
-        nameToId.put(boldName, synId);
-
-        // Type genus / type species → deferred NameRelation
+        nameToId.put(entry.name(), synId);
         parseTypeRelation(p, synId);
       }
-
-      if (refId != null && nameRefId == null) nameRefId = refId;
     }
 
-    return nameRefId != null ? "ref:" + nameRefId : null;
-  }
-
-  /** Returns the first &lt;a&gt; whose href starts with /Bibliography/. */
-  private static Element firstBibLink(Element p) {
-    return p.selectFirst("a[href^=/Bibliography/]");
+    return new SynonymyResult(
+        nameRefId != null ? "ref:" + nameRefId : null,
+        namePublishedInPage
+    );
   }
 
   /**
-   * Builds a citation string from a reference link and its following page-number text.
-   * Stops accumulating text at "Type genus:" / "Type species:" to exclude type info.
+   * Parses one synonymy &lt;p&gt; element into a SynEntry.
+   *
+   * Expected structure (node sequence within &lt;p&gt;):
+   *   &lt;b&gt;Name&lt;/b&gt; [text before first ref: " Author, Year, "]
+   *   &lt;a href="/Bibliography/..."&gt;Author, Year, Journal&lt;/a&gt;
+   *   [text after ref: ": Page. [; Author, Year,] Remarks."]
+   *   [&lt;a&gt;...&lt;/a&gt; additional refs]
+   *
+   * The bib link text includes the author+year+journal abbreviation; authorship is
+   * extracted from it via extractAuthorship().
    */
-  private static String buildCitation(Element p, Element refLink) {
-    StringBuilder sb = new StringBuilder(refLink.text());
-    boolean after = false;
+  private SynEntry parseSynEntry(Element p) {
+    Element bold = p.selectFirst("b");
+    if (bold == null) return null;
+    String name = bold.text().trim();
+
+    // Collect child nodes after <b>, splitting at each bib link
+    List<Element> bibLinks = new ArrayList<>();
+    List<String> preTexts = new ArrayList<>(); // text segment before bibLinks[i]
+    StringBuilder buf = new StringBuilder();
+    boolean afterBold = false;
+
     for (Node node : p.childNodes()) {
-      if (!after) {
-        if (node == refLink) after = true;
+      if (!afterBold) {
+        if (node == bold) afterBold = true;
         continue;
       }
       if (node instanceof TextNode tn) {
-        String t = tn.text();
-        // Stop before "Type genus:" / "Type species:" text
-        int typeIdx = indexOfTypeMarker(t);
-        if (typeIdx >= 0) {
-          sb.append(t, 0, typeIdx);
-          break;
-        }
-        sb.append(t);
+        buf.append(tn.text());
       } else if (node instanceof Element el) {
-        // Stop at next bibliography link or block-level break
-        if (el.tagName().equals("a") && el.attr("href").startsWith("/Bibliography/")) break;
-        if (el.tagName().equals("b")) break;
+        if (el.tagName().equals("a") && el.attr("href").startsWith("/Bibliography/")) {
+          bibLinks.add(el);
+          preTexts.add(buf.toString());
+          buf = new StringBuilder();
+        }
+        // ignore other inline elements (em, i, etc.) — their text is in TextNodes
       }
     }
-    return sb.toString().replaceAll("[;,\\s]+$", "").trim();
+    String finalText = buf.toString();
+
+    if (bibLinks.isEmpty()) {
+      return new SynEntry(name, null, null, null, List.of(), cleanRemarks(null, finalText));
+    }
+
+    // Register first ref
+    Element firstLink = bibLinks.get(0);
+    String firstPath = bibLinkPath(firstLink);
+    registerRef(firstPath, firstLink.text());
+    String authorship = extractAuthorship(firstLink.text());
+
+    // Page for first ref: from next text segment (before second ref) or from finalText
+    String pageText = bibLinks.size() > 1 ? preTexts.get(1) : finalText;
+    String namePublishedInPage = extractPageFromText(pageText);
+
+    // Additional refs
+    List<String> additionalPaths = new ArrayList<>();
+    for (int i = 1; i < bibLinks.size(); i++) {
+      String rpath = bibLinkPath(bibLinks.get(i));
+      registerRef(rpath, bibLinks.get(i).text());
+      additionalPaths.add(rpath);
+    }
+
+    // Remarks come from the final text segment (after last ref link), stripped of page prefix
+    String remarks = cleanRemarks(namePublishedInPage, finalText);
+
+    return new SynEntry(name, authorship, firstPath, namePublishedInPage, additionalPaths, remarks);
+  }
+
+  private static String bibLinkPath(Element a) {
+    return a.attr("href").replaceFirst("^/Bibliography/", "");
+  }
+
+  /** Register a bibliography reference if not already seen. */
+  private void registerRef(String path, String linkText) {
+    refs.computeIfAbsent(path, k -> new RefData(linkText, extractContainerTitleShort(linkText)));
+  }
+
+  /**
+   * Strip the leading page number prefix from text after a ref link, then return remaining
+   * text as remarks (excluding type-relation text).
+   *
+   * @param knownPage if already extracted, skip stripping (may be null)
+   * @param text the raw text segment after the last bib link
+   */
+  static String cleanRemarks(String knownPage, String text) {
+    if (text == null || text.isBlank()) return null;
+    String s = text.trim();
+    // Strip leading ": pageNum." or ": pageNum;" prefix
+    s = s.replaceFirst("^[\\s:,]*\\d+(?:[-\u2013]\\d+)?[.,;]?\\s*", "");
+    // Strip type-relation text
+    int typeIdx = indexOfTypeMarker(s);
+    if (typeIdx >= 0) s = s.substring(0, typeIdx);
+    s = s.replaceAll("[.;,\\s]+$", "").trim();
+    return s.isEmpty() ? null : s;
+  }
+
+  /**
+   * Extracts abbreviated journal/book name from a bib link text.
+   * E.g. "Günther, 1858, Proc. Zool. Soc. London, 1858" → "Proc. Zool. Soc. London"
+   */
+  static String extractContainerTitleShort(String linkText) {
+    if (linkText == null || linkText.isBlank()) return null;
+    // Find first year (+ optional quoted year), everything after is the container
+    Matcher m = YEAR_PATTERN.matcher(linkText);
+    if (!m.find()) return linkText.trim();
+    int yearEnd = m.end();
+    // Check for quoted year immediately after: 1859 "1858"
+    Matcher quoted = Pattern.compile("\\s+\"(\\d{4})\"").matcher(linkText.substring(yearEnd));
+    if (quoted.lookingAt()) yearEnd += quoted.end();
+    // Skip leading ", "
+    String rest = linkText.substring(yearEnd).replaceFirst("^[,\\s]+", "");
+    if (rest.isBlank()) return null;
+    // Strip trailing ", YYYY"
+    rest = rest.replaceAll(",?\\s*\\d{4}\\s*$", "").trim();
+    return rest.isEmpty() ? null : rest;
+  }
+
+  /**
+   * Extracts a page number from the text immediately after a bib link.
+   * E.g. ": 347. remarks" or ": 341; next author" → "347" or "341"
+   */
+  static String extractPageFromText(String text) {
+    if (text == null || text.isBlank()) return null;
+    Matcher m = PAGE_PATTERN.matcher(text.trim());
+    return m.find() ? m.group(1) : null;
   }
 
   private static int indexOfTypeMarker(String text) {
@@ -351,15 +486,14 @@ public class Generator extends AbstractColdpGenerator {
     return text.indexOf("Type species:");
   }
 
-  /** Extracts "Author, Year" from a reference link text like "Mivart, 1869, Proc. Zool...". */
+  /** Extracts "Author, Year" (or "Author, Year \"Year\"") from a bib link text. */
   static String extractAuthorship(String refText) {
     if (refText == null || refText.isBlank()) return null;
     Matcher m = YEAR_PATTERN.matcher(refText);
     if (m.find()) {
-      // Include optional quoted year immediately following (e.g. "1911 \"1910\"")
       int end = m.end();
       String candidate = refText.substring(0, end).trim();
-      // Check for a directly following quoted year: ... 1911 "1910"
+      // Check for directly following quoted year: ... 1911 "1910"
       Matcher quoted = Pattern.compile("\\s+\"(\\d{4})\"").matcher(refText.substring(end));
       if (quoted.lookingAt()) {
         candidate = candidate + " \"" + quoted.group(1) + "\"";
@@ -376,8 +510,97 @@ public class Generator extends AbstractColdpGenerator {
     if (m.find()) {
       String relType  = "type " + m.group(1);  // "type genus" or "type species"
       String typeName = m.group(2).trim();
-      // Use the first word only for genus-group names (strip infraspecific epithet if any)
       typeRelations.add(new String[]{synonymId, typeName, relType});
+    }
+  }
+
+  // ── Bibliography page fetching ────────────────────────────────────────────
+
+  /**
+   * After the full crawl, download each unique bibliography page and parse
+   * the full citation text + structured fields (author, issued).
+   */
+  private void fetchBibPages() throws IOException, InterruptedException {
+    LOG.info("ASW: fetching {} bibliography pages", refs.size());
+    for (Map.Entry<String, RefData> entry : refs.entrySet()) {
+      String path = entry.getKey();
+      String fileKey = path.replace("/", "_");
+      File f = sourceFile("bib-" + fileKey + ".html");
+
+      if (!f.exists()) {
+        if (cfg.noDownload) {
+          LOG.debug("ASW: --no-download set, bib page {} not cached", fileKey);
+          continue;
+        }
+        try {
+          Document doc = Jsoup.connect(BASE_URL + "/Bibliography/" + path)
+              .userAgent(USER_AGENT)
+              .timeout(20_000)
+              .get();
+          FileUtils.write(f, doc.outerHtml(), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+          LOG.warn("ASW: failed to download bib page {}: {}", path, e.getMessage());
+          continue;
+        }
+        Thread.sleep(CRAWL_DELAY_MS);
+      }
+
+      try {
+        Document doc = Jsoup.parse(f, StandardCharsets.UTF_8.name());
+        parseBibPage(doc, path, entry.getValue());
+      } catch (Exception e) {
+        LOG.warn("ASW: failed to parse bib page {}: {}", path, e.getMessage());
+      }
+    }
+  }
+
+  /**
+   * Parses the full citation from a bibliography page and updates the RefData.
+   * The citation is expected to be the main text content of #aswContent.
+   */
+  private void parseBibPage(Document doc, String path, RefData ref) {
+    Element content = doc.selectFirst("#aswContent");
+    if (content == null) {
+      LOG.debug("ASW: no #aswContent on bib page {}", path);
+      return;
+    }
+
+    // Extract the year from the path to help identify the citation element
+    Matcher yearM = YEAR_PATTERN.matcher(path);
+    String year = yearM.find() ? yearM.group(1) : null;
+
+    // Find the citation: first substantial paragraph (or other element) containing the year
+    String citation = null;
+    for (Element el : content.select("p, li, h2")) {
+      String text = el.text().trim();
+      if (text.length() > 40 && (year == null || text.contains(year))) {
+        citation = text;
+        break;
+      }
+    }
+    // Fallback: take the longest text element overall
+    if (citation == null) {
+      for (Element el : content.select("p, li, h2, div")) {
+        String text = el.text().trim();
+        if (citation == null || text.length() > citation.length()) {
+          if (text.length() > 20) citation = text;
+        }
+      }
+    }
+
+    if (citation == null || citation.isBlank()) return;
+
+    ref.citation = citation;
+
+    // Parse author (before first year) and issued (year, possibly with quoted year)
+    Matcher m = YEAR_PATTERN.matcher(citation);
+    if (m.find()) {
+      String authorPart = citation.substring(0, m.start()).replaceAll("[,\\s]+$", "").trim();
+      if (!authorPart.isEmpty()) ref.author = authorPart;
+      String issued = m.group(1);
+      Matcher q = Pattern.compile("\\s+\"(\\d{4})\"").matcher(citation.substring(m.end()));
+      if (q.lookingAt()) issued = issued + " \"" + q.group(1) + "\"";
+      ref.issued = issued;
     }
   }
 
