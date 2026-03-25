@@ -339,8 +339,16 @@ public class Generator extends AbstractColdpGenerator {
 
   static String scrapeVersion(String html) {
     var j = Jsoup.parse(html);
-    var s = j.body().selectFirst("main h1 span");
-    return s.text().replaceFirst("Version *", "").trim();
+    // try known selectors in order of preference
+    for (String selector : new String[]{"main h1 span", "main h1", "h1 span", "h1"}) {
+      var s = j.body().selectFirst(selector);
+      if (s != null) {
+        String text = s.text().replaceFirst("(?i)version *", "").trim();
+        if (!text.isEmpty()) return text;
+      }
+    }
+    LOG.warn("Could not scrape WSC version from homepage");
+    return null;
   }
 
   @Override
