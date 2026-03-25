@@ -27,16 +27,21 @@ public class Generator extends AbstractColdpGenerator {
   private static final String COMMONS_MIRROR_BASE  = "https://ftp.acc.umu.se/mirror/wikimedia.org/dumps/commonswiki/";
   // Main Wikimedia site — fallback when the mirror is unreachable or has no matching dump.
   private static final String WIKIDATA_FALLBACK_URL = "https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.gz";
-  private static final String COMMONS_FALLBACK_URL  = "https://dumps.wikimedia.org/commonswiki/latest/commonswiki-latest-pages-articles.xml.bz2";
-  private static final String DUMP_FILENAME         = "latest-all.json.gz";
-  private static final String COMMONS_DUMP_FILENAME = "commonswiki-latest-pages-articles.xml.bz2";
+  // Multistream format: the bzip2 file is composed of independent streams, enabling parallel decompression.
+  // Companion index maps byte_offset → page titles so individual streams can be sought and processed concurrently.
+  private static final String COMMONS_FALLBACK_URL       = "https://dumps.wikimedia.org/commonswiki/latest/commonswiki-latest-pages-articles-multistream.xml.bz2";
+  private static final String COMMONS_INDEX_FALLBACK_URL = "https://dumps.wikimedia.org/commonswiki/latest/commonswiki-latest-pages-articles-multistream-index.txt.bz2";
+  private static final String DUMP_FILENAME              = "latest-all.json.gz";
+  private static final String COMMONS_DUMP_FILENAME      = "commonswiki-latest-pages-articles-multistream.xml.bz2";
+  private static final String COMMONS_INDEX_FILENAME     = "commonswiki-latest-pages-articles-multistream-index.txt.bz2";
 
   private TermWriter vernWriter;
   private TermWriter distWriter;
   private TermWriter propWriter;
   private TermWriter nameRelWriter;
   private TermWriter mediaWriter;
-  private CompletableFuture<File> commonsDumpFuture;
+  // File[0] = multistream dump, File[1] = multistream index
+  private CompletableFuture<File[]> commonsDumpFuture;
   private PrintWriter duplicateLogWriter;
   private final Map<String, String> rankMap = new HashMap<>();
   private final Set<String> writtenRefs    = new HashSet<>();
@@ -140,10 +145,14 @@ public class Generator extends AbstractColdpGenerator {
       downloadFile(wikidataUrl, dumpFile);
     }
 
-    // Commons dump — background thread (runs in parallel with Wikidata passes).
+    // Commons dump + index — background thread (runs in parallel with Wikidata passes).
     // The mirror uses dated directories (e.g. 20260301/); we discover the latest one.
-    String commonsDumpUrl = resolveCommonsDumpUrl();
-    File commonsDumpFile = sourceFile(COMMONS_DUMP_FILENAME);
+    // Both the multistream dump and its companion index are downloaded together.
+    String[] commonsUrls = resolveCommonsDumpUrls();
+    String commonsDumpUrl  = commonsUrls[0];
+    String commonsIndexUrl = commonsUrls[1];
+    File commonsDumpFile  = sourceFile(COMMONS_DUMP_FILENAME);
+    File commonsIndexFile = sourceFile(COMMONS_INDEX_FILENAME);
     commonsDumpFuture = CompletableFuture.supplyAsync(() -> {
       try {
         if (cfg.noDownload || (commonsDumpFile.exists() && !isRemoteNewer(commonsDumpFile, commonsDumpUrl))) {
@@ -153,7 +162,14 @@ public class Generator extends AbstractColdpGenerator {
           http.download(commonsDumpUrl, commonsDumpFile);
           LOG.info("Commons dump download complete: {}", commonsDumpFile);
         }
-        return commonsDumpFile;
+        if (cfg.noDownload || (commonsIndexFile.exists() && !isRemoteNewer(commonsIndexFile, commonsIndexUrl))) {
+          LOG.info("Reusing cached Commons index: {}", commonsIndexFile);
+        } else {
+          LOG.info("Downloading Commons multistream index... {}", commonsIndexUrl);
+          http.download(commonsIndexUrl, commonsIndexFile);
+          LOG.info("Commons index download complete: {}", commonsIndexFile);
+        }
+        return new File[]{commonsDumpFile, commonsIndexFile};
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }
@@ -177,12 +193,11 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   /**
-   * Discovers the latest Commons dump on the Swedish mirror by parsing its directory listing.
-   * The mirror has dated subdirectories (YYYYMMDD); we pick the largest (most recent) date,
-   * verify the dump file exists there, and return its URL.
+   * Discovers the latest Commons multistream dump and its index on the Swedish mirror.
+   * Returns {@code String[]{dumpUrl, indexUrl}}.
    * Falls back to the main Wikimedia site if the mirror is unreachable or yields no valid date.
    */
-  private String resolveCommonsDumpUrl() {
+  private String[] resolveCommonsDumpUrls() {
     try {
       String listing = http.get(URI.create(COMMONS_MIRROR_BASE));
       Pattern p = Pattern.compile("href=\"(\\d{8})/\"");
@@ -193,12 +208,14 @@ public class Generator extends AbstractColdpGenerator {
         if (latest == null || date.compareTo(latest) > 0) latest = date;
       }
       if (latest != null) {
-        String url = COMMONS_MIRROR_BASE + latest + "/commonswiki-" + latest + "-pages-articles.xml.bz2";
-        if (http.exists(url)) {
-          LOG.info("Commons dump: using Swedish mirror, date={}, url={}", latest, url);
-          return url;
+        String base = COMMONS_MIRROR_BASE + latest + "/commonswiki-" + latest;
+        String dumpUrl  = base + "-pages-articles-multistream.xml.bz2";
+        String indexUrl = base + "-pages-articles-multistream-index.txt.bz2";
+        if (http.exists(dumpUrl)) {
+          LOG.info("Commons dump: using Swedish mirror, date={}, url={}", latest, dumpUrl);
+          return new String[]{dumpUrl, indexUrl};
         }
-        LOG.warn("Commons dump: mirror date {} found but file not available, falling back", latest);
+        LOG.warn("Commons dump: mirror date {} found but multistream file not available, falling back", latest);
       } else {
         LOG.warn("Commons dump: no dated directories found in mirror listing");
       }
@@ -206,7 +223,7 @@ public class Generator extends AbstractColdpGenerator {
       LOG.warn("Commons dump: mirror resolution failed ({}), falling back to main site", e.getMessage());
     }
     LOG.info("Commons dump: using main Wikimedia site {}", COMMONS_FALLBACK_URL);
-    return COMMONS_FALLBACK_URL;
+    return new String[]{COMMONS_FALLBACK_URL, COMMONS_INDEX_FALLBACK_URL};
   }
 
   private boolean isRemoteNewer(File localFile, String url) {
@@ -254,15 +271,15 @@ public class Generator extends AbstractColdpGenerator {
     // Write only the identifier properties actually used in the generated archive
     writeIdentifierRegistry(reader);
 
-    // Wait for Commons dump download (typically already done; Wikidata passes take many hours)
-    File commonsDumpFile;
+    // Wait for Commons dump + index download (typically already done; Wikidata passes take many hours)
+    File[] commonsFiles;
     try {
-      commonsDumpFile = commonsDumpFuture.get();
+      commonsFiles = commonsDumpFuture.get();
     } catch (ExecutionException e) {
       LOG.error("Commons dump download failed, skipping media gallery phase", e.getCause());
       return;
     }
-    crawlCommonsMedia(commonsDumpFile, reader);
+    crawlCommonsMedia(commonsFiles[0], commonsFiles[1], reader);
   }
 
   private void resolveUnresolved(WikidataDumpReader reader) {
@@ -573,19 +590,21 @@ public class Generator extends AbstractColdpGenerator {
         taxonCount[0], synCount[0], duplicateCount[0], vernCount[0], distCount[0], propCount[0], nameRelCount[0], writtenRefs.size(), mediaCount[0]);
   }
 
-  private void crawlCommonsMedia(File dumpFile, WikidataDumpReader reader) throws Exception {
-    // Pass A: gallery name → file list
+  private void crawlCommonsMedia(File dumpFile, File indexFile, WikidataDumpReader reader) throws Exception {
     Set<String> galleryNames = new HashSet<>(reader.galleryNames.values());
-    LOG.info("Commons pass A: scanning {} galleries...", galleryNames.size());
-    Map<String, List<String>> galleryFiles = new LinkedHashMap<>();
-    new CommonsXmlDumpReader(dumpFile).streamGalleryPages(galleryNames, galleryFiles::put);
+    LOG.info("Commons: {} gallery names to resolve; using {} threads for parallel decompression",
+        galleryNames.size(), CommonsXmlDumpReader.DEFAULT_THREADS);
 
-    // Pass B: file metadata for files found in galleries
-    Set<String> neededFiles = galleryFiles.values().stream()
-        .flatMap(List::stream).collect(Collectors.toSet());
-    LOG.info("Commons pass B: extracting metadata for {} files...", neededFiles.size());
+    Map<String, List<String>> galleryFiles = new LinkedHashMap<>();
     Map<String, CommonsXmlDumpReader.FileMetadata> fileMeta = new HashMap<>();
-    new CommonsXmlDumpReader(dumpFile).streamFilePages(neededFiles, fileMeta::put);
+
+    new CommonsXmlDumpReader(dumpFile).streamAllParallel(
+        indexFile,
+        CommonsXmlDumpReader.DEFAULT_THREADS,
+        galleryNames,
+        galleryFiles::put,
+        fileMeta::put
+    );
 
     // Write Media records: taxon → gallery → files → metadata
     int count = 0;
