@@ -177,14 +177,18 @@ public class WikidataDumpReader {
         line.contains("\"P1630\"") || line.contains("\"P935\""); // P935 = Commons gallery
 
     // Track used prefixes to ensure uniqueness; pre-seed with configured prefixes to avoid collisions
-    Set<String> usedPrefixes = new HashSet<>(PRECONFIGURED_PREFIXES.values());
+    final Set<String> usedPrefixes = new HashSet<>(PRECONFIGURED_PREFIXES.values());
+    final Set<String> ignoredPrefixes = Set.of(
+        P18,     // wikicommons media
+        "P4839"  // wolframalpha
+    );
 
     streamDump(gz, filter, entity -> {
       String qid = entity.path("id").asText(null);
       if (qid == null) return;
 
       // Collect external identifier property metadata (P entities with formatter URL P1630)
-      if (qid.startsWith("P") && hasClaim(entity, "P1630")) {
+      if (qid.startsWith("P") && !ignoredPrefixes.contains(qid) && hasClaim(entity, "P1630")) {
         String formatterUrl = getStringClaimValue(entity, "P1630");
         String formatRegex = getStringClaimValue(entity, "P1793");
         String label = getEnglishLabel(entity);
