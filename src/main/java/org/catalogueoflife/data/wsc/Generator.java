@@ -38,7 +38,6 @@ public class Generator extends AbstractColdpGenerator {
   private static final String HOMEPAGE = "https://wsc.nmbe.ch/";
   private static final Pattern LSID_PATTERN = Pattern.compile("nmbe.ch:spider(sp|gen|fam):([0-9]+)");
   private static final String ERROR = "error: ";
-  private static int MAX_DEFAULT = 65000;
   static final Pattern yearSuffix = Pattern.compile("(\\d+)[abcdefg]$");
   private final String apiKey;
   private final File json;
@@ -68,7 +67,7 @@ public class Generator extends AbstractColdpGenerator {
       }
 
     } else {
-      int max = ObjectUtils.coalesce(cfg.wscMaxKey, MAX_DEFAULT);
+      int max = cfg.wscMaxKey;
       LOG.info("Crawl all of WSC up to {}", max);
       for (int id = 1; id <= max; id++) {
         crawl(String.format("urn:lsid:nmbe.ch:spidersp:%06d", id), false);
@@ -465,11 +464,11 @@ public class Generator extends AbstractColdpGenerator {
     public Map<String, String> _links;
 
     boolean hasNext() {
-      return _links != null && _links.containsKey("next");
+      return _links != null && _links.get("next") != null;
     }
 
     URI next() {
-      if (_links != null && _links.containsKey("next")) {
+      if (_links != null && _links.get("next") != null) {
         return URI.create(_links.get("next"));
       }
       return null;
