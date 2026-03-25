@@ -31,6 +31,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 public class Generator extends AbstractColdpGenerator {
@@ -113,7 +114,7 @@ public class Generator extends AbstractColdpGenerator {
     LOG.info("All updated");
   }
 
-  private void crawl(Update upd) throws IOException {
+  private void crawl(Update upd) throws IOException, InterruptedException {
     LOG.info("Crawl {} updates", upd.updates.size());
     for (String lsid : upd.updates) {
       crawl(lsid, true);
@@ -358,7 +359,10 @@ public class Generator extends AbstractColdpGenerator {
     super.addMetadata();
   }
 
-  private void crawl(String lsid, boolean forceUpdate) throws IOException {
+  private void crawl(String lsid, boolean forceUpdate) throws IOException, InterruptedException {
+    crawl(lsid, forceUpdate, 0);
+  }
+  private void crawl(String lsid, boolean forceUpdate, int retry) throws IOException, InterruptedException {
     // keep local files so we can reuse them - the API limits number of daily requests
     var m = LSID_PATTERN.matcher(lsid);
     if (!m.find()) {
@@ -380,11 +384,19 @@ public class Generator extends AbstractColdpGenerator {
 
       } catch (HttpException e) {
         failed = true;
+        FileUtils.deleteQuietly(f);
         // WSC uses 403 to limit number of daily requests - abort in that case, we cant get any further today
         if (e.status == HttpStatus.SC_FORBIDDEN) {
-          FileUtils.deleteQuietly(f);
           LOG.error("Max daily limit reached. Good bye!", e);
           throw new IllegalStateException("Max daily API usage limit reached");
+
+        } else if (e.status == HttpStatus.SC_TOO_MANY_REQUESTS) {
+          LOG.warn("Too many requests. Wait a little bit before we continue", e);
+          if (retry++ > 10) {
+            throw new IllegalStateException("Too many retries, abort entire crawl!");
+          }
+          TimeUnit.SECONDS.sleep(10);
+          crawl(lsid, forceUpdate, retry);
 
         } else {
           LOG.warn("Crawl error {}: {}", lsid, e.status);
