@@ -185,8 +185,8 @@ public class Generator extends AbstractColdpGenerator {
 
             writer.set(ColdpTerm.status, mapStatus(tax.taxon.status));
             writer.set(ColdpTerm.nameStatus, tax.taxon.status);
-            if (tax.validTaxon != null) {
-              writer.set(ColdpTerm.parentID, tax.validTaxon.getLSID());
+            if (tax.taxon.validTaxon != null) {
+              writer.set(ColdpTerm.parentID, tax.taxon.validTaxon.getLSID());
             } else {
               if (tax.taxon.genusObject != null) {
                 writer.set(ColdpTerm.parentID, tax.taxon.genusObject.genLsid);
@@ -207,8 +207,8 @@ public class Generator extends AbstractColdpGenerator {
             }
             writer.next();
 
-            // scrape older synonyms in case of valid names
-            if (tax.validTaxon == null) {
+            // scrape alternativ usages in case of valid names
+            if (!tax.isSynonym()) {
               //scrapeSynonyms(tax.taxon.lsid);
             }
 
@@ -418,22 +418,26 @@ public class Generator extends AbstractColdpGenerator {
 
   static class NameUsage {
     public Taxon taxon;
-    public Synonym validTaxon;
+
+    public boolean isSynonym() {
+      return taxon != null && taxon.validTaxon != null;
+    }
   }
 
   static class Taxon {
-    public String lsid;
     public String species;
     public String subspecies;
     public String author;
     public String taxonRank;
     public String status;
     public String genus;
-    public String family;
     public TaxonObject genusObject;
+    public String family;
     public TaxonObject familyObject;
     public String distribution;
+    public String lsid;
     public ReferenceObject referenceObject;
+    public ValidTaxon validTaxon;
 
     void addHigherTaxa(Collection<String> ids) {
       // track higher taxa
@@ -446,10 +450,17 @@ public class Generator extends AbstractColdpGenerator {
     }
   }
 
-  static class Synonym {
+  static class TaxonObject {
+    public String genus;
+    public String genLsid;
+    public String family;
+    public String famLsid;
+    public String author;
+  }
+
+  static class ValidTaxon {
     private static Pattern LINK2LSID = Pattern.compile("urn:lsid.+$");
     public String _href;
-
     String getLSID() {
       if (_href != null) {
         var m = LINK2LSID.matcher(_href);
@@ -459,14 +470,6 @@ public class Generator extends AbstractColdpGenerator {
       }
       return null;
     }
-  }
-
-  static class TaxonObject {
-    public String genus;
-    public String genLsid;
-    public String family;
-    public String famLsid;
-    public String author;
   }
 
   static class ReferenceObject {
