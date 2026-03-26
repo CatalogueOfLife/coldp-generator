@@ -117,14 +117,19 @@ public abstract class AbstractColdpGenerator extends AbstractGenerator {
   }
 
   protected File download(String filename, URI url) throws IOException {
-    var f = new File(sources, filename);
+    return download(new File(sources, filename), url, true);
+  }
+
+  protected File download(File f, URI url, boolean log) throws IOException {
     if (!f.exists()) {
       if (cfg.noDownload) {
         throw new IllegalStateException("--no-download set but source file not found: " + f);
       }
-      LOG.info("Downloading latest {} from {} to {}", filename, url, f);
+      if (log) {
+        LOG.info("Downloading latest {} from {} to {}", f.getName(), url, f);
+      }
       download.download(url, f);
-    } else {
+    } else if (log) {
       LOG.info("Reuse source file {}", f);
     }
     return f;

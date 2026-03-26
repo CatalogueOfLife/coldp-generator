@@ -15,14 +15,14 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 
 ## CLI Options
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `-s, --source` | *(required)* | Source name (see below) |
-| `-r, --repository` | `/tmp/coldp-generator` | Output directory for generated archives |
-| `--tmp` | `/tmp/coldp-generator-sources` | Directory for downloaded source files |
-| `--api-key` | | API key for authenticated sources |
-| `--lpsn-user / --lpsn-pass` | | Credentials for LPSN |
-| `--date` | | Date filter for incremental updates |
+| Option | Default | Description                                                |
+|--------|---------|------------------------------------------------------------|
+| `-s, --source` | *(required)* | Source name (see below)                                    |
+| `-r, --repository` | `/tmp/coldp-generator` | Output directory for generated archives                    |
+| `--tmp` | `/tmp/coldp-generator-sources` | Directory for downloaded source files                      |
+| `--api-key` | | API key for authenticated sources, e.g. WSC                |
+| `--lpsn-user / --lpsn-pass` | | Credentials for LPSN                                       |
+| `--date` | | Date filter for incremental updates for WSC                |
 | `--no-download` | `false` | Skip downloading source files; reuse existing local copies |
 
 ## Supported Sources
@@ -33,7 +33,6 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 | `bats` | [Bats of the World](https://batnames.org) | Chiroptera taxonomy by Simmons & Cirranello (AMNH) |
 | `birdlife` | [Birdlife HBW](http://datazone.birdlife.org/species/taxonomy) | Handbook of the Birds of the World |
 | `biolib` | [BioLib](https://www.biolib.cz) | |
-| `cites` | [CITES](https://checklist.cites.org) | CITES species checklist |
 | `clements` | [Clements](https://www.birds.cornell.edu/clementschecklist/) | Clements Checklist of Birds of the World |
 | `cycads` | [Cycads](https://cycadlist.org) | The World List of Cycads |
 | `grin` | [GRIN](https://npgsweb.ars-grin.gov/gringlobal/taxon/abouttaxonomy) | GRIN-Global Taxonomy (cultivated plants) |
@@ -81,4 +80,11 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s wikidata
 
 # Re-run without re-downloading (both dumps already cached):
 java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s wikidata --no-download
+```
+
+### World Spider Catalog (WSC)
+
+Find and delete 404 error files by their exact size:
+```bash
+find . -type f -size 131c -delete 
 ```

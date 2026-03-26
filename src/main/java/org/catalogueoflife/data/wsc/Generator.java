@@ -398,6 +398,9 @@ public class Generator extends AbstractColdpGenerator {
           TimeUnit.SECONDS.sleep(10);
           crawl(lsid, forceUpdate, retry);
 
+        } else if (e.status == HttpStatus.SC_NOT_FOUND) {
+          LOG.info("Not found. Skip", e);
+
         } else {
           LOG.warn("Crawl error {}: {}", lsid, e.status);
           FileUtils.write(f, ERROR + String.format("%d - %s - %s", e.status, e.uri, e.getMessage()), StandardCharsets.UTF_8);
