@@ -2,6 +2,7 @@
 ---
 alias: IOC
 title: IOC World Bird List
+doi: https://doi.org/10.14344/IOC.ML.{version}
 description: |-
   The IOC World Bird List is a free, openly available resource maintained by the International
   Ornithological Committee (IOC). It represents the most current, comprehensive listing of all
@@ -21,16 +22,97 @@ version: {version}
 contact:
   organisation: International Ornithological Committee (IOC)
   url: https://www.worldbirdnames.org/
-creator:
+editor:
   - family: Gill
     given: Frank
   - family: Donsker
     given: David
   - family: Rasmussen
     given: Pamela
+contributor:
+  # Expert advisors listed on the IOC homepage left panel
+  - family: Alström
+    given: Per
+    note: advisor
+  - family: Beehler
+    given: Bruce
+    note: advisor
+  - family: Blair
+    given: Michael
+    note: advisor
+  - family: Bowie
+    given: Rauri
+    note: advisor
+  - family: Conyne
+    given: Sally
+    note: "advisor; compiling Ranges"
+  - family: Fjeldså
+    given: Jon
+    note: advisor
+  - family: Gregory
+    given: Phil
+    note: advisor
+  - family: Joseph
+    given: Leo
+    note: advisor
+  - family: Kovalik
+    given: Peter
+    note: "advisor; spreadsheet magic"
+  - family: Navarro-Siguenza
+    given: Adolfo
+    note: advisor
+  - family: Parkin
+    given: David T
+    note: advisor
+  - family: Peterson
+    given: Alan
+    note: advisor
+  - family: Praveen
+    given: J
+    note: advisor
+  - family: Pratt
+    given: Doug
+    note: advisor
+  - family: Pratt
+    given: Thane
+    note: advisor
+  - family: Redman
+    given: Nigel
+    note: advisor
+  - family: Rheindt
+    given: Frank
+    note: advisor
+  - family: Ridgely
+    given: Robert
+    note: advisor
+  - family: Ryan
+    given: Peter
+    note: advisor
+  - family: Sangster
+    given: George
+    note: advisor
+  - family: Schodde
+    given: Richard
+    note: advisor
+  - family: Streissel
+    given: Christophe
+    note: advisor
+  # Special thanks contributors (from homepage acknowledgements paragraph)
+  - family: Master
+    given: Larry
+    note: photos
+  - family: Campbell
+    given: Colin
+    note: photos
+  - family: Jones
+    given: Geoff
+    note: photos
+  - family: Swanzey
+    given: Eric
+    note: website expertise
 license: CC-BY
 url: https://www.worldbirdnames.org/new/ioc-lists/master-list-2/
-logo: https://www.worldbirdnames.org/wp-content/uploads/2021/03/cropped-IOC-new-logo-white-background.png
+logo: https://www.worldbirdnames.org/img/hdr7.jpg
 taxonomicScope: Aves (birds of the world)
 geographicScope: global
 confidence: 5
@@ -42,17 +124,3 @@ notes: |-
   Distribution records encode IOC breeding and nonbreeding range codes.
   Vernacular names include English (from master list) and ~40 additional languages
   (from the multilingual file), deduplicated per language per species.
-source:
-  - id: IOC
-    type: ARTICLE-JOURNAL
-    author:
-      - family: Gill
-        given: Frank
-      - family: Donsker
-        given: David
-      - family: Rasmussen
-        given: Pamela
-    title: "IOC World Bird List (v{version})"
-    issued: {issued}
-    url: https://www.worldbirdnames.org/
-    doi: https://doi.org/10.14344/IOC.ML.{version}

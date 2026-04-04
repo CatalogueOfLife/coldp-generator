@@ -122,6 +122,11 @@ public class Generator extends AbstractXlsSrcGenerator {
     LANG_MAP.put("Ukrainian",                "ukr");
   }
 
+  // Referer header sent with file downloads: the IOC site returns HTTP 465 for requests
+  // that lack a matching Referer (hotlink protection).
+  private static final String REFERER = "https://www.worldbirdnames.org/new/ioc-lists/master-list-2/";
+  private static final Map<String, String> DOWNLOAD_HEADERS = Map.of("Referer", REFERER);
+
   private String version;
   private URI multilingUri;
 
@@ -142,7 +147,7 @@ public class Generator extends AbstractXlsSrcGenerator {
           version = ver;
           multilingUri = URI.create(MULTILING_URL.replace("{VERSION}", ver));
           LOG.info("Latest IOC version: {} at {}", ver, url);
-          download(MASTER_FN, URI.create(url));
+          iocDownload(MASTER_FN, URI.create(url));
           break outer;
         }
       }
@@ -154,6 +159,25 @@ public class Generator extends AbstractXlsSrcGenerator {
     // for "data.xls" which won't exist, so it only does the formatter initialisation step.
     super.prepare();
     prepareWB(sourceFile(MASTER_FN));
+  }
+
+  /**
+   * Downloads an IOC file via HttpUtils (User-Agent: ColDP-Generator/1.0) with a Referer header.
+   * The IOC site returns HTTP 465 for requests without a matching Referer (hotlink protection).
+   * Falls back to the cached file if {@code --no-download} is set.
+   */
+  private File iocDownload(String filename, URI url) throws IOException {
+    File f = sourceFile(filename);
+    if (f.exists()) {
+      LOG.info("Reuse source file {}", f);
+      return f;
+    }
+    if (cfg.noDownload) {
+      throw new IllegalStateException("--no-download set but source file not found: " + f);
+    }
+    LOG.info("Downloading latest {} from {} to {}", filename, url, f);
+    http.download(url, DOWNLOAD_HEADERS, f);
+    return f;
   }
 
   @Override
@@ -374,7 +398,7 @@ public class Generator extends AbstractXlsSrcGenerator {
   private Map<String, List<String[]>> loadMultilingual() throws Exception {
     File f;
     try {
-      f = download(MULTILING_FN, multilingUri);
+      f = iocDownload(MULTILING_FN, multilingUri);
     } catch (Exception e) {
       LOG.warn("Could not download multilingual file from {}: {}", multilingUri, e.getMessage());
       return Collections.emptyMap();
