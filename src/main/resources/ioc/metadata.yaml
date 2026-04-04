@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CatalogueOfLife/coldp/master/metadata.json
+---
+alias: IOC
+title: IOC World Bird List
+description: |-
+  The IOC World Bird List is a free, openly available resource maintained by the International
+  Ornithological Committee (IOC). It represents the most current, comprehensive listing of all
+  extant bird species of the world, compiled with the aim of promoting the stability of scientific
+  and English names of birds worldwide. The list provides scientific names, English names,
+  authorities, and geographic ranges for all species, as well as subspecies for each species.
+
+  It is widely used as a standard reference for bird taxonomy by ornithologists, birders,
+  conservation organisations, and government agencies around the world. The IOC list is updated
+  twice annually, incorporating new species discoveries, taxonomic revisions based on recent
+  phylogenetic work, and changes in nomenclature.
+
+  The multilingual edition additionally provides vernacular names in more than 40 languages.
+
+issued: {issued}
+version: {version}
+contact:
+  organisation: International Ornithological Committee (IOC)
+  url: https://www.worldbirdnames.org/
+creator:
+  - family: Gill
+    given: Frank
+  - family: Donsker
+    given: David
+  - family: Rasmussen
+    given: Pamela
+license: CC-BY
+url: https://www.worldbirdnames.org/new/ioc-lists/master-list-2/
+logo: https://www.worldbirdnames.org/wp-content/uploads/2021/03/cropped-IOC-new-logo-white-background.png
+taxonomicScope: Aves (birds of the world)
+geographicScope: global
+confidence: 5
+completeness: 100
+notes: |-
+  Generated from the IOC Master List and Multilingual Version XLSX files.
+  Taxonomic hierarchy: Infraclass → Order → Family → Genus → Species → Subspecies.
+  Extinct taxa are flagged via the † dagger marker present in the source spreadsheet.
+  Distribution records encode IOC breeding and nonbreeding range codes.
+  Vernacular names include English (from master list) and ~40 additional languages
+  (from the multilingual file), deduplicated per language per species.
+source:
+  - id: IOC
+    type: ARTICLE-JOURNAL
+    author:
+      - family: Gill
+        given: Frank
+      - family: Donsker
+        given: David
+      - family: Rasmussen
+        given: Pamela
+    title: "IOC World Bird List (v{version})"
+    issued: {issued}
+    url: https://www.worldbirdnames.org/
+    doi: https://doi.org/10.14344/IOC.ML.{version}

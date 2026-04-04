@@ -36,6 +36,7 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 | `clements` | [Clements](https://www.birds.cornell.edu/clementschecklist/) | Clements Checklist of Birds of the World |
 | `cycads` | [Cycads](https://cycadlist.org) | The World List of Cycads |
 | `grin` | [GRIN](https://npgsweb.ars-grin.gov/gringlobal/taxon/abouttaxonomy) | GRIN-Global Taxonomy (cultivated plants) |
+| `ioc` | [IOC World Bird List](https://www.worldbirdnames.org/) | IOC World Bird List (latest version auto-detected) |
 | `ictv` | [ICTV](https://talk.ictvonline.org/taxonomy/) | ICTV Master Species List |
 | `ipni` | [IPNI](https://www.ipni.org) | International Plant Names Index |
 | `lpsn` | [LPSN](https://lpsn.dsmz.de/) | List of Prokaryotic names with Standing in Nomenclature |
