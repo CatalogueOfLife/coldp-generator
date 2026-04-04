@@ -6,7 +6,8 @@ import org.junit.Ignore;
 public class ManualCli {
 
   public static void main(String[] args) throws Exception {
-    GeneratorCLI.main( new String[]{"-s", "ictv", "-r", "/tmp/coldp/archives"} );
+    GeneratorCLI.main( new String[]{"-s", "itis", "-r", "/tmp/coldp/archives"} );
+    //GeneratorCLI.main( new String[]{"-s", "ictv", "-r", "/tmp/coldp/archives"} );
     //GeneratorCLI.main( new String[]{"-s", "cycads", "-r", "/tmp/coldp/archives"});
     //GeneratorCLI.main( new String[]{"-s", "lpsn", "-r", "/tmp/coldp/archives",
     //                "--lpsn-user", "mdoering@gbif.org",

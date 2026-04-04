@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CatalogueOfLife/coldp/master/metadata.json
+---
+alias: ITIS
+title: The Integrated Taxonomic Information System
+description: |-
+  The Integrated Taxonomic Information System (ITIS) partners with specialists from around the
+  world to assemble scientific names and their taxonomic relationships, and distributes that data
+  openly through publicly available software. The ITIS mission is to communicate a comprehensive
+  taxonomy of global species that enables biodiversity information to be discovered, indexed, and
+  connected across all human endeavors.
+
+  ITIS is made up of 11 active MOU partners committed to improving and continually updating
+  scientific and common names of all seven Kingdoms of Life: Archaea, Bacteria, Protozoa,
+  Chromista, Fungi, Plantae, and Animalia. The full ITIS content is updated regularly and many
+  completed taxonomic subsets are also used in the Catalogue of Life.
+
+  For additional detail on data sources and status, see the ITIS "What's New" page:
+  https://www.itis.gov/whatsnew.html
+
+issued: {issued}
+version: {version}
+contact:
+  organisation: The Integrated Taxonomic Information System
+  email: itiswebmaster@itis.gov
+  url: https://www.itis.gov
+editor:
+  - family: Nicolson
+    given: Dave
+    orcid: 0000-0002-7987-0679
+    email: nicolsod@si.edu
+  - family: Alexander
+    given: Sara
+    orcid: 0009-0006-7572-6473
+    email: alexandersar@si.edu
+  - family: Hodson
+    given: Alicia
+    orcid: 0000-0001-7341-0666
+    email: hodsona@si.edu
+  - family: Mitchell
+    given: David
+    orcid: 0000-0002-5418-244X
+    email: mitchelld@si.edu
+  - family: Orrell
+    given: Thomas
+    orcid: 0000-0003-1038-3028
+    email: orrellt@si.edu
+  - family: Perez-Gelabert
+    given: Daniel
+    orcid: 0000-0003-3270-9551
+    email: perezd@si.edu
+license: CC0
+url: https://itis.gov
+logo: https://www.itis.gov/Static/images/ITIS_wordmark.png
+taxonomicScope: Biota
+geographicScope: global
+confidence: 5
+completeness: 100
+notes: |-
+  Generated from the ITIS SQLite database dump (itisSqlite.zip).
+  TSN (Taxonomic Serial Number) is used as the NameUsage identifier.
+  Nomenclatural code assigned per kingdom: ICZN (Animalia, Protozoa),
+  ICN (Plantae, Fungi, Chromista), ICNP (Bacteria, Archaea).
+  Distribution records include global geographic regions (geographic_div)
+  and North American jurisdictions with native/introduced status (jurisdiction).

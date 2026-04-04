@@ -39,6 +39,7 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 | `ioc` | [IOC World Bird List](https://www.worldbirdnames.org/) | IOC World Bird List (latest version auto-detected) |
 | `ictv` | [ICTV](https://talk.ictvonline.org/taxonomy/) | ICTV Master Species List |
 | `ipni` | [IPNI](https://www.ipni.org) | International Plant Names Index |
+| `itis` | [ITIS](https://www.itis.gov/) | Integrated Taxonomic Information System (all 7 kingdoms) |
 | `lpsn` | [LPSN](https://lpsn.dsmz.de/) | List of Prokaryotic names with Standing in Nomenclature |
 | `mdd` | [MDD](https://www.mammaldiversity.org) | Mammal Diversity Database |
 | `mites` | [Mites](https://www.miteresearch.org) | |
