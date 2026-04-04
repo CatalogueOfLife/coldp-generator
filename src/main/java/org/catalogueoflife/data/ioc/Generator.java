@@ -219,6 +219,8 @@ public class Generator extends AbstractXlsSrcGenerator {
     String currentSpeciesId  = null;
     String currentSpeciesEp  = null;
 
+    // Single global sequence counter: increments for every NameUsage record in spreadsheet order,
+    // covering infraclasses, orders, families, genera, species, and subspecies.
     int ordinal = 0, spCount = 0, sspCount = 0, orderCount = 0, famCount = 0, genCount = 0;
 
     for (Row row : sheet) {
@@ -243,6 +245,7 @@ public class Generator extends AbstractXlsSrcGenerator {
         currentInfraclass = infraclass;
         String id = "infraclass:" + infraclass;
         writer.set(ColdpTerm.ID, id);
+        writer.set(ColdpTerm.ordinal, String.valueOf(++ordinal));
         writer.set(ColdpTerm.rank, "infraclass");
         writer.set(ColdpTerm.scientificName, toTitleCase(infraclass));
         writer.set(ColdpTerm.status, "accepted");
@@ -261,6 +264,7 @@ public class Generator extends AbstractXlsSrcGenerator {
         orderCount++;
         String id = "order:" + order;
         writer.set(ColdpTerm.ID, id);
+        writer.set(ColdpTerm.ordinal, String.valueOf(++ordinal));
         if (currentInfraclass != null) writer.set(ColdpTerm.parentID, "infraclass:" + currentInfraclass);
         writer.set(ColdpTerm.rank, "order");
         writer.set(ColdpTerm.scientificName, toTitleCase(order));
@@ -275,6 +279,7 @@ public class Generator extends AbstractXlsSrcGenerator {
         String famEn = col(row, COL_FAMILY_EN);
         String id = "fam:" + famLat;
         writer.set(ColdpTerm.ID, id);
+        writer.set(ColdpTerm.ordinal, String.valueOf(++ordinal));
         writer.set(ColdpTerm.parentID, "order:" + currentOrder);
         writer.set(ColdpTerm.rank, "family");
         writer.set(ColdpTerm.scientificName, famLat);
@@ -294,6 +299,7 @@ public class Generator extends AbstractXlsSrcGenerator {
         genCount++;
         String id = "gen:" + genus;
         writer.set(ColdpTerm.ID, id);
+        writer.set(ColdpTerm.ordinal, String.valueOf(++ordinal));
         writer.set(ColdpTerm.parentID, "fam:" + currentFamily);
         writer.set(ColdpTerm.rank, "genus");
         writer.set(ColdpTerm.scientificName, genus);
@@ -304,7 +310,6 @@ public class Generator extends AbstractXlsSrcGenerator {
 
       } else if (speciesEp != null) {
         // Species row: col 6 has the epithet only; build full binomial from current genus.
-        ordinal++;
         spCount++;
         boolean extinct = speciesEp.contains("†");
         currentSpeciesEp = stripDaggers(speciesEp);
@@ -313,8 +318,8 @@ public class Generator extends AbstractXlsSrcGenerator {
         currentSpeciesId = id;
 
         writer.set(ColdpTerm.ID, id);
+        writer.set(ColdpTerm.ordinal, String.valueOf(++ordinal));
         writer.set(ColdpTerm.parentID, "gen:" + currentGenus);
-        writer.set(ColdpTerm.ordinal, String.valueOf(ordinal));
         writer.set(ColdpTerm.rank, "species");
         writer.set(ColdpTerm.scientificName, sciName);
         writer.set(ColdpTerm.authorship, authority);
@@ -353,6 +358,7 @@ public class Generator extends AbstractXlsSrcGenerator {
         String id = currentGenus + "_" + currentSpeciesEp + "_" + cleanSspEp;
 
         writer.set(ColdpTerm.ID, id);
+        writer.set(ColdpTerm.ordinal, String.valueOf(++ordinal));
         writer.set(ColdpTerm.parentID, currentSpeciesId);
         writer.set(ColdpTerm.rank, "subspecies");
         writer.set(ColdpTerm.scientificName, sciName);
