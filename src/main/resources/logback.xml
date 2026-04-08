@@ -12,6 +12,7 @@
     </appender>
 
     <logger name="org.catalogueoflife.data" level="DEBUG"/>
+    <logger name="org.gbif.dwc.terms" level="WARN"/>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>

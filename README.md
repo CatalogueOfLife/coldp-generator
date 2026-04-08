@@ -27,29 +27,29 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 
 ## Supported Sources
 
-| Source key | Name | Notes |
-|------------|------|-------|
-| `antcat` | [AntCat](https://antcat.org) | Online Catalog of the Ants of the World |
-| `bats` | [Bats of the World](https://batnames.org) | Chiroptera taxonomy by Simmons & Cirranello (AMNH) |
-| `birdlife` | [Birdlife HBW](http://datazone.birdlife.org/species/taxonomy) | Handbook of the Birds of the World |
-| `biolib` | [BioLib](https://www.biolib.cz) | |
-| `clements` | [Clements](https://www.birds.cornell.edu/clementschecklist/) | Clements Checklist of Birds of the World |
-| `cycads` | [Cycads](https://cycadlist.org) | The World List of Cycads |
-| `grin` | [GRIN](https://npgsweb.ars-grin.gov/gringlobal/taxon/abouttaxonomy) | GRIN-Global Taxonomy (cultivated plants) |
-| `ioc` | [IOC World Bird List](https://www.worldbirdnames.org/) | IOC World Bird List (latest version auto-detected) |
-| `ictv` | [ICTV](https://talk.ictvonline.org/taxonomy/) | ICTV Master Species List |
-| `ipni` | [IPNI](https://www.ipni.org) | International Plant Names Index |
-| `itis` | [ITIS](https://www.itis.gov/) | Integrated Taxonomic Information System (all 7 kingdoms) |
-| `lpsn` | [LPSN](https://lpsn.dsmz.de/) | List of Prokaryotic names with Standing in Nomenclature |
-| `mdd` | [MDD](https://www.mammaldiversity.org) | Mammal Diversity Database |
-| `mites` | [Mites](https://www.miteresearch.org) | |
-| `otl` | [OTL](https://tree.opentreeoflife.org/about/synthesis-release) | Open Tree of Life Synthesis Tree |
-| `ott` | [OTT](https://tree.opentreeoflife.org/about/taxonomy-version) | Open Tree of Life Reference Taxonomy |
-| `pbdb` | [PBDB](https://paleobiodb.org/) | The Paleobiology Database |
-| `pfnr` | [PFNR](https://www.plantfossilnames.org) | International Fossil Plant Names Registry |
-| `wikidata` | [Wikidata](https://www.wikidata.org) | Wikidata taxonomy (downloads full Wikidata + Commons dumps, ~260 GB total) |
-| `wikispecies` | [WikiSpecies](https://species.wikimedia.org) | |
-| `wsc` | [WSC](https://wsc.nmbe.ch/) | World Spider Catalog |
+| Source | Name | ChecklistBank | Notes |
+|--------|------|---------------|-------|
+| `antcat` | [AntCat](https://antcat.org) | [54937](https://www.checklistbank.org/dataset/54937) | Online Catalog of the Ants of the World |
+| `bats` | [Bats of the World](https://batnames.org) | [314574](https://www.checklistbank.org/dataset/314574) | Chiroptera taxonomy by Simmons & Cirranello (AMNH) |
+| `birdlife` | [Birdlife HBW](http://datazone.birdlife.org/species/taxonomy) | [170809](https://www.checklistbank.org/dataset/170809) | Handbook of the Birds of the World |
+| `biolib` | [BioLib](https://www.biolib.cz) | [54592](https://www.checklistbank.org/dataset/54592) | |
+| `clements` | [Clements](https://www.birds.cornell.edu/clementschecklist/) | [2013](https://www.checklistbank.org/dataset/2013) | Clements Checklist of Birds of the World |
+| `cycads` | [Cycads](https://cycadlist.org) | [1163](https://www.checklistbank.org/dataset/1163) | The World List of Cycads |
+| `grin` | [GRIN](https://npgsweb.ars-grin.gov/gringlobal/taxon/abouttaxonomy) | [2018](https://www.checklistbank.org/dataset/2018) | GRIN-Global Taxonomy (cultivated plants) |
+| `ioc` | [IOC World Bird List](https://www.worldbirdnames.org/) | [2036](https://www.checklistbank.org/dataset/2036) | IOC World Bird List (latest version auto-detected) |
+| `ictv` | [ICTV](https://talk.ictvonline.org/taxonomy/) | [1014](https://www.checklistbank.org/dataset/1014) | ICTV Master Species List |
+| `ipni` | [IPNI](https://www.ipni.org) | [2006](https://www.checklistbank.org/dataset/2006) | International Plant Names Index |
+| `itis` | [ITIS](https://www.itis.gov/) | [2144](https://www.checklistbank.org/dataset/2144) | Integrated Taxonomic Information System (all 7 kingdoms) |
+| `lpsn` | [LPSN](https://lpsn.dsmz.de/) | [2015](https://www.checklistbank.org/dataset/2015) | List of Prokaryotic names with Standing in Nomenclature |
+| `mdd` | [MDD](https://www.mammaldiversity.org) | [9802](https://www.checklistbank.org/dataset/9802) | Mammal Diversity Database |
+| `mites` | [Mites](https://www.miteresearch.org) | | |
+| `otl` | [OTL](https://tree.opentreeoflife.org/about/synthesis-release) | [201891](https://www.checklistbank.org/dataset/201891) | Open Tree of Life Synthesis Tree |
+| `ott` | [OTT](https://tree.opentreeoflife.org/about/taxonomy-version) | [201890](https://www.checklistbank.org/dataset/201890) | Open Tree of Life Reference Taxonomy |
+| `pbdb` | [PBDB](https://paleobiodb.org/) | [1174](https://www.checklistbank.org/dataset/1174) | The Paleobiology Database |
+| `pfnr` | [PFNR](https://www.plantfossilnames.org) | [314595](https://www.checklistbank.org/dataset/314595) | International Fossil Plant Names Registry |
+| `wikidata` | [Wikidata](https://www.wikidata.org) | [314569](https://www.checklistbank.org/dataset/314569) | Wikidata taxonomy (downloads full Wikidata + Commons dumps, ~260 GB total) |
+| `wikispecies` | [WikiSpecies](https://species.wikimedia.org) | [314570](https://www.checklistbank.org/dataset/314570) | |
+| `wsc` | [WSC](https://wsc.nmbe.ch/) | [56185](https://www.checklistbank.org/dataset/56185) | World Spider Catalog |
 
 ## Generator-specific Notes
 
