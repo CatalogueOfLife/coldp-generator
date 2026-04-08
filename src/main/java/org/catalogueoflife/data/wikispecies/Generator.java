@@ -85,6 +85,7 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.ID,
         ColdpTerm.alternativeID,
         ColdpTerm.parentID,
+        ColdpTerm.basionymID,
         ColdpTerm.status,
         ColdpTerm.rank,
         ColdpTerm.scientificName,
@@ -213,7 +214,9 @@ public class Generator extends AbstractColdpGenerator {
           } else if (nameYear != null) {
             authorship = nameYear;
           }
-          // Scan sub-sections for primary and additional references
+          // Scan sub-sections for synonyms, primary and additional references.
+          // On many pages ==Name== contains ===Synonyms=== as a level-3 child, so
+          // the top-level section switch never sees it — we must handle it here.
           Set<String> primRefs = new LinkedHashSet<>();
           Set<String> addlRefs = new LinkedHashSet<>();
           for (WtNode sub : sect.getBody()) {
@@ -224,6 +227,8 @@ public class Generator extends AbstractColdpGenerator {
               collectRefsAny(subSect.getBody(), primRefs);
             } else if (subKey.contains("additional")) {
               collectRefs(subSect.getBody(), addlRefs);
+            } else if (subKey.equals("synonymy") || subKey.equals("synonyms")) {
+              synonyms.addAll(parseSynonymSection(subSect.getBody()));
             }
           }
           if (!primRefs.isEmpty()) {
@@ -255,8 +260,23 @@ public class Generator extends AbstractColdpGenerator {
 
     String id = WikiPage.id(page.title);
 
+    // Pre-scan synonyms to locate the basionym's future ID (assigned sequentially)
+    String basionymSynId = null;
+    {
+      int tempSeq = synSeq;
+      for (var syn : synonyms) {
+        if (syn.name() == null || syn.name().isEmpty()) continue;
+        tempSeq++;
+        if ("basionym".equals(syn.status())) {
+          basionymSynId = id + "_syn_" + tempSeq;
+          break;
+        }
+      }
+    }
+
     writer.set(ColdpTerm.ID, id);
     writer.set(ColdpTerm.parentID, parentId);
+    writer.set(ColdpTerm.basionymID, basionymSynId);
     writer.set(ColdpTerm.status, "accepted");
     writer.set(ColdpTerm.rank, rank);
     writer.set(ColdpTerm.scientificName, sciName);
@@ -284,16 +304,25 @@ public class Generator extends AbstractColdpGenerator {
     for (var syn : synonyms) {
       if (syn.name() == null || syn.name().isEmpty()) continue;
       String synId = id + "_syn_" + (++synSeq);
+      boolean isBasionymEntry = "basionym".equals(syn.status());
+      // Both the basionym entry and HOT synonyms are written as homotypic synonyms
+      String colStatus = isBasionymEntry ? "homotypic synonym" : syn.status();
+      boolean isHomotypic = "homotypic synonym".equals(colStatus);
+
       writer.set(ColdpTerm.ID, synId);
       writer.set(ColdpTerm.parentID, id);
-      writer.set(ColdpTerm.status, syn.status());
+      // HOT synonyms point to the basionym; the basionym entry itself does not
+      if (!isBasionymEntry && isHomotypic && basionymSynId != null) {
+        writer.set(ColdpTerm.basionymID, basionymSynId);
+      }
+      writer.set(ColdpTerm.status, colStatus);
       writer.set(ColdpTerm.scientificName, syn.name());
       writer.set(ColdpTerm.authorship, syn.authorship());
       writer.next();
       synCount++;
 
-      // NameRelation for homotypic synonyms
-      if ("homotypic synonym".equals(syn.status())) {
+      // NameRelation for all homotypic synonyms (including basionym entry)
+      if (isHomotypic) {
         nameRelWriter.set(ColdpTerm.nameID, synId);
         nameRelWriter.set(ColdpTerm.relatedNameID, id);
         nameRelWriter.set(ColdpTerm.type, "homotypic synonym");
@@ -445,6 +474,7 @@ public class Generator extends AbstractColdpGenerator {
       if (node instanceof WtTemplate) {
         String tname = templateName((WtTemplate) node).toUpperCase();
         currentStatus = switch (tname) {
+          case "BA"  -> "basionym";
           case "HOT" -> "homotypic synonym";
           case "HET" -> "heterotypic synonym";
           case "REP" -> "replacement name";
@@ -463,12 +493,15 @@ public class Generator extends AbstractColdpGenerator {
       if (item instanceof WtListItem) {
         String synName = NameExtractor.extractItalics(item);
         if (synName != null && !synName.isEmpty()) {
+          // Inline protonym markers (zoological style) override the section-level status.
+          // Two forms: [[protonym]] internal link, or {{PR}} / {{PR|2}} template.
+          String effectiveType = isProtonymItem((WtListItem) item) ? "basionym" : synType;
           String auth = NameExtractor.extractAuthor(item);
           String yr = extractYear(nodeText(item));
           String authorship = null;
           if (auth != null && yr != null) authorship = auth + ", " + yr;
           else if (auth != null) authorship = auth;
-          result.add(new SynonymData(synName, authorship, synType));
+          result.add(new SynonymData(synName, authorship, effectiveType));
         }
         // Recurse into nested lists (*** level)
         for (WtNode child : (WtListItem) item) {
@@ -478,6 +511,30 @@ public class Generator extends AbstractColdpGenerator {
         }
       }
     }
+  }
+
+  /**
+   * Returns true if a list item carries an inline protonym/basionym marker.
+   * Handles two zoological conventions:
+   *   [[protonym]]       — internal wikilink to the "protonym" page
+   *   {{PR}} / {{PR|2}}  — the PR template (renders as "[protonym]" or "Protonym")
+   */
+  private boolean isProtonymItem(WtListItem item) {
+    return hasProtonymMarker(item);
+  }
+
+  private boolean hasProtonymMarker(WtNode node) {
+    if (node instanceof WtTemplate) {
+      return "pr".equalsIgnoreCase(templateName((WtTemplate) node));
+    }
+    if (node instanceof WtInternalLink) {
+      String target = ((WtInternalLink) node).getTarget().getAsString();
+      return "protonym".equalsIgnoreCase(target.trim());
+    }
+    for (WtNode child : node) {
+      if (hasProtonymMarker(child)) return true;
+    }
+    return false;
   }
 
   // ─── Reference collection ─────────────────────────────────────────────────
