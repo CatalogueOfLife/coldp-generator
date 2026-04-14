@@ -37,10 +37,12 @@ public class Generator extends AbstractColdpGenerator {
   private static final int COL_ID           = 0;  // sort v20xx — used as taxon ID
   private static final int COL_SPECIES_CODE = 1;  // eBird species code
   private static final int COL_AVIBASE_ID   = 2;  // taxon concept ID (Avibase)
+  private static final int COL_REMARKS      = 4;
   private static final int COL_CATEGORY     = 5;
   private static final int COL_EN_NAME      = 6;
   private static final int COL_NAME         = 7;
   private static final int COL_AUTHORITY    = 8;
+  private static final int COL_RANGE        = 10;
   private static final int COL_ORDER        = 11;
   private static final int COL_FAMILY       = 12;
   private static final int COL_EXTINCT      = 13;
@@ -51,6 +53,8 @@ public class Generator extends AbstractColdpGenerator {
   private LocalDate issued;
   private String version;
   private URI csvUri;
+  private TermWriter distWriter;
+  private TermWriter vernWriter;
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
@@ -91,18 +95,27 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.authorship,
         ColdpTerm.alternativeID,
         ColdpTerm.extinct,
-        ColdpTerm.link
+        ColdpTerm.link,
+        ColdpTerm.remarks
+    ));
+    vernWriter = additionalWriter(ColdpTerm.VernacularName, List.of(
+        ColdpTerm.taxonID,
+        ColdpTerm.name,
+        ColdpTerm.language
+    ));
+    distWriter = additionalWriter(ColdpTerm.Distribution, List.of(
+        ColdpTerm.taxonID,
+        ColdpTerm.areaID,
+        ColdpTerm.area,
+        ColdpTerm.gazetteer,
+        ColdpTerm.status,
+        ColdpTerm.referenceID
     ));
   }
 
   @Override
   protected void addData() throws Exception {
     File csv = download("clements.csv", csvUri);
-    TermWriter vernWriter = additionalWriter(ColdpTerm.VernacularName, List.of(
-        ColdpTerm.taxonID,
-        ColdpTerm.name,
-        ColdpTerm.language
-    ));
 
     // Single pass: collect orders and families in insertion order, then write all records.
     // Rows are in taxonomic sequence; subspecies (issf) immediately follow their parent species.
@@ -146,9 +159,9 @@ public class Generator extends AbstractColdpGenerator {
       writer.next();
     }
 
-    // Write species and subspecies records. Subspecies (issf) are parented to the last seen species.
+    // Write species and subspecies records. Sub-specific rows are parented to the last seen species.
     String currentSpeciesId = null;
-    int speciesCount = 0, issfCount = 0, skipped = 0;
+    Map<String, Integer> categoryCounts = new LinkedHashMap<>();
     for (String[] r : rows) {
       String id       = col(r, COL_ID);
       String category = col(r, COL_CATEGORY);
@@ -156,23 +169,22 @@ public class Generator extends AbstractColdpGenerator {
       if (id == null || category == null || name == null) continue;
 
       String rank = categoryToRank(category);
-      if (rank == null) { skipped++; continue; }
+      categoryCounts.merge(category + " → " + rank, 1, Integer::sum);
 
       String rawFamily = col(r, COL_FAMILY);
       String famName   = rawFamily != null ? parseFamilyName(rawFamily) : null;
-      String parentId  = switch (rank) {
-        case "subspecies" -> currentSpeciesId;
-        default           -> famName != null ? "fam:" + famName : null;
-      };
+      boolean subSpecific = isSubSpecific(rank);
+      String parentId  = subSpecific ? currentSpeciesId
+                                     : (famName != null ? "fam:" + famName : null);
 
-      if ("species".equals(rank)) { currentSpeciesId = id; speciesCount++; }
-      else { issfCount++; }
+      if ("species".equals(rank)) currentSpeciesId = id;
 
       writer.set(ColdpTerm.ID,            id);
       writer.set(ColdpTerm.parentID,       parentId);
       writer.set(ColdpTerm.rank,           rank);
       writer.set(ColdpTerm.scientificName, name);
       writer.set(ColdpTerm.authorship,     col(r, COL_AUTHORITY));
+      writer.set(ColdpTerm.remarks,        col(r, COL_REMARKS));
       String avibId = col(r, COL_AVIBASE_ID);
       if (avibId != null) {
         if (avibId.startsWith("avibase-")) avibId = avibId.substring(8);
@@ -195,9 +207,17 @@ public class Generator extends AbstractColdpGenerator {
         vernWriter.set(ColdpTerm.language, "eng");
         vernWriter.next();
       }
+
+      // Distribution range
+      String range = col(r, COL_RANGE);
+      if (range != null) {
+        distWriter.set(ColdpTerm.taxonID,  id);
+        distWriter.set(ColdpTerm.area,     range);
+        distWriter.set(ColdpTerm.gazetteer, "text");
+        distWriter.next();
+      }
     }
-    LOG.info("{} species, {} subspecies written; {} non-species rows skipped",
-        speciesCount, issfCount, skipped);
+    LOG.info("Written by category: {}", categoryCounts);
   }
 
   @Override
@@ -209,10 +229,19 @@ public class Generator extends AbstractColdpGenerator {
 
   private static String categoryToRank(String category) {
     return switch (category.toLowerCase().trim()) {
-      case "species" -> "species";
-      case "issf"    -> "subspecies";
-      default        -> null; // slash, form, intergrade, hybrid, domestic — skip
+      // group (monotypic)
+      case "group (monotypic)"            -> "subspecies";
+      // family
+      // species
+      // subspecies
+      // group (polytypic)
+      default                             -> category;
     };
+  }
+
+  /** Returns true for ranks that sit below species and should be parented to the current species. */
+  private static boolean isSubSpecific(String rank) {
+    return "subspecies".equals(rank) || "form".equals(rank) || rank.startsWith("group");
   }
 
   private static String parseFamilyName(String raw) {
