@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CatalogueOfLife/coldp/master/metadata.json
+---
+alias: NCBI
+title: NCBI Taxonomy
+description: |-
+  The NCBI Taxonomy Database is a curated classification and nomenclature resource for all
+  organisms in the public sequence databases. It includes scientific names, synonyms, common names,
+  type material assignments, and literature citations for over 2 million taxa spanning all domains
+  of life, maintained by the National Center for Biotechnology Information (NCBI).
+
+  The taxonomy is based on a broad survey of the published literature and is regularly updated to
+  reflect new publications, revisions, and corrections. It covers Bacteria, Archaea, Viruses,
+  Fungi, Plants, and Animals, as well as environmental and synthetic sequences.
+
+  Data are sourced from the new_taxdump format, which includes detailed node-level metadata such as
+  genetic codes, division assignments, and literature citations.
+
+issued: {issued}
+version: {version}
+contact:
+  organisation: National Center for Biotechnology Information (NCBI)
+  email: info@ncbi.nlm.nih.gov
+  url: https://www.ncbi.nlm.nih.gov/taxonomy
+license: CC0
+url: https://www.ncbi.nlm.nih.gov/taxonomy
+logo: https://www.ncbi.nlm.nih.gov/core/assets/ncbi/img/pmc/nlm-logo-sm.svg
+taxonomicScope: Biota
+geographicScope: global
+confidence: 4
+completeness: 95
+notes: |-
+  Generated from the NCBI new_taxdump archive (new_taxdump.zip).
+  The NCBI taxonomy node identifier (tax_id) is used as the NameUsage identifier.
+  Synonyms are sourced from names.dmp (name classes: synonym, equivalent name, genbank synonym).
+  Vernacular names include common names, GenBank common names, and BLAST group names.
+  Nomenclatural codes are inferred from NCBI GenBank division codes:
+    BCT → ICNP (Bacteria), PLN → ICN (Plants/Fungi/Algae), INV/MAM/PRI/ROD/VRT → ICZN (Animals),
+    VRL/PHG → ICVCN (Viruses/Phages).
+  Type material records are sourced from typematerial.dmp.
+  Literature references are sourced from citations.dmp and linked to PubMed where available.
