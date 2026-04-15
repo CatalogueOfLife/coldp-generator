@@ -1,12 +1,14 @@
 package org.catalogueoflife.data.clements;
 
 import com.univocity.parsers.csv.CsvParser;
+import life.catalogue.api.util.ObjectUtils;
 import org.catalogueoflife.data.utils.CsvUtils;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
 import org.apache.commons.lang3.StringUtils;
 import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
+import org.catalogueoflife.data.utils.RemarksBuilder;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,8 +36,8 @@ public class Generator extends AbstractColdpGenerator {
   // sort v2025 | species_code | taxon concept ID | Clements v2025 change | text for website v2025
   // | category | English name | scientific name | authority | name and authority
   // | range | order | family | extinct | extinct year | sort_v2024
-  private static final int COL_ID           = 0;  // sort v20xx — used as taxon ID
-  private static final int COL_SPECIES_CODE = 1;  // eBird species code
+  private static final int COL_SORT         = 0;  // sorting
+  private static final int COL_SPECIES_CODE = 1;  // eBird species code used as taxon ID
   private static final int COL_AVIBASE_ID   = 2;  // taxon concept ID (Avibase)
   private static final int COL_REMARKS      = 4;
   private static final int COL_CATEGORY     = 5;
@@ -44,11 +46,12 @@ public class Generator extends AbstractColdpGenerator {
   private static final int COL_AUTHORITY    = 8;
   private static final int COL_RANGE        = 10;
   private static final int COL_ORDER        = 11;
-  private static final int COL_FAMILY       = 12;
   private static final int COL_EXTINCT      = 13;
+  private static final int COL_EXTINCT_YEAR = 14;
 
   private static final Pattern FAMILY_AUTH = Pattern.compile("^(.+?)\\s*(?:\\((.+)\\))?$");
-  private static final String EBIRD_URL    = "https://ebird.org/species/";
+  private static final String BOW_URL = "https://birdsoftheworld.org/bow/species/";
+  private static final String BOW_SSP_PATH = "/cur/systematics#subsp-";
 
   private LocalDate issued;
   private String version;
@@ -89,6 +92,7 @@ public class Generator extends AbstractColdpGenerator {
     newWriter(ColdpTerm.NameUsage, List.of(
         ColdpTerm.ID,
         ColdpTerm.parentID,
+        ColdpTerm.ordinal,
         ColdpTerm.status,
         ColdpTerm.rank,
         ColdpTerm.scientificName,
@@ -115,92 +119,89 @@ public class Generator extends AbstractColdpGenerator {
 
   @Override
   protected void addData() throws Exception {
+    final Pattern YEAR = Pattern.compile("\\d{4}");
     File csv = download("clements.csv", csvUri);
 
-    // Single pass: collect orders and families in insertion order, then write all records.
-    // Rows are in taxonomic sequence; subspecies (issf) immediately follow their parent species.
-    Map<String, String> familyToOrder = new LinkedHashMap<>(); // family raw string → order name
+    // Families, species and subspecies do and have a "species" code.
+    // Rows are in taxonomic sequence; species follow their family, subspecies immediately follow their parent species.
 
     var parser = csvParser();
     parser.beginParsing(csv);
     parser.parseNext(); // skip header
 
-    List<String[]> rows = new ArrayList<>();
+    Set<String> orders = new HashSet<>();
+    Map<String, Integer> categoryCounts = new LinkedHashMap<>();
+    String currentFamilyId  = null;
+    String currentSpeciesId = null;
     String[] row;
     while ((row = parser.parseNext()) != null) {
       String order  = col(row, COL_ORDER);
-      String family = col(row, COL_FAMILY);
-      if (order != null && family != null) familyToOrder.putIfAbsent(family, order);
-      rows.add(row.clone());
-    }
-    parser.stopParsing();
+      if (orders.add(order)) {
+        // Write order records
+        writer.set(ColdpTerm.ID,             order);
+        writer.set(ColdpTerm.scientificName, order);
+        writer.set(ColdpTerm.rank,           "order");
+        writer.set(ColdpTerm.status,         "accepted");
+        writer.next();
+      }
 
-    // Write order records
-    Set<String> orders = new LinkedHashSet<>(familyToOrder.values());
-    for (String order : orders) {
-      writer.set(ColdpTerm.ID,            "order:" + order);
-      writer.set(ColdpTerm.scientificName, order);
-      writer.set(ColdpTerm.rank,           "order");
-      writer.set(ColdpTerm.status,         "accepted");
-      writer.next();
-    }
-
-    // Write family records
-    for (var e : familyToOrder.entrySet()) {
-      String rawFamily = e.getKey();
-      String famName   = parseFamilyName(rawFamily);
-      String famAuth   = parseFamilyAuth(rawFamily);
-      writer.set(ColdpTerm.ID,            "fam:" + famName);
-      writer.set(ColdpTerm.parentID,       "order:" + e.getValue());
-      writer.set(ColdpTerm.scientificName, famName);
-      writer.set(ColdpTerm.authorship,     famAuth);
-      writer.set(ColdpTerm.rank,           "family");
-      writer.set(ColdpTerm.status,         "accepted");
-      writer.next();
-    }
-
-    // Write species and subspecies records. Sub-specific rows are parented to the last seen species.
-    String currentSpeciesId = null;
-    Map<String, Integer> categoryCounts = new LinkedHashMap<>();
-    for (String[] r : rows) {
-      String id       = col(r, COL_ID);
-      String category = col(r, COL_CATEGORY);
-      String name     = col(r, COL_NAME);
+      // Write all explicit family, species and subspecies records. Rows are parented to the last seen higher taxon.
+      String id       = col(row, COL_SPECIES_CODE);
+      String category = col(row, COL_CATEGORY);
+      String name     = col(row, COL_NAME);
       if (id == null || category == null || name == null) continue;
 
       String rank = categoryToRank(category);
-      categoryCounts.merge(category + " → " + rank, 1, Integer::sum);
-
-      String rawFamily = col(r, COL_FAMILY);
-      String famName   = rawFamily != null ? parseFamilyName(rawFamily) : null;
       boolean subSpecific = isSubSpecific(rank);
-      String parentId  = subSpecific ? currentSpeciesId
-                                     : (famName != null ? "fam:" + famName : null);
-
-      if ("species".equals(rank)) currentSpeciesId = id;
+      categoryCounts.merge(category + " → " + rank, 1, Integer::sum);
+      String parentId;
+      if ("family".equals(rank)) {
+        parentId         = order;
+        currentFamilyId  = id;
+        currentSpeciesId = null;
+      } else if ("species".equals(rank)) {
+        parentId         = currentFamilyId;
+        currentSpeciesId = id;
+      } else {
+        parentId         = currentSpeciesId;
+      }
 
       writer.set(ColdpTerm.ID,            id);
       writer.set(ColdpTerm.parentID,       parentId);
+      writer.set(ColdpTerm.ordinal,        col(row, COL_SORT));
       writer.set(ColdpTerm.rank,           rank);
       writer.set(ColdpTerm.scientificName, name);
-      writer.set(ColdpTerm.authorship,     col(r, COL_AUTHORITY));
-      writer.set(ColdpTerm.remarks,        col(r, COL_REMARKS));
-      String avibId = col(r, COL_AVIBASE_ID);
+      writer.set(ColdpTerm.authorship,     col(row, COL_AUTHORITY));
+      String avibId = col(row, COL_AVIBASE_ID);
       if (avibId != null) {
-        if (avibId.startsWith("avibase-")) avibId = avibId.substring(8);
-        writer.set(ColdpTerm.alternativeID, "avibase:" + avibId);
+        writer.set(ColdpTerm.alternativeID, avibId.replace("-", ":"));
       }
       writer.set(ColdpTerm.status,         "accepted");
-      String extinct = col(r, COL_EXTINCT);
+      RemarksBuilder remarks = new RemarksBuilder();
+      String extinct = col(row, COL_EXTINCT);
       if ("extinct".equalsIgnoreCase(extinct) || "1".equals(extinct)) {
         writer.set(ColdpTerm.extinct, "true");
+        var extinctYear = col(row, COL_EXTINCT_YEAR);
+        if (extinctYear != null && YEAR.matcher(extinctYear).find()) {
+          remarks.append("Went extinct in "+col(row, COL_EXTINCT));
+        }
       }
-      String code = col(r, COL_SPECIES_CODE);
-      if (code != null) writer.set(ColdpTerm.link, EBIRD_URL + code);
+      remarks.append(col(row, COL_REMARKS));
+      writer.set(ColdpTerm.remarks, remarks.toString());
+      StringBuilder link = new StringBuilder(BOW_URL);
+      if (subSpecific) {
+        // get species codes by removing subspecies integer suffix
+        link.append(id.replaceAll("\\d+$", ""));
+        link.append(BOW_SSP_PATH);
+        link.append(id);
+      } else {
+        link.append(id);
+      }
+      writer.set(ColdpTerm.link, link.toString());
       writer.next();
 
       // English name as vernacular name
-      String enName = col(r, COL_EN_NAME);
+      String enName = col(row, COL_EN_NAME);
       if (enName != null) {
         vernWriter.set(ColdpTerm.taxonID,  id);
         vernWriter.set(ColdpTerm.name,     enName);
@@ -209,7 +210,7 @@ public class Generator extends AbstractColdpGenerator {
       }
 
       // Distribution range
-      String range = col(r, COL_RANGE);
+      String range = col(row, COL_RANGE);
       if (range != null) {
         distWriter.set(ColdpTerm.taxonID,  id);
         distWriter.set(ColdpTerm.area,     range);
@@ -217,6 +218,7 @@ public class Generator extends AbstractColdpGenerator {
         distWriter.next();
       }
     }
+    parser.stopParsing();
     LOG.info("Written by category: {}", categoryCounts);
   }
 
@@ -241,17 +243,7 @@ public class Generator extends AbstractColdpGenerator {
 
   /** Returns true for ranks that sit below species and should be parented to the current species. */
   private static boolean isSubSpecific(String rank) {
-    return "subspecies".equals(rank) || "form".equals(rank) || rank.startsWith("group");
-  }
-
-  private static String parseFamilyName(String raw) {
-    Matcher m = FAMILY_AUTH.matcher(raw);
-    return m.matches() ? m.group(1).trim() : raw.trim();
-  }
-
-  private static String parseFamilyAuth(String raw) {
-    Matcher m = FAMILY_AUTH.matcher(raw);
-    return (m.matches() && m.group(2) != null) ? m.group(2).trim() : null;
+    return "subspecies".equals(rank) || rank.startsWith("group");
   }
 
   private static String col(String[] row, int index) {
