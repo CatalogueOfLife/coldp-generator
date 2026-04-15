@@ -184,7 +184,7 @@ public class Generator extends AbstractColdpGenerator {
       if ("extinct".equalsIgnoreCase(extinct) || "1".equals(extinct)) {
         writer.set(ColdpTerm.extinct, "true");
         var extinctYear = col(row, COL_EXTINCT_YEAR);
-        if (extinctYear != null && YEAR.matcher(extinctYear).find() && !remarks.toString().contains(extinctYear)) {
+        if (extinctYear != null && YEAR.matcher(extinctYear).find() && (remarks.toString() == null || !remarks.toString().contains(extinctYear))) {
           remarks.append("Extinct, last reported " + extinctYear);
         }
       }
