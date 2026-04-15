@@ -178,15 +178,16 @@ public class Generator extends AbstractColdpGenerator {
       }
       writer.set(ColdpTerm.status,         "accepted");
       RemarksBuilder remarks = new RemarksBuilder();
+      remarks.append(col(row, COL_REMARKS));
+
       String extinct = col(row, COL_EXTINCT);
       if ("extinct".equalsIgnoreCase(extinct) || "1".equals(extinct)) {
         writer.set(ColdpTerm.extinct, "true");
         var extinctYear = col(row, COL_EXTINCT_YEAR);
-        if (extinctYear != null && YEAR.matcher(extinctYear).find()) {
-          remarks.append("Went extinct in "+col(row, COL_EXTINCT));
+        if (extinctYear != null && YEAR.matcher(extinctYear).find() && !remarks.toString().contains(extinctYear)) {
+          remarks.append("Extinct, last reported " + extinctYear);
         }
       }
-      remarks.append(col(row, COL_REMARKS));
       writer.set(ColdpTerm.remarks, remarks.toString());
       StringBuilder link = new StringBuilder(BOW_URL);
       if (subSpecific) {
