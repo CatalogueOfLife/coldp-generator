@@ -1,13 +1,12 @@
 package org.catalogueoflife.data.clements;
 
 import com.univocity.parsers.csv.CsvParser;
-import life.catalogue.api.util.ObjectUtils;
-import org.catalogueoflife.data.utils.CsvUtils;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
 import org.apache.commons.lang3.StringUtils;
 import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
+import org.catalogueoflife.data.utils.CsvUtils;
 import org.catalogueoflife.data.utils.RemarksBuilder;
 
 import java.io.File;
@@ -17,7 +16,6 @@ import java.time.LocalDate;
 import java.time.format.TextStyle;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -49,7 +47,6 @@ public class Generator extends AbstractColdpGenerator {
   private static final int COL_EXTINCT      = 13;
   private static final int COL_EXTINCT_YEAR = 14;
 
-  private static final Pattern FAMILY_AUTH = Pattern.compile("^(.+?)\\s*(?:\\((.+)\\))?$");
   private static final String BOW_URL = "https://birdsoftheworld.org/bow/species/";
   private static final String BOW_SSP_PATH = "/cur/systematics#subsp-";
 
@@ -191,10 +188,7 @@ public class Generator extends AbstractColdpGenerator {
       writer.set(ColdpTerm.remarks, remarks.toString());
       StringBuilder link = new StringBuilder(BOW_URL);
       if (subSpecific) {
-        // get species codes by removing subspecies integer suffix
-        link.append(id.replaceAll("\\d+$", ""));
-        link.append(BOW_SSP_PATH);
-        link.append(id);
+        link.append(currentSpeciesId);
       } else {
         link.append(id);
       }
