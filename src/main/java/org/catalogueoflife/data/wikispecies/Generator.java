@@ -37,7 +37,6 @@ public class Generator extends AbstractColdpGenerator {
       "\\{\\{[Tt]axonbar[^}]*\\bfrom=\\s*(Q[0-9]+)");
 
   /** Maps Wikispecies rank label text (lower-case, letters only) → ColDP rank string. */
-  private static final Map<String, String> RANK_MAP = buildRankMap();
 
   private TermWriter vernWriter;
   private TermWriter nameRelWriter;
@@ -54,6 +53,7 @@ public class Generator extends AbstractColdpGenerator {
   private int synSeq = 0;
 
   record NavInfo(String parentTemplate, String rank) {}
+  record TaxonavResult(String parentId, String rank, String remarks) {}
   record SynonymData(String name, String authorship, String status) {}
 
   public Generator(GeneratorConfig cfg) throws IOException {
@@ -93,7 +93,8 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.nameReferenceID,
         ColdpTerm.publishedInYear,
         ColdpTerm.referenceID,
-        ColdpTerm.link
+        ColdpTerm.link,
+        ColdpTerm.remarks
     ));
     vernWriter = additionalWriter(ColdpTerm.VernacularName, List.of(
         ColdpTerm.taxonID,
@@ -181,6 +182,7 @@ public class Generator extends AbstractColdpGenerator {
     String primaryRefId = null;
     List<String> additionalRefIds = new ArrayList<>();
     String wikidataQid = null;
+    String remarks = null;
     List<VernacularExtractor.VernacularName> vernaculars = new ArrayList<>();
     List<SynonymData> synonyms = new ArrayList<>();
     Set<String> refIds = new LinkedHashSet<>();
@@ -196,10 +198,11 @@ public class Generator extends AbstractColdpGenerator {
 
       switch (key) {
         case "taxonavigation" -> {
-          String[] parentRank = parseTaxonavSection(sect.getBody(), page.title, navTemplates);
-          if (parentRank != null) {
-            parentId = parentRank[0];
-            rank = parentRank[1];
+          TaxonavResult nav = parseTaxonavSection(sect.getBody(), page.title, navTemplates);
+          if (nav != null) {
+            parentId = nav.parentId();
+            rank = nav.rank();
+            remarks = nav.remarks();
           }
         }
         case "name" -> {
@@ -288,6 +291,7 @@ public class Generator extends AbstractColdpGenerator {
     }
     if (wikidataQid != null) writer.set(ColdpTerm.alternativeID, "wd:" + wikidataQid);
     writer.set(ColdpTerm.link, "https://species.wikimedia.org/wiki/" + id);
+    writer.set(ColdpTerm.remarks, remarks);
     writer.next();
     taxonCount++;
     taxonIds.add(id);
@@ -360,6 +364,18 @@ public class Generator extends AbstractColdpGenerator {
     writer.next();
   }
 
+  // ─── Template invocation patterns (regex-based, since Sweble returns WtText for {{...}}) ──
+  // Sweble's parseArticle() does NOT parse {{template}} invocations as WtTemplate nodes;
+  // they are returned as raw WtText containing the literal {{...}} markup. We therefore
+  // extract template names and arguments with regular expressions.
+  private static final Pattern FIRST_TEMPLATE_PAT =
+      Pattern.compile("\\{\\{([^|{}\\n]+?)(?:\\|[^}]*)?\\}\\}");
+  private static final Pattern TAXONAV_ARG_PAT =
+      Pattern.compile("\\{\\{[Tt]axonav\\|([^}|\\n]+)");
+  // Short (1–5 char) formatting templates that wrap incertae-sedis taxon names: {{g|X}}, {{glast|X}}, etc.
+  private static final Pattern INCERTAE_TEMPLATE_PAT =
+      Pattern.compile("\\{\\{([a-z]{1,5})\\|([^}|{\\n]+)");
+
   // ─── Navigation template parsing ─────────────────────────────────────────
 
   /**
@@ -367,41 +383,43 @@ public class Generator extends AbstractColdpGenerator {
    * Template structure:
    *   {{ParentTemplate}}        OR   {{Taxonav|ParentName}}
    *   Rank: [[Current taxon]]
+   * Uses regex because Sweble returns {{...}} invocations as raw WtText, not WtTemplate nodes.
    */
   private NavInfo parseNavTemplate(String wikitext) {
     if (StringUtils.isBlank(wikitext)) return null;
-    try {
-      // Strip noinclude / includeonly blocks before parsing
-      String cleaned = wikitext
-          .replaceAll("(?s)<noinclude>.*?</noinclude>", "")
-          .replaceAll("(?s)<includeonly>.*?</includeonly>", "")
-          .trim();
-      if (cleaned.isEmpty()) return null;
+    String cleaned = wikitext
+        .replaceAll("(?s)<noinclude>.*?</noinclude>", "")
+        .replaceAll("(?s)<includeonly>.*?</includeonly>", "")
+        .trim();
+    if (cleaned.isEmpty()) return null;
 
-      WtNode article = parser.parseArticle(cleaned, "template");
-      String parentTemplate = null;
-      String rank = null;
-
-      for (WtNode node : article) {
-        if (node instanceof WtTemplate && parentTemplate == null) {
-          WtTemplate t = (WtTemplate) node;
-          String tname = templateName(t);
-          if (tname.equalsIgnoreCase("Taxonav")) {
-            parentTemplate = templateArg(t, 0);
-          } else if (!tname.isEmpty()) {
-            parentTemplate = tname;
-          }
-        }
-        if (rank == null) {
-          String text = nodeText(node).trim();
-          rank = parseRankLabel(text);
+    // Find parent template: first {{Name}} or {{Taxonav|Name}}, skipping parser functions
+    String parentTemplate = null;
+    Matcher taxonavM = TAXONAV_ARG_PAT.matcher(cleaned);
+    if (taxonavM.find()) {
+      parentTemplate = taxonavM.group(1).trim();
+    } else {
+      Matcher m = FIRST_TEMPLATE_PAT.matcher(cleaned);
+      while (m.find()) {
+        String name = m.group(1).trim();
+        if (!name.isEmpty() && !isParserFunction(name)) {
+          parentTemplate = name;
+          break;
         }
       }
-      if (parentTemplate != null && rank != null) {
-        return new NavInfo(parentTemplate, rank);
-      }
-    } catch (Exception e) {
-      // ignore parse errors for templates
+    }
+
+    // Find rank label: scan each line for "RankLabel: ..." pattern
+    String rank = null;
+    for (String line : cleaned.split("\\n")) {
+      // Strip any remaining template markup from the line before rank detection
+      String stripped = line.replaceAll("\\{\\{[^}]*\\}\\}", "").replaceAll("\\[\\[([^\\]|]*)(?:\\|[^\\]]*)?\\]\\]", "$1").trim();
+      rank = parseRankLabel(stripped);
+      if (rank != null) break;
+    }
+
+    if (parentTemplate != null && rank != null) {
+      return new NavInfo(parentTemplate, rank);
     }
     return null;
   }
@@ -409,53 +427,90 @@ public class Generator extends AbstractColdpGenerator {
   // ─── Taxonavigation section parsing ──────────────────────────────────────
 
   /**
-   * Returns [parentId, rank] by examining the Taxonavigation section body.
+   * Returns TaxonavResult (parentId, rank, remarks) by examining the Taxonavigation section body.
    *
    * Strategy:
-   * 1. Find first template in the body → this is the nav template T.
-   * 2. Look for a rank label in the body text that references the current page.
+   * 1. Find first non-magic-word template in the body → this is the nav template T.
+   * 2. Look for an inline rank label in the body text that references the current page.
    *    If found: rank from the label, parent = T.
    * 3. If not found: look up T in navTemplates to get rank and parent.
+   *
+   * Additionally, any children referenced via formatting templates (not wiki links) in the body
+   * are collected as remarks (incertae sedis taxa without their own article pages).
    */
-  private String[] parseTaxonavSection(WtBody body, String pageTitle,
-                                       Map<String, NavInfo> navTemplates) {
+  private TaxonavResult parseTaxonavSection(WtBody body, String pageTitle,
+                                            Map<String, NavInfo> navTemplates) {
     String cleanTitle = pageTitle.replaceAll("\\s*\\([^)]+\\)\\s*$", "").trim();
 
-    // Step 1: find first template
+    // Step 1: find first non-magic-word template
     String navTemplate = firstTemplateInBody(body);
     if (navTemplate == null) return null;
+
+    // Collect template-formatted children (not wiki-linked) for remarks
+    String remarks = collectTaxonavRemarks(body, navTemplate);
 
     // Step 2: look for inline rank label matching the current page
     String bodyText = nodeText(body);
     for (String line : bodyText.split("\\n")) {
       line = line.trim();
-      int colonIdx = line.indexOf(':');
-      if (colonIdx < 0) continue;
-      String rankKey = line.substring(0, colonIdx).trim().toLowerCase().replaceAll("[^a-z]", "");
-      String ref = line.substring(colonIdx + 1).trim();
-      String colRank = RANK_MAP.get(rankKey);
-      if (colRank != null && containsTitle(ref, cleanTitle)) {
-        return new String[]{WikiPage.id(navTemplate), colRank};
+      String colRank = parseRankLabel(line);
+      if (colRank != null) {
+        int colonIdx = line.indexOf(':');
+        String ref = line.substring(colonIdx + 1).trim();
+        if (containsTitle(ref, cleanTitle)) {
+          return new TaxonavResult(WikiPage.id(navTemplate), colRank, remarks);
+        }
       }
     }
 
     // Step 3: look up nav template definition
     NavInfo info = navTemplates.get(navTemplate);
     if (info != null) {
-      return new String[]{WikiPage.id(info.parentTemplate()), info.rank()};
+      return new TaxonavResult(WikiPage.id(info.parentTemplate()), info.rank(), remarks);
     }
 
     return null;
   }
 
+  /**
+   * Extracts the name of the first non-magic-word template from the body text.
+   * Uses regex because Sweble returns {{...}} as WtText (not WtTemplate nodes).
+   */
   private String firstTemplateInBody(WtBody body) {
-    for (WtNode node : body) {
-      if (node instanceof WtTemplate) {
-        String name = templateName((WtTemplate) node);
-        if (!name.isEmpty()) return name;
-      }
+    String text = nodeText(body); // WtText nodes include raw {{...}} markup
+    Matcher m = FIRST_TEMPLATE_PAT.matcher(text);
+    while (m.find()) {
+      String name = m.group(1).trim();
+      if (!name.isEmpty() && !isParserFunction(name)) return name;
     }
     return null;
+  }
+
+  /**
+   * Collects names of taxa referenced via short formatting templates (e.g. {{g|Lycoptera}})
+   * in the Taxonavigation body after the nav template. These are incertae sedis or extinct
+   * taxa that don't have their own article pages.
+   */
+  private String collectTaxonavRemarks(WtBody body, String navTemplateName) {
+    String text = nodeText(body); // WtText includes raw {{...}}
+    // Skip everything up to and including the nav template invocation
+    int navEnd = text.indexOf("{{" + navTemplateName + "}}");
+    if (navEnd >= 0) navEnd += navTemplateName.length() + 4;
+    else navEnd = 0;
+    String afterNav = text.substring(navEnd);
+
+    List<String> names = new ArrayList<>();
+    Matcher m = INCERTAE_TEMPLATE_PAT.matcher(afterNav);
+    while (m.find()) {
+      String arg = m.group(2).trim();
+      if (arg.length() > 1) names.add(arg);
+    }
+    return names.isEmpty() ? null : String.join(", ", names);
+  }
+
+  /** Returns true for MediaWiki magic words and parser functions (DISPLAYTITLE, int:X, etc.). */
+  private static boolean isParserFunction(String name) {
+    return name.equals(name.toUpperCase()) || name.contains(":");
   }
 
   private boolean containsTitle(String text, String title) {
@@ -471,13 +526,14 @@ public class Generator extends AbstractColdpGenerator {
     String currentStatus = "synonym";
 
     for (WtNode node : body) {
-      if (node instanceof WtTemplate) {
-        String tname = templateName((WtTemplate) node).toUpperCase();
-        currentStatus = switch (tname) {
-          case "BA"  -> "basionym";
-          case "HOT" -> "homotypic synonym";
-          case "HET" -> "heterotypic synonym";
-          case "REP" -> "replacement name";
+      if (node instanceof WtText) {
+        // Sweble returns {{BA}}, {{HOT}}, {{HET}}, {{REP}} as raw WtText nodes
+        String raw = ((WtText) node).getContent().strip().toUpperCase();
+        currentStatus = switch (raw) {
+          case "{{BA}}"  -> "basionym";
+          case "{{HOT}}" -> "homotypic synonym";
+          case "{{HET}}" -> "heterotypic synonym";
+          case "{{REP}}" -> "replacement name";
           default -> currentStatus;
         };
       } else if (node instanceof WtUnorderedList) {
@@ -524,8 +580,9 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   private boolean hasProtonymMarker(WtNode node) {
-    if (node instanceof WtTemplate) {
-      return "pr".equalsIgnoreCase(templateName((WtTemplate) node));
+    if (node instanceof WtText) {
+      // Sweble returns {{PR}} / {{PR|2}} as raw WtText
+      return ((WtText) node).getContent().strip().matches("(?i)\\{\\{PR(?:\\|[^}]*)?\\}\\}");
     }
     if (node instanceof WtInternalLink) {
       String target = ((WtInternalLink) node).getTarget().getAsString();
@@ -540,53 +597,32 @@ public class Generator extends AbstractColdpGenerator {
   // ─── Reference collection ─────────────────────────────────────────────────
 
   /**
-   * Collect any non-empty template in a body as a reference.
-   * Used for "Primary references" sections where template names don't follow
-   * the "Author, year" pattern (e.g. {{LSP1|68}}).
+   * Collect any non-empty template invocation in a body as a reference.
+   * Uses regex on nodeText because Sweble returns {{...}} as WtText, not WtTemplate.
    */
   private void collectRefsAny(WtBody body, Set<String> refIds) {
-    for (WtNode node : body) {
-      collectAnyRefFromNode(node, refIds);
-    }
-  }
-
-  private void collectAnyRefFromNode(WtNode node, Set<String> refIds) {
-    if (node instanceof WtTemplate) {
-      String tname = templateName((WtTemplate) node);
-      if (!tname.isEmpty()) {
+    String text = nodeText(body); // includes raw {{...}} from WtText nodes
+    Matcher m = FIRST_TEMPLATE_PAT.matcher(text);
+    while (m.find()) {
+      String tname = m.group(1).trim();
+      if (!tname.isEmpty() && !isParserFunction(tname)) {
         refIds.add("ref:" + WikiPage.id(tname));
       }
-      return; // don't recurse into template args
-    }
-    for (WtNode child : node) {
-      collectAnyRefFromNode(child, refIds);
     }
   }
 
   /**
-   * Collect reference IDs from template citations like {{Miller, 1768}} or
-   * {{Fleming, 1822a}} found in a section body.
-   * Template names containing a comma or matching "Author, year" pattern are
-   * treated as reference templates.
+   * Collect reference IDs from template citations like {{Miller, 1768}} found in a section body.
+   * Uses regex on nodeText because Sweble returns {{...}} as WtText, not WtTemplate.
    */
   private void collectRefs(WtBody body, Set<String> refIds) {
-    for (WtNode node : body) {
-      collectRefsFromNode(node, refIds);
-    }
-  }
-
-  private void collectRefsFromNode(WtNode node, Set<String> refIds) {
-    if (node instanceof WtTemplate) {
-      WtTemplate t = (WtTemplate) node;
-      String tname = templateName(t);
+    String text = nodeText(body);
+    Matcher m = FIRST_TEMPLATE_PAT.matcher(text);
+    while (m.find()) {
+      String tname = m.group(1).trim();
       if (isRefTemplate(tname)) {
         refIds.add("ref:" + WikiPage.id(tname));
       }
-      // Don't recurse into template args for ref collection
-      return;
-    }
-    for (WtNode child : node) {
-      collectRefsFromNode(child, refIds);
     }
   }
 
@@ -635,12 +671,21 @@ public class Generator extends AbstractColdpGenerator {
 
   // ─── Rank label parsing ───────────────────────────────────────────────────
 
-  /** Try to extract a ColDP rank from a line of text containing a rank label. */
+  /**
+   * Extract a rank label from a line of text.
+   * Returns the raw label key (e.g. "genus", "familia", "cohort") if recognised,
+   * or null. ChecklistBank normalises the raw label to its internal rank enum on import.
+   * Handles slash/comma alternatives like "Cohort/Superordo" by trying each part.
+   */
   private static String parseRankLabel(String text) {
     int colonIdx = text.indexOf(':');
     if (colonIdx < 0) return null;
-    String key = text.substring(0, colonIdx).trim().toLowerCase().replaceAll("[^a-z]", "");
-    return RANK_MAP.get(key);
+    String rankPart = text.substring(0, colonIdx).trim().toLowerCase();
+    for (String part : rankPart.split("[/,]")) {
+      String key = part.trim().replaceAll("[^a-z]", "");
+      if (RANK_LABELS.contains(key)) return key;
+    }
+    return null;
   }
 
   // ─── XML streaming ────────────────────────────────────────────────────────
@@ -760,59 +805,23 @@ public class Generator extends AbstractColdpGenerator {
     super.addMetadata();
   }
 
-  // ─── Rank map ─────────────────────────────────────────────────────────────
+  // ─── Rank label detection ─────────────────────────────────────────────────
+  // Raw rank labels are passed through to ColDP; the checklistbank rank parser
+  // normalises them (e.g. "familia" → family, "classis" → class) on import.
 
-  private static Map<String, String> buildRankMap() {
-    Map<String, String> m = new LinkedHashMap<>();
-    m.put("regnum", "kingdom");
-    m.put("kingdom", "kingdom");
-    m.put("subregnum", "subkingdom");
-    m.put("superphylum", "superphylum");
-    m.put("superdivisio", "superphylum");
-    m.put("phylum", "phylum");
-    m.put("divisio", "phylum");
-    m.put("division", "phylum");
-    m.put("subphylum", "subphylum");
-    m.put("subdivisio", "subphylum");
-    m.put("infraphylum", "infraphylum");
-    m.put("superclassis", "superclass");
-    m.put("superclass", "superclass");
-    m.put("classis", "class");
-    m.put("class", "class");
-    m.put("subclassis", "subclass");
-    m.put("subclass", "subclass");
-    m.put("infraclassis", "infraclass");
-    m.put("infraclass", "infraclass");
-    m.put("superordo", "superorder");
-    m.put("superorder", "superorder");
-    m.put("ordo", "order");
-    m.put("order", "order");
-    m.put("subordo", "suborder");
-    m.put("suborder", "suborder");
-    m.put("infraordo", "infraorder");
-    m.put("infraorder", "infraorder");
-    m.put("superfamilia", "superfamily");
-    m.put("superfamily", "superfamily");
-    m.put("familia", "family");
-    m.put("family", "family");
-    m.put("subfamilia", "subfamily");
-    m.put("subfamily", "subfamily");
-    m.put("infrafamilia", "infrafamily");
-    m.put("tribus", "tribe");
-    m.put("tribe", "tribe");
-    m.put("subtribus", "subtribe");
-    m.put("subtribe", "subtribe");
-    m.put("genus", "genus");
-    m.put("subgenus", "subgenus");
-    m.put("sectio", "section");
-    m.put("section", "section");
-    m.put("series", "series");
-    m.put("species", "species");
-    m.put("subspecies", "subspecies");
-    m.put("varietas", "variety");
-    m.put("variety", "variety");
-    m.put("forma", "form");
-    m.put("form", "form");
-    return Collections.unmodifiableMap(m);
-  }
+  private static final Set<String> RANK_LABELS = Set.of(
+      "regnum", "kingdom", "subregnum", "superphylum", "superdivisio", "superdivision",
+      "phylum", "divisio", "division", "subphylum", "subdivisio", "infraphylum",
+      "superclassis", "superclass", "classis", "class", "subclassis", "subclass",
+      "infraclassis", "infraclass", "gigaclass", "megaclass", "parvclass",
+      "supercohort", "supercohors", "cohort", "cohors", "subcohort", "subcohors",
+      "superordo", "superorder", "magnorder", "grandorder", "mirorder",
+      "ordo", "order", "subordo", "suborder", "infraordo", "infraorder",
+      "parvorder", "nanorder",
+      "superfamilia", "superfamily", "familia", "family",
+      "subfamilia", "subfamily", "infrafamilia",
+      "tribus", "tribe", "subtribus", "subtribe",
+      "genus", "subgenus", "sectio", "section", "series",
+      "species", "subspecies", "varietas", "variety", "forma", "form"
+  );
 }

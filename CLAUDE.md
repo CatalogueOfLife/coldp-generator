@@ -87,8 +87,20 @@ src/main/resources/
 | Newick-IO / text-tree | Tree format parsing |
 | name-parser | Scientific name parsing |
 | citeproc-java | Citation/reference formatting |
-| SWC parser | Wikitext parsing |
+| Sweble wikitext parser | Wikitext parsing (sections, links, lists, formatting only — see note) |
 | coldp / dwc-api | ColDP and Darwin Core types |
+
+## Notes on Dependencies
+
+### Sweble Wikitext Parser
+
+**Sweble's `WikitextParser.parseArticle()` does NOT parse `{{template}}` invocations as `WtTemplate` AST nodes.** Template calls are returned as raw `WtText` nodes containing the literal `{{...}}` markup. Only structural elements are properly parsed: sections (`WtSection`), headings (`WtHeading`), wiki links (`WtInternalLink`), formatting (`WtItalics`, `WtBold`), and lists (`WtUnorderedList`, `WtListItem`).
+
+As a consequence, all template detection in the wikispecies generator (and any future generator using Sweble) must use **regex on the `nodeText()` output** rather than `instanceof WtTemplate` checks. The `nodeText()` method returns `WtText` content verbatim, so raw `{{TemplateName}}` strings are present in the output and can be matched with `Pattern.compile("\\{\\{([^|{}\\n]+)")`.
+
+### ColDP Rank Vocabulary
+
+Generators output raw rank labels (e.g. `"familia"`, `"classis"`, `"cohort"`) rather than normalised ColDP rank names. The ChecklistBank rank parser normalises these on import, so generators do not need a rank-mapping table.
 
 ## Supported Sources (20)
 
