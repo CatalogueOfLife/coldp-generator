@@ -94,20 +94,30 @@ public class WtUtils {
     return null;
   }
 
+  private static final java.util.regex.Pattern INT_TEMPLATE_PAT =
+      java.util.regex.Pattern.compile("\\{\\{int:([^}]+)\\}\\}", java.util.regex.Pattern.CASE_INSENSITIVE);
+
   /**
    * Identify the section type from its heading content.
    * "{{int:Name}}" → "name", "{{int:Taxonavigation}}" → "taxonavigation", etc.
    * Falls back to lowercased plain text.
+   *
+   * Sweble does not always parse {{int:...}} as WtTemplate inside headings, so
+   * we also handle the case where the heading text contains the literal "{{int:...}}" string.
    */
   public static String sectionKey(WtHeading heading) {
     for (WtNode node : heading) {
       if (node instanceof WtTemplate) {
         String name = templateName((WtTemplate) node).toLowerCase();
         if (name.startsWith("int:")) return name.substring(4).trim();
-        return name;
+        if (!name.isEmpty()) return name;
       }
     }
-    return nodeText(heading).toLowerCase();
+    String text = nodeText(heading).toLowerCase().trim();
+    // Sweble sometimes returns the raw {{int:Foo}} text rather than a WtTemplate node
+    java.util.regex.Matcher m = INT_TEMPLATE_PAT.matcher(text);
+    if (m.find()) return m.group(1).toLowerCase().trim();
+    return text;
   }
 
   /** Find the first 4-digit year in the given text, or null. */
