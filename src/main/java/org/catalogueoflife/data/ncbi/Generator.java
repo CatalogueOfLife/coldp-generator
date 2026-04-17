@@ -42,6 +42,7 @@ import java.util.zip.ZipFile;
  *   5. citations.dmp  → write Reference
  *   6. typematerial.dmp → write TypeMaterial
  *   7. images.dmp     → write Media
+ *   8. host.dmp       → write SpeciesInteraction
  */
 public class Generator extends AbstractColdpGenerator {
 
@@ -62,13 +63,6 @@ public class Generator extends AbstractColdpGenerator {
       "synonym",
       "equivalent name",
       "genbank synonym"
-  );
-
-  /** Names.dmp name classes that we emit as VernacularName rows. */
-  private static final Set<String> VERNACULAR_CLASSES = Set.of(
-      "common name",
-      "genbank common name",
-      "blast name"
   );
 
   // ── In-memory lookups ──────────────────────────────────────────────────────
@@ -135,6 +129,11 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.nameID,
         ColdpTerm.status,
         ColdpTerm.citation
+    ));
+    TermWriter siWriter = additionalWriter(ColdpTerm.SpeciesInteraction, List.of(
+        ColdpTerm.taxonID,
+        ColdpTerm.relatedTaxonScientificName,
+        ColdpTerm.type
     ));
     TermWriter mediaWriter = additionalWriter(ColdpTerm.Media, List.of(
         ColdpTerm.taxonID,
@@ -366,6 +365,34 @@ public class Generator extends AbstractColdpGenerator {
       LOG.warn("images.dmp not found — no Media records written");
     }
     LOG.info("Written {} Media records", nMedia);
+
+    // ── Step 8: host.dmp → SpeciesInteraction ────────────────────────────────
+    LOG.info("Processing host.dmp…");
+    int nSI = 0;
+    File hostFile = sourceFile("host.dmp");
+    if (hostFile.exists()) {
+      try (BufferedReader br = reader(hostFile)) {
+        for (String line = br.readLine(); line != null; line = br.readLine()) {
+          String[] row = split(line);
+          if (row == null) continue;
+          String taxId = col(row, 0);
+          String hosts = col(row, 1);
+          if (taxId == null || hosts == null) continue;
+          for (String host : hosts.split(",")) {
+            host = host.trim();
+            if (host.isEmpty()) continue;
+            siWriter.set(ColdpTerm.taxonID, taxId);
+            siWriter.set(ColdpTerm.relatedTaxonScientificName, host);
+            siWriter.set(ColdpTerm.type, "has host");
+            siWriter.next();
+            nSI++;
+          }
+        }
+      }
+    } else {
+      LOG.warn("host.dmp not found — no SpeciesInteraction records written");
+    }
+    LOG.info("Written {} SpeciesInteraction records", nSI);
   }
 
   @Override
@@ -399,7 +426,8 @@ public class Generator extends AbstractColdpGenerator {
    */
   private void extractDmpFiles(File zipFile) throws IOException {
     String[] needed = {
-        "nodes.dmp", "names.dmp", "citations.dmp", "typematerial.dmp", "division.dmp", "images.dmp"
+        "nodes.dmp", "names.dmp", "citations.dmp", "typematerial.dmp", "division.dmp",
+        "images.dmp", "host.dmp"
     };
     Set<String> missing = new HashSet<>();
     for (String fn : needed) {
