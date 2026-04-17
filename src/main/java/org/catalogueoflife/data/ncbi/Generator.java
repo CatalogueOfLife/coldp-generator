@@ -70,8 +70,8 @@ public class Generator extends AbstractColdpGenerator {
   private final Map<Integer, String> divCodes  = new HashMap<>();
   /** tax_id → scientific name text */
   private final Map<Integer, String> sciNames  = new HashMap<>(3_000_000);
-  /** tax_id → full authority string (e.g. "Quercus robur L., 1753") */
-  private final Map<Integer, String> authorities = new HashMap<>(2_000_000);
+  /** tax_id → all authority strings for that taxon (there may be several for different synonymous names) */
+  private final Map<Integer, List<String>> authorities = new HashMap<>(2_000_000);
   /** tax_id (of accepted taxon) → list of synonym name strings */
   private final Map<Integer, List<String>> synonyms = new HashMap<>(500_000);
 
@@ -153,7 +153,7 @@ public class Generator extends AbstractColdpGenerator {
 
         switch (nameClass) {
           case "scientific name" -> sciNames.put(taxId, name);
-          case "authority"       -> authorities.put(taxId, name);
+          case "authority"       -> authorities.computeIfAbsent(taxId, k -> new ArrayList<>()).add(name);
           case "common name", "genbank common name", "blast name" -> {
             vernWriter.set(ColdpTerm.taxonID, taxId);
             vernWriter.set(ColdpTerm.name,    name);
@@ -172,7 +172,7 @@ public class Generator extends AbstractColdpGenerator {
         }
       }
     }
-    LOG.info("Loaded {} scientific names, {} authority strings, {} synonym groups, {} vernacular names",
+    LOG.info("Loaded {} scientific names, {} taxa with authority strings, {} synonym groups, {} vernacular names",
         sciNames.size(), authorities.size(), synonyms.size(), nVern);
 
     // ── Step 3: nodes.dmp → NameUsage (accepted) ──────────────────────────
@@ -193,8 +193,8 @@ public class Generator extends AbstractColdpGenerator {
           LOG.warn("No scientific name for taxId {}, skipping", taxId);
           continue;
         }
-        String authFull   = authorities.get(taxId);
-        String authorship = extractAuthorship(sciName, authFull);
+        List<String> authList = authorities.get(taxId);
+        String authorship = extractAuthorship(sciName, authList);
 
         writer.set(ColdpTerm.ID,     taxId);
         // root node has parent == self; omit self-referential parentID
@@ -419,14 +419,29 @@ public class Generator extends AbstractColdpGenerator {
    * <p>If the authority string does not start with the scientific name (unusual),
    * the full authority string is returned as-is.
    */
-  static String extractAuthorship(String sciName, String authority) {
-    if (authority == null || sciName == null) return null;
-    String trimmed = authority.trim();
-    if (trimmed.startsWith(sciName)) {
-      String rest = trimmed.substring(sciName.length()).trim();
-      return rest.isEmpty() ? null : rest;
+  /**
+   * Picks the authorship from a list of NCBI "authority" strings that applies to {@code sciName}.
+   * Each string may start with a quoted name indicating which taxon name the authorship belongs to;
+   * entries for other names are skipped so a synonym's authorship is not misapplied to the accepted name.
+   */
+  static String extractAuthorship(String sciName, List<String> authorities) {
+    if (authorities == null || sciName == null) return null;
+    for (String authority : authorities) {
+      String trimmed = authority.trim();
+      if (trimmed.startsWith("\"")) {
+        int close = trimmed.indexOf('"', 1);
+        if (close > 1) {
+          String quotedName = trimmed.substring(1, close);
+          if (!quotedName.equals(sciName)) continue;
+          String rest = trimmed.substring(close + 1).trim();
+          return rest.isEmpty() ? null : rest;
+        }
+      } else if (trimmed.startsWith(sciName)) {
+        String rest = trimmed.substring(sciName.length()).trim();
+        return rest.isEmpty() ? null : rest;
+      }
     }
-    return trimmed;
+    return null;
   }
 
   /**

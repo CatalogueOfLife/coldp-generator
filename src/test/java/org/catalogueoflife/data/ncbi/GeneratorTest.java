@@ -2,6 +2,8 @@ package org.catalogueoflife.data.ncbi;
 
 import org.junit.Test;
 
+import java.util.List;
+
 import static org.junit.Assert.*;
 
 public class GeneratorTest {
@@ -96,7 +98,7 @@ public class GeneratorTest {
   @Test
   public void testExtractAuthorshipNormal() {
     assertEquals("L., 1753",
-        Generator.extractAuthorship("Quercus robur", "Quercus robur L., 1753"));
+        Generator.extractAuthorship("Quercus robur", List.of("Quercus robur L., 1753")));
   }
 
   @Test
@@ -104,26 +106,51 @@ public class GeneratorTest {
     assertEquals("(Rehder & E.H.Wilson) W.E.Manning, 1975",
         Generator.extractAuthorship(
             "Pterocarya macroptera var. insignis",
-            "Pterocarya macroptera var. insignis (Rehder & E.H.Wilson) W.E.Manning, 1975"));
+            List.of("Pterocarya macroptera var. insignis (Rehder & E.H.Wilson) W.E.Manning, 1975")));
   }
 
   @Test
   public void testExtractAuthorshipNullInputs() {
-    assertNull(Generator.extractAuthorship(null, "Homo sapiens L., 1758"));
+    assertNull(Generator.extractAuthorship(null, List.of("Homo sapiens L., 1758")));
     assertNull(Generator.extractAuthorship("Homo sapiens", null));
     assertNull(Generator.extractAuthorship(null, null));
   }
 
   @Test
   public void testExtractAuthorshipNoMatch() {
-    // When authority string does not start with sci name, return it as-is
-    String authority = "Some unrelated string";
-    assertEquals(authority, Generator.extractAuthorship("Quercus robur", authority));
+    // No entry matches sciName → null
+    assertNull(Generator.extractAuthorship("Quercus robur", List.of("Some unrelated string")));
   }
 
   @Test
   public void testExtractAuthorshipSameString() {
     // Authority equals the scientific name exactly → no authorship
-    assertNull(Generator.extractAuthorship("Homo sapiens", "Homo sapiens"));
+    assertNull(Generator.extractAuthorship("Homo sapiens", List.of("Homo sapiens")));
+  }
+
+  @Test
+  public void testExtractAuthorshipQuotedNameMatches() {
+    // Quoted name matches sciName → strip prefix, return authorship
+    assertEquals("Cavalier-Smith 1987",
+        Generator.extractAuthorship("Bacteria", List.of("\"Bacteria\" Cavalier-Smith 1987")));
+  }
+
+  @Test
+  public void testExtractAuthorshipQuotedNameMismatch() {
+    // Quoted name differs from sciName → authorship belongs to another name, discard
+    assertNull(Generator.extractAuthorship("Bacteria", List.of("\"Bacteriobiota\" Luketa 2012")));
+    assertNull(Generator.extractAuthorship("Cellulomonas gilvus", List.of("\"Cellvibrio gilvus\" Hulcher & King, 1958")));
+  }
+
+  @Test
+  public void testExtractAuthorshipMultipleEntries() {
+    // taxId=2 scenario: two authority entries, only the one matching sciName should be used
+    assertEquals("Cavalier-Smith 1987",
+        Generator.extractAuthorship("Bacteria",
+            List.of("\"Bacteria\" Cavalier-Smith 1987", "\"Bacteriobiota\" Luketa 2012")));
+    // reversed order — same result
+    assertEquals("Cavalier-Smith 1987",
+        Generator.extractAuthorship("Bacteria",
+            List.of("\"Bacteriobiota\" Luketa 2012", "\"Bacteria\" Cavalier-Smith 1987")));
   }
 }
