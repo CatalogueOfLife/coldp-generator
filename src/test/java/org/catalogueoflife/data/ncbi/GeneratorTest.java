@@ -153,4 +153,29 @@ public class GeneratorTest {
         Generator.extractAuthorship("Bacteria",
             List.of("\"Bacteriobiota\" Luketa 2012", "\"Bacteria\" Cavalier-Smith 1987")));
   }
+
+  // ── extractLicenseUrl() ────────────────────────────────────────────────────
+
+  @Test
+  public void testExtractLicenseUrlWithParens() {
+    assertEquals("https://creativecommons.org/licenses/by-sa/3.0/",
+        Generator.extractLicenseUrl("CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/)"));
+    assertEquals("https://creativecommons.org/public-domain/",
+        Generator.extractLicenseUrl("Public Domain (https://creativecommons.org/public-domain/)"));
+    assertEquals("https://creativecommons.org/publicdomain/zero/1.0/",
+        Generator.extractLicenseUrl("CC0 (https://creativecommons.org/publicdomain/zero/1.0/)"));
+  }
+
+  @Test
+  public void testExtractLicenseUrlFallback() {
+    // No URL in parens → return full string
+    assertEquals("Public Domain", Generator.extractLicenseUrl("Public Domain"));
+    // Parens without http → full string
+    assertEquals("Some (license)", Generator.extractLicenseUrl("Some (license)"));
+  }
+
+  @Test
+  public void testExtractLicenseUrlNull() {
+    assertNull(Generator.extractLicenseUrl(null));
+  }
 }

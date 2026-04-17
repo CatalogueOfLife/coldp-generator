@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -31,6 +32,7 @@ import java.util.zip.ZipFile;
  *   citations.dmp     – literature references linked to taxa
  *   typematerial.dmp  – type specimen assignments
  *   division.dmp      – division codes (BCT, PLN, VRT …) → nomenclatural code
+ *   images.dmp        – organism images (url, license, attribution, source, taxid_list)
  *
  * Processing order:
  *   1. division.dmp   → build divCodes lookup
@@ -39,6 +41,7 @@ import java.util.zip.ZipFile;
  *   4. synonyms map   → write synonym NameUsage rows
  *   5. citations.dmp  → write Reference
  *   6. typematerial.dmp → write TypeMaterial
+ *   7. images.dmp     → write Media
  */
 public class Generator extends AbstractColdpGenerator {
 
@@ -50,6 +53,9 @@ public class Generator extends AbstractColdpGenerator {
 
   // NCBI field delimiter is TAB-PIPE-TAB; lines terminate with TAB-PIPE
   static final Pattern SPLITTER = Pattern.compile("\t\\|\t?");
+
+  // Extracts a URL from a license string like "CC BY-SA 3.0 (https://...)"
+  private static final Pattern LICENSE_URL_PAT = Pattern.compile("\\(([^)]+)\\)\\s*$");
 
   /** Names.dmp name classes that we emit as synonym NameUsage rows. */
   private static final Set<String> SYNONYM_CLASSES = Set.of(
@@ -129,6 +135,16 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.nameID,
         ColdpTerm.status,
         ColdpTerm.citation
+    ));
+    TermWriter mediaWriter = additionalWriter(ColdpTerm.Media, List.of(
+        ColdpTerm.taxonID,
+        ColdpTerm.url,
+        ColdpTerm.type,
+        ColdpTerm.title,
+        ColdpTerm.creator,
+        ColdpTerm.license,
+        ColdpTerm.link,
+        ColdpTerm.remarks
     ));
     initRefWriter(List.of(
         ColdpTerm.ID,
@@ -303,6 +319,53 @@ public class Generator extends AbstractColdpGenerator {
       }
     }
     LOG.info("Written {} TypeMaterial records", nTypes);
+
+    // ── Step 7: images.dmp → Media ────────────────────────────────────────────
+    LOG.info("Processing images.dmp…");
+    int nMedia = 0;
+    File imagesFile = sourceFile("images.dmp");
+    if (imagesFile.exists()) {
+      try (BufferedReader br = reader(imagesFile)) {
+        for (String line = br.readLine(); line != null; line = br.readLine()) {
+          String[] row = split(line);
+          if (row == null) continue;
+          // col 1: image_key like "image:Homo sapiens"  → strip "image:" prefix for title
+          // col 2: url
+          // col 3: license string (may contain URL in parentheses)
+          // col 4: attribution / creator
+          // col 5: source (Wikimedia Commons, iNaturalist, …)
+          // col 7: taxid_list – space-separated tax_ids
+          String imageKey  = col(row, 1);
+          String url       = col(row, 2);
+          String licenseRaw = col(row, 3);
+          String creator   = col(row, 4);
+          String source    = col(row, 5);
+          String taxIdList = col(row, 7);
+
+          if (url == null || taxIdList == null) continue;
+
+          String title = imageKey != null && imageKey.startsWith("image:")
+              ? imageKey.substring(6).trim() : imageKey;
+          String license = extractLicenseUrl(licenseRaw);
+
+          for (String taxIdStr : taxIdList.trim().split("\\s+")) {
+            if (taxIdStr.isEmpty()) continue;
+            mediaWriter.set(ColdpTerm.taxonID, taxIdStr);
+            mediaWriter.set(ColdpTerm.url,     url);
+            mediaWriter.set(ColdpTerm.type,    "image");
+            if (!StringUtils.isBlank(title))   mediaWriter.set(ColdpTerm.title,   title);
+            if (!StringUtils.isBlank(creator)) mediaWriter.set(ColdpTerm.creator, creator);
+            if (!StringUtils.isBlank(license)) mediaWriter.set(ColdpTerm.license, license);
+            if (!StringUtils.isBlank(source))  mediaWriter.set(ColdpTerm.remarks, source);
+            mediaWriter.next();
+            nMedia++;
+          }
+        }
+      }
+    } else {
+      LOG.warn("images.dmp not found — no Media records written");
+    }
+    LOG.info("Written {} Media records", nMedia);
   }
 
   @Override
@@ -336,7 +399,7 @@ public class Generator extends AbstractColdpGenerator {
    */
   private void extractDmpFiles(File zipFile) throws IOException {
     String[] needed = {
-        "nodes.dmp", "names.dmp", "citations.dmp", "typematerial.dmp", "division.dmp"
+        "nodes.dmp", "names.dmp", "citations.dmp", "typematerial.dmp", "division.dmp", "images.dmp"
     };
     Set<String> missing = new HashSet<>();
     for (String fn : needed) {
@@ -442,6 +505,21 @@ public class Generator extends AbstractColdpGenerator {
       }
     }
     return null;
+  }
+
+  /**
+   * Extracts the canonical license URI from the NCBI license string.
+   * E.g. "CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/)" → "https://..."
+   * Falls back to the full string if no parenthesised URL is found.
+   */
+  static String extractLicenseUrl(String license) {
+    if (license == null) return null;
+    Matcher m = LICENSE_URL_PAT.matcher(license.trim());
+    if (m.find()) {
+      String url = m.group(1).trim();
+      if (url.startsWith("http")) return url;
+    }
+    return license.trim();
   }
 
   /**
