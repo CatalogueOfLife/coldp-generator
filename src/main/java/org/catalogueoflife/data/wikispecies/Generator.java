@@ -390,6 +390,10 @@ public class Generator extends AbstractColdpGenerator {
     String cleaned = wikitext
         .replaceAll("(?s)<noinclude>.*?</noinclude>", "")
         .replaceAll("(?s)<includeonly>.*?</includeonly>", "")
+        // Strip magic-word lines (DISPLAYTITLE, DEFAULTSORT) which may contain nested
+        // formatting template calls (e.g. {{Taxit|...}}) that would be wrongly picked
+        // up as the parent navigation template.
+        .replaceAll("(?im)^\\{\\{(?:DISPLAYTITLE|DEFAULTSORT)[^\n]*\n?", "")
         .trim();
     if (cleaned.isEmpty()) return null;
 
