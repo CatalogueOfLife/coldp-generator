@@ -48,6 +48,10 @@ public class GeneratorConfig {
              description = "Skip downloading source files; use existing local copies only")
   public boolean noDownload = false;
 
+  @Parameter(names = {"--clear-sources"},
+             description = "Delete cached source files before running, forcing a fresh download of everything")
+  public boolean clearSources = false;
+
   /**
    * Returns the directory with the decompressed archive folder created by the checklist builder
    */

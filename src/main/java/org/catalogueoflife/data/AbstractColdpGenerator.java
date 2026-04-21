@@ -60,7 +60,12 @@ public abstract class AbstractColdpGenerator extends AbstractGenerator {
   protected void addDataFiles() throws Exception {
     // get latest data files or reuse existing ones
     if (sources.exists()) {
-      LOG.info("Reuse data from {}. To enforce new data downloads please wipe the directory3", sources);
+      if (cfg.clearSources) {
+        LOG.info("--clear-sources: deleting cached source files at {}", sources);
+        FileUtils.cleanDirectory(sources);
+      } else {
+        LOG.info("Reuse data from {}. Use --clear-sources to force a fresh download", sources);
+      }
     } else {
       sources.mkdirs();
     }
