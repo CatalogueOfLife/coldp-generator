@@ -8,10 +8,15 @@ import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.catalogueoflife.data.utils.CsvUtils;
 import org.catalogueoflife.data.utils.RemarksBuilder;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.TextStyle;
 import java.time.temporal.ChronoUnit;
@@ -49,12 +54,19 @@ public class Generator extends AbstractColdpGenerator {
 
   private static final String BOW_URL = "https://birdsoftheworld.org/bow/species/";
   private static final String BOW_SSP_PATH = "/cur/systematics#subsp-";
+  private static final String AVIBASE_SYN_URL =
+      "https://avibase.bsc-eoc.org/species.jsp?avibaseid={ID}&sec=synonyms";
+  private static final int AVIBASE_DELAY_MS = 300;
+
+  private record SpeciesInfo(String id, String scientificName) {}
 
   private LocalDate issued;
   private String version;
   private URI csvUri;
   private TermWriter distWriter;
   private TermWriter vernWriter;
+  private int synCounter = 0;
+  private final Map<String, SpeciesInfo> avibaseSpecies = new LinkedHashMap<>();
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
@@ -172,6 +184,9 @@ public class Generator extends AbstractColdpGenerator {
       String avibId = col(row, COL_AVIBASE_ID);
       if (avibId != null) {
         writer.set(ColdpTerm.alternativeID, avibId.replace("-", ":"));
+        if ("species".equals(rank)) {
+          avibaseSpecies.put(avibId, new SpeciesInfo(id, name));
+        }
       }
       writer.set(ColdpTerm.status,         "accepted");
       RemarksBuilder remarks = new RemarksBuilder();
@@ -215,6 +230,59 @@ public class Generator extends AbstractColdpGenerator {
     }
     parser.stopParsing();
     LOG.info("Written by category: {}", categoryCounts);
+    scrapeAvibaseSynonyms();
+  }
+
+  private void scrapeAvibaseSynonyms() throws IOException {
+    LOG.info("Scraping Avibase synonyms for {} species", avibaseSpecies.size());
+    int processed = 0;
+    for (var entry : avibaseSpecies.entrySet()) {
+      String avibaseId = entry.getKey();
+      SpeciesInfo sp = entry.getValue();
+
+      File f = cachedPage("avib-syn-" + avibaseId + ".html",
+          URI.create(AVIBASE_SYN_URL.replace("{ID}", avibaseId)), AVIBASE_DELAY_MS);
+      if (f == null) continue;
+
+      try {
+        Document doc = Jsoup.parse(f, StandardCharsets.UTF_8.name());
+        Element table = doc.selectFirst("table.table-striped");
+        if (table == null) {
+          LOG.debug("No synonym table for {} ({})", sp.scientificName(), avibaseId);
+          continue;
+        }
+
+        for (Element row : table.select("tr")) {
+          Elements cells = row.select("td");
+          if (cells.size() < 5) continue;
+
+          String avibName = cells.get(0).text().trim();
+          String synName  = cells.get(1).text().trim();
+          String synType  = cells.get(2).text().trim().toLowerCase();
+          String citation = cells.get(4).text().trim();
+
+          if (!avibName.equals(sp.scientificName())) continue;
+          if ("currently in use".equals(synType)) continue;
+          if (synType.startsWith("non-conform")) continue;
+          if (synName.isBlank() || synName.equals(sp.scientificName())) continue;
+
+          synCounter++;
+          writer.set(ColdpTerm.ID,            "syn:" + synCounter);
+          writer.set(ColdpTerm.parentID,       sp.id());
+          writer.set(ColdpTerm.status,         "synonym");
+          writer.set(ColdpTerm.scientificName, synName);
+          if (!citation.isBlank()) writer.set(ColdpTerm.authorship, citation);
+          writer.next();
+        }
+      } catch (Exception e) {
+        LOG.warn("Failed to parse Avibase synonyms for {} ({}): {}", sp.scientificName(), avibaseId, e.getMessage());
+      }
+
+      if (++processed % 500 == 0) {
+        LOG.info("Avibase synonyms: processed {} / {}", processed, avibaseSpecies.size());
+      }
+    }
+    LOG.info("Avibase synonyms complete. Total synonyms written: {}", synCounter);
   }
 
   @Override
