@@ -6,14 +6,13 @@ import org.catalogueoflife.data.GeneratorConfig;
 
 import java.io.*;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -29,8 +28,8 @@ public abstract class BaseGenerator extends AbstractColdpGenerator {
       "https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/taxonomy/";
   private static final String REDIRECT_URL =
       "https://www.arb-silva.de/current-release/";
-  private static final java.util.regex.Pattern VERSION_PAT =
-      java.util.regex.Pattern.compile("release[_-](\\d+\\.\\d+)", java.util.regex.Pattern.CASE_INSENSITIVE);
+  private static final Pattern VERSION_PAT =
+      Pattern.compile("release[_-](\\d+\\.\\d+)", Pattern.CASE_INSENSITIVE);
 
   /** "ssu" or "lsu" */
   private final String unit;
@@ -88,6 +87,7 @@ public abstract class BaseGenerator extends AbstractColdpGenerator {
       for (String line = br.readLine(); line != null; line = br.readLine()) {
         String[] f = splitLine(line);
         if (f == null) continue;
+        if (f.length < 3) { LOG.warn("Skipping short line: {}", line); continue; }
         String path   = f[0].trim();
         int    taxid  = parseId(f[1]);
         String rank   = f[2].trim();
@@ -117,7 +117,7 @@ public abstract class BaseGenerator extends AbstractColdpGenerator {
     metadata.put("version", version);
     metadata.put("issued",  LocalDate.now().toString());
     // version with dot removed for the release-page URL, e.g. 138.2 → 1382
-    metadata.put("versionNoDot", version.replace(".", ""));
+    metadata.put("versionNoDot", version.contains(".") ? version.replace(".", "") : version);
     super.addMetadata();
   }
 
@@ -164,7 +164,7 @@ public abstract class BaseGenerator extends AbstractColdpGenerator {
     catch (NumberFormatException e) { return 0; }
   }
 
-  private static BufferedReader gzipReader(File gz) throws IOException {
+  static BufferedReader gzipReader(File gz) throws IOException {
     return new BufferedReader(
         new InputStreamReader(new GZIPInputStream(new FileInputStream(gz)), StandardCharsets.UTF_8));
   }
@@ -175,14 +175,7 @@ public abstract class BaseGenerator extends AbstractColdpGenerator {
    */
   private String detectVersion() {
     try {
-      HttpClient client = HttpClient.newBuilder()
-          .followRedirects(HttpClient.Redirect.NORMAL)
-          .build();
-      HttpRequest req = HttpRequest.newBuilder()
-          .uri(URI.create(REDIRECT_URL))
-          .method("HEAD", HttpRequest.BodyPublishers.noBody())
-          .build();
-      HttpResponse<Void> resp = client.send(req, HttpResponse.BodyHandlers.discarding());
+      HttpResponse<InputStream> resp = http.head(REDIRECT_URL);
       String finalUrl = resp.uri().toString();
       LOG.info("SILVA current-release redirected to: {}", finalUrl);
       var m = VERSION_PAT.matcher(finalUrl);
