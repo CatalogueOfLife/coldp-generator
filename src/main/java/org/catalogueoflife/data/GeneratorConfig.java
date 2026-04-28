@@ -65,7 +65,7 @@ public class GeneratorConfig {
 
   public Class<? extends AbstractColdpGenerator> builderClass() {
     try {
-      String classname = GeneratorConfig.class.getPackage().getName() + "." + source.toLowerCase() + ".Generator";
+      String classname = GeneratorConfig.class.getPackage().getName() + "." + source.toLowerCase().replace("-", "") + ".Generator";
       return (Class<? extends AbstractColdpGenerator>) GeneratorConfig.class.getClassLoader().loadClass(classname);
 
     } catch (ClassNotFoundException e) {
