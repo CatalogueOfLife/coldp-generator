@@ -15,11 +15,10 @@ description: |-
   the USDA PLANTS API (https://plantsservices.sc.egov.usda.gov/api/) for each accepted name,
   adding distribution records (native/introduced status by US region), growth habit and
   duration as taxon properties, and representative images. Additional data available from the
-  API but not currently fetched includes: PlantCharacteristics/{id}, PlantNoxiousStatus/{id},
-  PlantInvasiveStatus/{id}, PlantWetland/{id}, PlantLegalStatus/{id}, and
-  PlantSynonyms/{id}. Each call to PlantProfile?symbol={symbol} takes ~1 s; with 10 parallel
-  threads the first enrichment run takes ~1.5 hours; subsequent runs reuse cached
-  profile-{symbol}.json files.
+  API but not currently fetched includes: PlantCharacteristics, PlantNoxiousStatus,
+  PlantInvasiveStatus, PlantWetland, PlantLegalStatus, and PlantSynonyms endpoints.
+  Each call to PlantProfile?symbol=SYMBOL takes ~1 s; with 10 parallel threads the first
+  enrichment run takes ~1.5 hours; subsequent runs reuse cached profile-SYMBOL.json files.
 
 issued: {issued}
 version: {version}
@@ -46,7 +45,7 @@ confidence: 4
 completeness: 90
 notes: |-
   Generated from plantlst.txt downloaded from the USDA PLANTS Document Library.
-  Families are synthetic nodes (ID = fam:{FamilyName}) derived from the Family column.
-  Genera missing from plantlst.txt (278 genera) receive synthetic nodes (ID = gen:{GenusName}).
+  Families are synthetic nodes (ID prefix fam:) derived from the Family column.
+  Genera missing from plantlst.txt (278 genera) receive synthetic nodes (ID prefix gen:).
   Rank is inferred from name structure via the GBIF name parser.
-  Profile links point to https://plants.sc.egov.usda.gov/plant-profile/{Symbol}.
+  Profile links point to https://plants.sc.egov.usda.gov/plant-profile/SYMBOL.
