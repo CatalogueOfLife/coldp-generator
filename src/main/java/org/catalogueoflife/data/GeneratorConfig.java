@@ -48,6 +48,10 @@ public class GeneratorConfig {
              description = "Skip downloading source files; use existing local copies only")
   public boolean noDownload = false;
 
+  @Parameter(names = {"--enrich"},
+             description = "Fetch PlantProfile API for each accepted name; adds Distribution, TaxonProperty, Media")
+  public boolean enrich = false;
+
   @Parameter(names = {"--clear-sources"},
              description = "Delete cached source files before running, forcing a fresh download of everything")
   public boolean clearSources = false;
