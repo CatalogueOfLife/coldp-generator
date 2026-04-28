@@ -24,6 +24,7 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 | `--lpsn-user / --lpsn-pass` | | Credentials for LPSN                                       |
 | `--date` | | Date filter for incremental updates for WSC                |
 | `--no-download` | `false` | Skip downloading source files; reuse existing local copies |
+| `--enrich` | `false` | (USDA only) Fetch PlantProfile API for each accepted name; adds Distribution, TaxonProperty, Media |
 
 ## Supported Sources
 
@@ -49,6 +50,7 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 | `pfnr` | [PFNR](https://www.plantfossilnames.org) | [314595](https://www.checklistbank.org/dataset/314595) | International Fossil Plant Names Registry |
 | `wikidata` | [Wikidata](https://www.wikidata.org) | [314569](https://www.checklistbank.org/dataset/314569) | Wikidata taxonomy (downloads full Wikidata + Commons dumps, ~260 GB total) |
 | `wikispecies` | [WikiSpecies](https://species.wikimedia.org) | [314570](https://www.checklistbank.org/dataset/314570) | |
+| `usda` | [USDA PLANTS](https://plants.sc.egov.usda.gov/) | | USDA PLANTS Database — vascular plants, mosses, lichens of the US (~49K accepted, ~44K synonyms) |
 | `wsc` | [WSC](https://wsc.nmbe.ch/) | [56185](https://www.checklistbank.org/dataset/56185) | World Spider Catalog |
 
 ## Generator-specific Notes
@@ -82,6 +84,28 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s wikidata
 
 # Re-run without re-downloading (both dumps already cached):
 java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s wikidata --no-download
+```
+
+### USDA PLANTS
+
+Downloads `plantlst.txt` from the USDA PLANTS Document Library (~93K rows). Families and some genera are absent from the file and are created as synthetic nodes (`fam:Name`, `gen:Name`). Rank is inferred from name structure via the GBIF name parser.
+
+The optional `--enrich` flag calls `PlantProfile?symbol=SYMBOL` for each of the ~49K accepted names and adds:
+- `Distribution.tsv` — native/introduced status per US region (AK, L48, HI, CAN, PR, …)
+- `TaxonProperty.tsv` — duration, growth habit, and taxonomic group
+- `Media.tsv` — representative plant image
+
+Profile responses are cached as `profile-SYMBOL.json` in the sources directory; re-runs skip already-cached files. First enrichment run takes ~1.5 hours with 10 parallel threads.
+
+```bash
+# Basic run (NameUsage + VernacularName only):
+java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s usda
+
+# With enrichment (adds Distribution, TaxonProperty, Media):
+java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s usda --enrich
+
+# Re-run enrichment using cached profiles (no network calls):
+java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s usda --enrich --no-download
 ```
 
 ### World Spider Catalog (WSC)

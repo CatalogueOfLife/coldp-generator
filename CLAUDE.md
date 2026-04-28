@@ -102,9 +102,27 @@ As a consequence, all template detection in the wikispecies generator (and any f
 
 Generators output raw rank labels (e.g. `"familia"`, `"classis"`, `"cohort"`) rather than normalised ColDP rank names. The ChecklistBank rank parser normalises these on import, so generators do not need a rank-mapping table.
 
-## Supported Sources (20)
+## Supported Sources (21)
 
-AntCat, ASW, Birdlife (HBW), BioLib, CITES, Clements, Cycads, GRIN, ICTV, IPNI, LPSN, MDD, Mites, OTL, OTT, PBDB, PFNR, WikiData, WikiSpecies, WSC
+AntCat, ASW, Birdlife (HBW), BioLib, CITES, Clements, Cycads, GRIN, ICTV, IPNI, LPSN, MDD, Mites, OTL, OTT, PBDB, PFNR, USDA, WikiData, WikiSpecies, WSC
+
+### USDA PLANTS Generator
+
+The USDA generator (`usda/`) downloads `plantlst.txt` from https://plants.sc.egov.usda.gov/DocumentLibrary/Txt/plantlst.txt — a CSV with columns `Symbol | Synonym Symbol | Scientific Name with Author | Common Name | Family` (~93K rows: ~49K accepted, ~44K synonyms). Families and genera are not present as their own entries in the file.
+
+**Two-pass CSV parsing:**
+- **Pass 1**: builds `genusToSymbol` (genus → real symbol), `genusToFamily` (genus → family), and `acceptedSymbols` list for enrichment.
+- Before pass 2: emits synthetic family nodes (`fam:{FamilyName}`) and synthetic genus nodes (`gen:{GenusName}`) for the 278 genera absent from the file.
+- **Pass 2**: writes all file rows — accepted rows get `parentID` pointing to the genus symbol (real or synthetic); synonym rows get `parentID` = the accepted symbol from column 1.
+
+**Rank inference**: `NameParserGBIF` parses the full name-with-author string. Uninomials are detected by checking whether the second token starts with an uppercase letter (authorship) vs. lowercase (specific epithet).
+
+**ID scheme:** real symbols from the file for accepted/synonym taxa; `fam:{FamilyName}` for synthetic families; `gen:{GenusName}` for synthetic missing genera.
+
+**Optional enrichment (`--enrich` flag):** calls `https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol={symbol}` for each accepted species/infraspecific (not genera). Uses 10-thread `ExecutorService` for parallel downloads; each response cached as `profile-{symbol}.json`. Emits:
+- `Distribution.tsv` — from `NativeStatuses[]`; `N`/`N?` → `native`, `I`/`I?` → `introduced`; `gazetteer=text`; region codes (AK, L48, HI, CAN, …) used as-is.
+- `TaxonProperty.tsv` — `Durations[]` → `duration`, `GrowthHabits[]` → `growth habit`, `Group` → `group`.
+- `Media.tsv` — `ProfileImageFilename` → `https://plants.sc.egov.usda.gov/ImageLibrary/standard/{filename}`.
 
 ### ASW Generator
 
