@@ -24,12 +24,9 @@ import java.util.zip.GZIPInputStream;
  */
 public abstract class BaseGenerator extends AbstractColdpGenerator {
 
-  private static final String BASE_URL =
-      "https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/taxonomy/";
-  private static final String REDIRECT_URL =
-      "https://www.arb-silva.de/current-release/";
-  private static final Pattern VERSION_PAT =
-      Pattern.compile("release[_-](\\d+\\.\\d+)", Pattern.CASE_INSENSITIVE);
+  private static final String BASE_URL = "https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/taxonomy/";
+  private static final String VERSION_URL = "https://www.arb-silva.de/fileadmin/silva_databases/current/VERSION.txt";
+  private static final Pattern VERSION_PAT = Pattern.compile("release[_-](\\d+\\.\\d+)", Pattern.CASE_INSENSITIVE);
 
   /** "ssu" or "lsu" */
   private final String unit;
@@ -44,13 +41,8 @@ public abstract class BaseGenerator extends AbstractColdpGenerator {
 
   @Override
   protected void prepare() throws Exception {
-    version = detectVersion();
-    if (version == null) {
-      version = LocalDate.now().toString();
-      LOG.warn("Could not detect SILVA version from redirect; using {}", version);
-    } else {
-      LOG.info("Detected SILVA version: {}", version);
-    }
+    version = http.get(VERSION_URL).trim();
+    LOG.info("Detected SILVA version: {}", version);
   }
 
   @Override
@@ -167,22 +159,5 @@ public abstract class BaseGenerator extends AbstractColdpGenerator {
   static BufferedReader gzipReader(File gz) throws IOException {
     return new BufferedReader(
         new InputStreamReader(new GZIPInputStream(new FileInputStream(gz)), StandardCharsets.UTF_8));
-  }
-
-  /**
-   * Follows the SILVA /current-release/ redirect and extracts the version
-   * string (e.g. "138.2") from the final URL.  Returns null if detection fails.
-   */
-  private String detectVersion() {
-    try {
-      HttpResponse<InputStream> resp = http.head(REDIRECT_URL);
-      String finalUrl = resp.uri().toString();
-      LOG.info("SILVA current-release redirected to: {}", finalUrl);
-      var m = VERSION_PAT.matcher(finalUrl);
-      if (m.find()) return m.group(1);
-    } catch (Exception e) {
-      LOG.warn("Version detection failed: {}", e.getMessage());
-    }
-    return null;
   }
 }

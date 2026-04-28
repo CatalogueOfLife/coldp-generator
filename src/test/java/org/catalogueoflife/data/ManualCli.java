@@ -6,6 +6,7 @@ import org.junit.Ignore;
 public class ManualCli {
 
   public static void main(String[] args) throws Exception {
+    GeneratorCLI.main( new String[]{"-s", "silva-lsu", "-r", "/tmp/coldp/archives"} );
     //GeneratorCLI.main( new String[]{"-s", "ncbi", "-r", "/tmp/coldp/archives"} );
     //GeneratorCLI.main( new String[]{"-s", "ictv", "-r", "/tmp/coldp/archives"} );
     //GeneratorCLI.main( new String[]{"-s", "cycads", "-r", "/tmp/coldp/archives"});
@@ -17,7 +18,7 @@ public class ManualCli {
     //GeneratorCLI.main( new String[]{"-s", "wikidata", "-r", "/tmp/coldp/archives", "--tmp", "/Users/markus/Downloads/coldp-gen-src", "--no-download"} );
     //GeneratorCLI.main( new String[]{"-s", "silva-ssu", "-r", "/tmp/coldp/archives"} );
     //GeneratorCLI.main( new String[]{"-s", "silva-lsu", "-r", "/tmp/coldp/archives"} );
-    GeneratorCLI.main( new String[]{"-s", "clements", "-r", "/tmp/coldp/archives"} );
+    //GeneratorCLI.main( new String[]{"-s", "clements", "-r", "/tmp/coldp/archives"} );
     //GeneratorCLI.main( new String[]{"-s", "antcat", "-r", "/tmp/coldp/archives"} );
     //GeneratorCLI.main( new String[]{"-s", "wsc", "-r", "/tmp/coldp/archives",
     //        "--wsc-data-repo", "/Users/markus/code/data/data-wsc/json2",
