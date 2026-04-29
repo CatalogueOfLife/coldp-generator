@@ -105,11 +105,21 @@ public abstract class BaseGenerator extends AbstractColdpGenerator {
   }
 
   @Override
+  protected String metadataTemplatePath() {
+    return "silva/metadata.yaml";
+  }
+
+  @Override
   protected void addMetadata() throws Exception {
     metadata.put("version", version);
     metadata.put("issued",  LocalDate.now().toString());
     // version with dot removed for the release-page URL, e.g. 138.2 → 1382
     metadata.put("versionNoDot", version.contains(".") ? version.replace(".", "") : version);
+    String upper = unit.toUpperCase();
+    metadata.put("unit", unit);
+    metadata.put("unitUpper", upper);
+    metadata.put("unitDesc", unit.equals("ssu") ? "Small Subunit, 16S/18S rRNA" : "Large Subunit, 23S/28S rRNA");
+    metadata.put("pairedUnit", unit.equals("ssu") ? "LSU" : "SSU");
     super.addMetadata();
   }
 

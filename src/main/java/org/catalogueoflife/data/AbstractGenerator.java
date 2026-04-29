@@ -120,7 +120,7 @@ public abstract class AbstractGenerator implements Runnable {
       });
 
       // use metadata to format
-      String template = UTF8IoUtils.readString(Resources.stream(cfg.source + "/metadata.yaml"));
+      String template = UTF8IoUtils.readString(Resources.stream(metadataTemplatePath()));
       try (var mw = UTF8IoUtils.writerFromFile(new File(dir, "metadata.yaml"))) {
         mw.write(SimpleTemplate.render(template, metadata));
       }
@@ -138,6 +138,10 @@ public abstract class AbstractGenerator implements Runnable {
         mw.write(SimpleTemplate.render(template, metadata));
       }
     }
+  }
+
+  protected String metadataTemplatePath() {
+    return cfg.source + "/metadata.yaml";
   }
 
   public File getMetadataFile() {
