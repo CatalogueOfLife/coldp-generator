@@ -297,7 +297,8 @@ public class Generator extends AbstractColdpGenerator {
 
         writer.next();
 
-        if (!isVariant) {
+        boolean isAccepted = !isVariant && (t.getAcc() == null || t.getAcc().equals(t.getOid()));
+        if (isAccepted) {
           // type species — concept-level, not per-combination
           if (t.getTtn() != null) {
             nomRelWriter.set(ColdpTerm.nameID, t.getOid());
