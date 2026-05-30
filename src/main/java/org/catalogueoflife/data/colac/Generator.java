@@ -78,10 +78,9 @@ public class Generator extends AbstractColdpGenerator {
   TermWriter vernWriter;
   TermWriter distWriter;
 
-  // GSD source citations, rendered into metadata.yaml ourselves (see addMetadata).
-  // shortTitle is not yet a documented ColDP field; we emit it now so the archived data is
-  // ready once the spec adds it (current parsers ignore the unknown key).
-  record GsdSource(Citation citation, String shortTitle) {}
+  // GSD source citations, rendered into metadata.yaml ourselves (see addMetadata). The short
+  // GSD name is emitted as `alias` (matching the dataset-level alias key).
+  record GsdSource(Citation citation, String alias) {}
   private final List<GsdSource> gsdSources = new ArrayList<>();
 
   public Generator(GeneratorConfig cfg) throws IOException {
@@ -183,15 +182,15 @@ public class Generator extends AbstractColdpGenerator {
     super.addMetadata();
   }
 
-  /** Renders the {@code source:} YAML block, injecting a (not-yet-standard) shortTitle per GSD. */
+  /** Renders the {@code source:} YAML block, injecting the GSD short name as {@code alias}. */
   private String renderSources() throws JsonProcessingException {
     if (gsdSources.isEmpty()) return "";
     StringBuilder sb = new StringBuilder("source: \n");
     for (GsdSource s : gsdSources) {
       String entry = citAsYaml(List.of(s.citation())).orElse("").stripTrailing();
-      if (s.shortTitle() != null && !s.shortTitle().isBlank()) {
+      if (s.alias() != null && !s.alias().isBlank()) {
         // single-quoted YAML scalar (no backslashes); double any internal single quote
-        entry += "\n   shortTitle: '" + s.shortTitle().trim().replace("'", "''") + "'";
+        entry += "\n   alias: '" + s.alias().trim().replace("'", "''") + "'";
       }
       sb.append(entry).append('\n');
     }
