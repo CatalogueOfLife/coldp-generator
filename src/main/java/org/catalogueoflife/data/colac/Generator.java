@@ -1,5 +1,6 @@
 package org.catalogueoflife.data.colac;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import life.catalogue.api.model.Citation;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
@@ -14,7 +15,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.regex.Matcher;
 
 /**
@@ -78,8 +78,11 @@ public class Generator extends AbstractColdpGenerator {
   TermWriter vernWriter;
   TermWriter distWriter;
 
-  // GSD source citations, rendered into metadata.yaml ourselves (see addMetadata)
-  private final List<Citation> gsdSources = new ArrayList<>();
+  // GSD source citations, rendered into metadata.yaml ourselves (see addMetadata).
+  // shortTitle is not yet a documented ColDP field; we emit it now so the archived data is
+  // ready once the spec adds it (current parsers ignore the unknown key).
+  record GsdSource(Citation citation, String shortTitle) {}
+  private final List<GsdSource> gsdSources = new ArrayList<>();
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
@@ -172,9 +175,23 @@ public class Generator extends AbstractColdpGenerator {
     // backslashes snakeyaml emits (escaped quotes, wrapped-line continuations) as replacement
     // metacharacters and corrupts the YAML. Matcher.quoteReplacement makes the value literal.
     // sourceCitations is left empty so the base class does not re-inject an unescaped copy.
-    Optional<String> srcYaml = citAsYaml(gsdSources);
-    metadata.put("sources", srcYaml.map(y -> Matcher.quoteReplacement("source: \n" + y)).orElse(""));
+    metadata.put("sources", Matcher.quoteReplacement(renderSources()));
     super.addMetadata();
+  }
+
+  /** Renders the {@code source:} YAML block, injecting a (not-yet-standard) shortTitle per GSD. */
+  private String renderSources() throws JsonProcessingException {
+    if (gsdSources.isEmpty()) return "";
+    StringBuilder sb = new StringBuilder("source: \n");
+    for (GsdSource s : gsdSources) {
+      String entry = citAsYaml(List.of(s.citation())).orElse("").stripTrailing();
+      if (s.shortTitle() != null && !s.shortTitle().isBlank()) {
+        // single-quoted YAML scalar (no backslashes); double any internal single quote
+        entry += "\n   shortTitle: '" + s.shortTitle().trim().replace("'", "''") + "'";
+      }
+      sb.append(entry).append('\n');
+    }
+    return sb.toString();
   }
 
   /** Builds the ColDP {@code creator:} list YAML: the organisation plus the per-year editors. */
@@ -195,7 +212,7 @@ public class Generator extends AbstractColdpGenerator {
   // ── package-private accessors for the schema readers (inherited protected members) ──
   TermWriter nameUsageWriter() { return writer; }
   TermWriter referenceWriter() { return refWriter; }
-  List<Citation> gsdSources() { return gsdSources; }
+  List<GsdSource> gsdSources() { return gsdSources; }
 
   /** Records the latest GSD release date seen, used as the archive issued date. */
   void noteReleaseDate(LocalDate d) {

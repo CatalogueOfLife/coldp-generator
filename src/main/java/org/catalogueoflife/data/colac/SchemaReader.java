@@ -61,12 +61,13 @@ abstract class SchemaReader {
    *
    * @param id          ColDP source id, e.g. {@code d12}
    * @param title       full GSD name
+   * @param shortTitle  short GSD name (may be null)
    * @param agents      GSD "authors and editors" string (may be null); split into author/editor
    * @param publisher   GSD organisation/custodian (may be null)
    * @param version     GSD version (may be null)
    * @param releaseDate GSD release date (may be null)
    */
-  void addSourceCitation(String id, String title, String agents, String publisher,
+  void addSourceCitation(String id, String title, String shortTitle, String agents, String publisher,
                          String version, LocalDate releaseDate) {
     Citation c = new Citation();
     c.setId(id);
@@ -80,7 +81,7 @@ abstract class SchemaReader {
       c.setIssued(FuzzyDate.of(releaseDate.getYear()));
       g.noteReleaseDate(releaseDate);
     }
-    g.gsdSources().add(c);
+    g.gsdSources().add(new Generator.GsdSource(c, shortTitle));
   }
 
   private static List<CslName> toCsl(List<String[]> names) {

@@ -203,8 +203,8 @@ class OldSchemaReader extends SchemaReader {
         String agents = hasAE ? rs.getString("authors_editors") : null;
         String publisher = hasOrg ? rs.getString("organization")
             : (hasCust ? rs.getString("custodian") : null);
-        addSourceCitation("d" + rs.getInt("record_id"), title, agents, publisher,
-            rs.getString("version"), parseDate(rs.getString("release_date")));
+        addSourceCitation("d" + rs.getInt("record_id"), title, rs.getString("database_name"),
+            agents, publisher, rs.getString("version"), parseDate(rs.getString("release_date")));
         n++;
       }
     }
