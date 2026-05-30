@@ -168,7 +168,11 @@ public class Generator extends AbstractColdpGenerator {
     // 2405-884X was used from 2016 on.
     String issn = year <= 2015 ? "1473-009X" : "2405-884X";
     metadata.put("issn", "issn: " + issn);
-    metadata.put("creators", buildCreators(city, country));
+    // city/country fill the publisher: block in the template; Species 2000 (the publisher) is
+    // not a creator/author — creator holds only the annual checklist editors.
+    metadata.put("city", city);
+    metadata.put("country", country);
+    metadata.put("creators", buildCreators());
 
     // Render the GSD source registry ourselves. The shared metadata template is filled by
     // SimpleTemplate, which substitutes via Matcher.appendReplacement — that interprets the
@@ -194,14 +198,14 @@ public class Generator extends AbstractColdpGenerator {
     return sb.toString();
   }
 
-  /** Builds the ColDP {@code creator:} list YAML: the organisation plus the per-year editors. */
-  private String buildCreators(String city, String country) {
+  /** Builds the ColDP {@code creator:} list YAML — the per-year Annual Checklist editors. */
+  private String buildCreators() {
     StringBuilder sb = new StringBuilder();
-    sb.append("  - organisation: Species 2000 & ITIS Catalogue of Life\n");
-    sb.append("    city: ").append(city).append('\n');
-    sb.append("    country: ").append(country);
+    boolean first = true;
     for (String[] ed : ColacMappings.parseEditors(EDITORS.get(year))) {
-      sb.append("\n  - family: ").append(ed[1]);
+      if (!first) sb.append('\n');
+      first = false;
+      sb.append("  - family: ").append(ed[1]);
       if (ed[0] != null) sb.append("\n    given: ").append(ed[0]);
       String orcid = ORCID.get(ed[1]);
       if (orcid != null) sb.append("\n    orcid: ").append(orcid);

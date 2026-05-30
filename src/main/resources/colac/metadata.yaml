@@ -20,6 +20,10 @@ version: {version}
 contact:
   organisation: Species 2000 & ITIS Catalogue of Life
   url: https://www.catalogueoflife.org
+publisher:
+  organisation: Species 2000 & ITIS Catalogue of Life
+  city: {city}
+  country: {country}
 creator:
 {creators}
 contributor:
