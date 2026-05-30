@@ -155,9 +155,9 @@ public class Generator extends AbstractColdpGenerator {
     metadata.put("version", "Annual Checklist " + year);
     metadata.put("issued", releaseDate != null ? releaseDate.toString() : String.valueOf(year));
     metadata.put("url", "https://www.catalogueoflife.org/annual-checklist/" + year + "/");
-    // 1473-009X was the CD-ROM/DVD Annual Checklist ISSN in use from 2005; the online ISSN
-    // 2405-884X was introduced in 2016, and 2018 used the DVD ISSN 2405-917X.
-    String issn = year <= 2015 ? "1473-009X" : (year == 2018 ? "2405-917X" : "2405-884X");
+    // 1473-009X was the CD-ROM/DVD Annual Checklist ISSN in use from 2005; the ISSN
+    // 2405-884X was used from 2016 on.
+    String issn = year <= 2015 ? "1473-009X" : "2405-884X";
     metadata.put("issn", "issn: " + issn);
     metadata.put("creators", buildCreators(city, country));
     super.addMetadata();
