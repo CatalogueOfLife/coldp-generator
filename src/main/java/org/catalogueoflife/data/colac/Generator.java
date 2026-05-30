@@ -78,10 +78,8 @@ public class Generator extends AbstractColdpGenerator {
   TermWriter vernWriter;
   TermWriter distWriter;
 
-  // GSD source citations, rendered into metadata.yaml ourselves (see addMetadata). The short
-  // GSD name is emitted as `alias` (matching the dataset-level alias key).
-  record GsdSource(Citation citation, String alias) {}
-  private final List<GsdSource> gsdSources = new ArrayList<>();
+  // GSD source citations, rendered into metadata.yaml ourselves (see addMetadata).
+  private final List<Citation> gsdSources = new ArrayList<>();
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
@@ -182,19 +180,9 @@ public class Generator extends AbstractColdpGenerator {
     super.addMetadata();
   }
 
-  /** Renders the {@code source:} YAML block, injecting the GSD short name as {@code alias}. */
+  /** Renders the {@code source:} YAML block from the GSD citations (alias set on each). */
   private String renderSources() throws JsonProcessingException {
-    if (gsdSources.isEmpty()) return "";
-    StringBuilder sb = new StringBuilder("source: \n");
-    for (GsdSource s : gsdSources) {
-      String entry = citAsYaml(List.of(s.citation())).orElse("").stripTrailing();
-      if (s.alias() != null && !s.alias().isBlank()) {
-        // single-quoted YAML scalar (no backslashes); double any internal single quote
-        entry += "\n   alias: '" + s.alias().trim().replace("'", "''") + "'";
-      }
-      sb.append(entry).append('\n');
-    }
-    return sb.toString();
+    return citAsYaml(gsdSources).map(y -> "source: \n" + y).orElse("");
   }
 
   /** Builds the ColDP {@code creator:} list YAML — the per-year Annual Checklist editors. */
@@ -215,7 +203,7 @@ public class Generator extends AbstractColdpGenerator {
   // ── package-private accessors for the schema readers (inherited protected members) ──
   TermWriter nameUsageWriter() { return writer; }
   TermWriter referenceWriter() { return refWriter; }
-  List<GsdSource> gsdSources() { return gsdSources; }
+  List<Citation> gsdSources() { return gsdSources; }
 
   /** Records the latest GSD release date seen, used as the archive issued date. */
   void noteReleaseDate(LocalDate d) {

@@ -72,6 +72,7 @@ abstract class SchemaReader {
     Citation c = new Citation();
     c.setId(id);
     if (title != null && !title.isBlank()) c.setTitle(title.trim());
+    if (alias != null && !alias.isBlank()) c.setAlias(alias.trim());
     ColacMappings.Agents a = ColacMappings.parseAgents(agents);
     if (!a.authors().isEmpty()) c.setAuthor(toCsl(a.authors()));
     if (!a.editors().isEmpty()) c.setEditor(toCsl(a.editors()));
@@ -81,7 +82,7 @@ abstract class SchemaReader {
       c.setIssued(FuzzyDate.of(releaseDate.getYear()));
       g.noteReleaseDate(releaseDate);
     }
-    g.gsdSources().add(new Generator.GsdSource(c, alias));
+    g.gsdSources().add(c);
   }
 
   private static List<CslName> toCsl(List<String[]> names) {
