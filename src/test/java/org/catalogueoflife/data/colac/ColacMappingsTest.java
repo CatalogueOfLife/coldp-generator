@@ -83,4 +83,27 @@ public class ColacMappingsTest {
   private static String fmt(List<String[]> eds) {
     return eds.stream().map(e -> e[0] + "|" + e[1]).collect(Collectors.joining("; "));
   }
+
+  @Test
+  public void testParseAgents() {
+    var a = parseAgents("Vignes-Lebbe R. & Gallut C.");
+    assertEquals("R.|Vignes-Lebbe; C.|Gallut", fmt(a.authors()));
+    assertEquals("", fmt(a.editors()));
+
+    // trailing (eds) marks the whole clause as editors
+    var b = parseAgents("Shimura J.,  Hiraki K. &  Garrity G.M. (eds)");
+    assertEquals("", fmt(b.authors()));
+    assertEquals("J.|Shimura; K.|Hiraki; G.M.|Garrity", fmt(b.editors()));
+
+    // leading © is dropped
+    assertEquals("M.|Guiry", fmt(parseAgents("© Guiry M.").authors()));
+
+    // scope tag "(Pulmonata)" is dropped (authors), separate "(ed)" clause is editors
+    var c = parseAgents("Smith B.J., Reid S. & Ponder W.F. (Pulmonata); Wells A. (ed)");
+    assertEquals("B.J.|Smith; S.|Reid; W.F.|Ponder", fmt(c.authors()));
+    assertEquals("A.|Wells", fmt(c.editors()));
+
+    var empty = parseAgents(null);
+    assertTrue(empty.authors().isEmpty() && empty.editors().isEmpty());
+  }
 }

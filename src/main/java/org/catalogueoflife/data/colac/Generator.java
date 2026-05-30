@@ -11,8 +11,11 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Matcher;
 
 /**
  * Generator for the historical Catalogue of Life Annual Checklists 2005–2019.
@@ -74,6 +77,9 @@ public class Generator extends AbstractColdpGenerator {
   // additional ColDP writers shared with the schema readers
   TermWriter vernWriter;
   TermWriter distWriter;
+
+  // GSD source citations, rendered into metadata.yaml ourselves (see addMetadata)
+  private final List<Citation> gsdSources = new ArrayList<>();
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
@@ -160,6 +166,14 @@ public class Generator extends AbstractColdpGenerator {
     String issn = year <= 2015 ? "1473-009X" : "2405-884X";
     metadata.put("issn", "issn: " + issn);
     metadata.put("creators", buildCreators(city, country));
+
+    // Render the GSD source registry ourselves. The shared metadata template is filled by
+    // SimpleTemplate, which substitutes via Matcher.appendReplacement — that interprets the
+    // backslashes snakeyaml emits (escaped quotes, wrapped-line continuations) as replacement
+    // metacharacters and corrupts the YAML. Matcher.quoteReplacement makes the value literal.
+    // sourceCitations is left empty so the base class does not re-inject an unescaped copy.
+    Optional<String> srcYaml = citAsYaml(gsdSources);
+    metadata.put("sources", srcYaml.map(y -> Matcher.quoteReplacement("source: \n" + y)).orElse(""));
     super.addMetadata();
   }
 
@@ -181,7 +195,7 @@ public class Generator extends AbstractColdpGenerator {
   // ── package-private accessors for the schema readers (inherited protected members) ──
   TermWriter nameUsageWriter() { return writer; }
   TermWriter referenceWriter() { return refWriter; }
-  List<Citation> sources() { return sourceCitations; }
+  List<Citation> gsdSources() { return gsdSources; }
 
   /** Records the latest GSD release date seen, used as the archive issued date. */
   void noteReleaseDate(LocalDate d) {

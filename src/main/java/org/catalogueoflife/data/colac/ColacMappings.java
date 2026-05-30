@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Pure mapping helpers shared by the old (2005–2011) and new (2012–2019) CoL Annual
@@ -103,6 +105,37 @@ public class ColacMappings {
       out.add(new String[]{given, family.toString()});
     }
     return out;
+  }
+
+  private static final Pattern PAREN = Pattern.compile("\\(([^)]*)\\)");
+
+  /** Parsed source-database agents: author and editor name pairs (each {@code [given, family]}). */
+  record Agents(List<String[]> authors, List<String[]> editors) {}
+
+  /**
+   * Parses a GSD "authors and editors" string into author and editor name pairs. Strips a
+   * leading "©" and parenthetical scope tags (e.g. "(Pulmonata)"); a clause (";"-separated)
+   * whose parenthetical is "(ed)"/"(eds)"/"(editor[s])" is treated as editors, otherwise
+   * authors. Names within a clause are split on "&"/"," and parsed like {@link #parseEditors}.
+   */
+  static Agents parseAgents(String s) {
+    List<String[]> authors = new ArrayList<>();
+    List<String[]> editors = new ArrayList<>();
+    if (s == null || s.isBlank()) return new Agents(authors, editors);
+    for (String clause : s.replace("©", " ").split(";")) {
+      if (clause.isBlank()) continue;
+      boolean editor = false;
+      Matcher m = PAREN.matcher(clause);
+      while (m.find()) {
+        String tag = m.group(1).trim().toLowerCase(Locale.ENGLISH).replace(".", "");
+        if (tag.equals("ed") || tag.equals("eds") || tag.equals("editor") || tag.equals("editors")) {
+          editor = true;
+        }
+      }
+      String cleaned = PAREN.matcher(clause).replaceAll(" ").replace("&", ",");
+      (editor ? editors : authors).addAll(parseEditors(cleaned));
+    }
+    return new Agents(authors, editors);
   }
 
   static String joinRefs(Collection<String> ids) {

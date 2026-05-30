@@ -182,14 +182,28 @@ class OldSchemaReader extends SchemaReader {
   }
 
   private void loadSources() throws Exception {
+    // author/publisher columns vary: 2005 has only `custodian`; 2006-2011 have
+    // `authors_editors` + `organization`.
+    Set<String> cols = tableColumns("databases");
+    boolean hasAE = cols.contains("authors_editors");
+    boolean hasOrg = cols.contains("organization");
+    boolean hasCust = cols.contains("custodian");
+    StringBuilder sql = new StringBuilder(
+        "SELECT record_id, database_full_name, database_name, version, release_date");
+    if (hasAE) sql.append(", authors_editors");
+    if (hasOrg) sql.append(", organization");
+    if (hasCust) sql.append(", custodian");
+    sql.append(" FROM `databases`");
+
     int n = 0;
-    try (Statement st = conn.createStatement();
-         ResultSet rs = st.executeQuery(
-             "SELECT record_id, database_full_name, database_name, version, release_date FROM `databases`")) {
+    try (Statement st = conn.createStatement(); ResultSet rs = st.executeQuery(sql.toString())) {
       while (rs.next()) {
         String title = rs.getString("database_full_name");
         if (title == null || title.isBlank()) title = rs.getString("database_name");
-        addSourceCitation("d" + rs.getInt("record_id"), title, null,
+        String agents = hasAE ? rs.getString("authors_editors") : null;
+        String publisher = hasOrg ? rs.getString("organization")
+            : (hasCust ? rs.getString("custodian") : null);
+        addSourceCitation("d" + rs.getInt("record_id"), title, agents, publisher,
             rs.getString("version"), parseDate(rs.getString("release_date")));
         n++;
       }

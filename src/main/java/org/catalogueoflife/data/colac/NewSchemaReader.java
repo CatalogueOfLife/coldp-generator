@@ -168,11 +168,11 @@ class NewSchemaReader extends SchemaReader {
     int n = 0;
     try (Statement st = conn.createStatement();
          ResultSet rs = st.executeQuery(
-             "SELECT id, name, authors_and_editors, version, release_date FROM source_database")) {
+             "SELECT id, name, authors_and_editors, organisation, version, release_date FROM source_database")) {
       while (rs.next()) {
         addSourceCitation("d" + rs.getInt("id"), rs.getString("name"),
-            rs.getString("authors_and_editors"), rs.getString("version"),
-            parseDate(rs.getString("release_date")));
+            rs.getString("authors_and_editors"), rs.getString("organisation"),
+            rs.getString("version"), parseDate(rs.getString("release_date")));
         n++;
       }
     }
