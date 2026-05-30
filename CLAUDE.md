@@ -24,6 +24,8 @@ mvn test
 - `--lpsn-user / --lpsn-pass` — LPSN credentials
 - `--date` — date filter for incremental updates
 - `--no-download` — skip downloading source files; reuse existing local copies (useful for development re-runs)
+- `--year` — (colac only) annual checklist year 2005–2019, selects MariaDB database `col{year}ac`
+- `--db-host / --db-port / --db-user / --db-pass` — (colac only) MariaDB connection (defaults `localhost` / `3306` / `root` / `root`)
 
 ## Project Structure
 
@@ -102,9 +104,9 @@ As a consequence, all template detection in the wikispecies generator (and any f
 
 Generators output raw rank labels (e.g. `"familia"`, `"classis"`, `"cohort"`) rather than normalised ColDP rank names. The ChecklistBank rank parser normalises these on import, so generators do not need a rank-mapping table.
 
-## Supported Sources (21)
+## Supported Sources (22)
 
-AntCat, ASW, Birdlife (HBW), BioLib, CITES, Clements, Cycads, GRIN, ICTV, IPNI, LPSN, MDD, Mites, OTL, OTT, PBDB, PFNR, USDA, WikiData, WikiSpecies, WSC
+AntCat, ASW, Birdlife (HBW), BioLib, CITES, Clements, CoL Annual Checklists (colac), Cycads, GRIN, ICTV, IPNI, LPSN, MDD, Mites, OTL, OTT, PBDB, PFNR, USDA, WikiData, WikiSpecies, WSC
 
 ### USDA PLANTS Generator
 
@@ -123,6 +125,26 @@ The USDA generator (`usda/`) downloads `plantlst.txt` from https://plants.sc.ego
 - `Distribution.tsv` — from `NativeStatuses[]`; `N`/`N?` → `native`, `I`/`I?` → `introduced`; `gazetteer=text`; region codes (AK, L48, HI, CAN, …) used as-is.
 - `TaxonProperty.tsv` — `Durations[]` → `duration`, `GrowthHabits[]` → `growth habit`, `Group` → `group`.
 - `Media.tsv` — `ProfileImageFilename` → `https://plants.sc.egov.usda.gov/ImageLibrary/standard/{filename}`.
+
+### CoL Annual Checklists Generator (colac)
+
+The `colac` generator (`colac/`) converts the historical Catalogue of Life Annual Checklists **2005–2019** into one ColDP archive per year. Each year exists only as a MySQL/MariaDB dump (no API). **The dumps are publicly available from https://www.catalogueoflife.org/data/download** and must be restored locally into MariaDB with one database per year named `col{year}ac` (e.g. `col2015ac`). Connect over TCP (`jdbc:mariadb://localhost:3306/col{year}ac`, defaults `root`/`root`).
+
+Run: `-s colac --year 2015` (one year per run; vary `-r` for batch). Uses MariaDB Connector/J (added to `pom.xml`) and explicitly registers the driver (`Class.forName("org.mariadb.jdbc.Driver")`) because the shaded fat JAR does not merge JDBC service files. Large result sets are streamed via `Statement.setFetchSize(1000)` (MariaDB Connector/J streams for any positive fetch size; `Integer.MIN_VALUE` is rejected).
+
+**Two schemas, dispatched by year** in `Generator.addData()`:
+- **2005–2011** → `OldSchemaReader`. Accepted classification = the `taxa` tree (Kingdom→Infraspecies via `parent_id`, `is_accepted_name=1`); names/authors/synonymy = `scientific_names` keyed by `name_code`; synonyms linked via `accepted_name_code`. **Schema drift within the era**: the `sp2000_status_id`→label assignment differs (e.g. id 4 = ambiguous synonym in 2005, but provisionally accepted in 2008+), the `sp2000_status` text column exists only in 2005, `is_accepted_name` on `scientific_names` is absent in 2005, and the `scientific_name_references.reference_type` vocabulary changes (2005–06 `AuthorRef`/`StatusRef`/`StatRef`; 2007–11 `NomRef`/`TaxAccRef` + stray types + NULL). So accepted-vs-synonym status ids are derived per-year from the `sp2000_statuses` **labels** (`statusIdClause`), and reference categories are matched by label with all non-nomenclatural/non-common-name types defaulting to taxon `referenceID`.
+- **2012–2019** → `NewSchemaReader`. Normalized Species 2000 format, read via its fully-populated denormalized helper tables `_taxon_tree` (accepted hierarchy) and `_search_scientific` (atomized names/author/status/source). Synonyms = `_search_scientific` rows with `accepted_species_id > 0`. Provisionally-accepted taxa come from `taxon_detail.scientific_name_status_id`. Reference categories from the explicit `reference_type` table (1 Nomenclatural → `nameReferenceID`, 2 Taxonomic Acceptance → `referenceID`) via `reference_to_taxon`/`reference_to_synonym`/`reference_to_common_name`.
+
+**Output:** `NameUsage` (accepted + synonyms in one file), `VernacularName`, `Distribution`, `Reference`, and `metadata.yaml` (shared template `resources/colac/metadata.yaml` with `{year}`/`{issued}`/`{version}`/`{sources}` placeholders). The `source:` registry is built from the `databases` (old) / `source_database` (new) tables as `Citation`s added to `sourceCitations`; each NameUsage carries `sourceID = d<id>` linking to its contributing GSD. `issued` is the latest GSD release date.
+
+**Reference multiplicity:** taxon-level (`referenceID`) references are commonly multi-valued and are comma-joined (`ColacMappings.joinRefs`, de-duplicated, order-preserving). All reference ids are `r<numeric>` so they never contain a comma — guarded by `joinRefs` and covered by `ColacMappingsTest`.
+
+**Vernacular language:** old schema stores the English language name (e.g. "English") passed through verbatim for ChecklistBank to normalise; new schema stores ISO 639-3 (`language_iso`) used directly. **Distribution establishmentMeans** (new only): native/native-domesticated → native, alien/alien-domesticated/domesticated → introduced, uncertain → omitted; gazetteer derived from `region_standard` (TDWG → tdwg, IHO → iho, EEZ → mrgid, else text).
+
+**ID scheme:** `t<id>` accepted taxa, `s<id>` synonyms, `r<id>` references, `d<id>` source databases.
+
+**Pure mapping helpers** (`ColacMappings`, unit-tested in `ColacMappingsTest`): `nomCode` (kingdom→code), `status` (label→ColDP TaxonomicStatus), `establishment`, `synonymName` (atomized parts→name), `joinRefs`. The `Generator`/readers are integration-verified against the local MariaDB (`colac/GeneratorTest`, `@Ignore`d).
 
 ### ASW Generator
 

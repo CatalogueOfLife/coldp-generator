@@ -364,6 +364,12 @@
       <artifactId>sqlite-jdbc</artifactId>
       <version>3.47.1.0</version>
     </dependency>
+    <!-- MariaDB JDBC for the colac historical CoL Annual Checklist generator -->
+    <dependency>
+      <groupId>org.mariadb.jdbc</groupId>
+      <artifactId>mariadb-java-client</artifactId>
+      <version>3.5.2</version>
+    </dependency>
 
     <!-- TEST SCOPE -->
     <dependency>

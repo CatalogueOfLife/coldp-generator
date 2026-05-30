@@ -44,6 +44,19 @@ public class GeneratorConfig {
   @Parameter(names = {"--date"})
   public String date;
 
+  // ── colac (historical CoL Annual Checklist) generator ───────────────────────
+  @Parameter(names = {"--year"},
+             description = "colac: annual checklist year, selects MariaDB database col{year}ac (2005-2019)")
+  public Integer year;
+  @Parameter(names = {"--db-host"}, description = "colac: MariaDB host")
+  public String dbHost = "localhost";
+  @Parameter(names = {"--db-port"}, description = "colac: MariaDB port")
+  public int dbPort = 3306;
+  @Parameter(names = {"--db-user"}, description = "colac: MariaDB user")
+  public String dbUser = "root";
+  @Parameter(names = {"--db-pass"}, description = "colac: MariaDB password")
+  public String dbPass = "root";
+
   @Parameter(names = {"--no-download"},
              description = "Skip downloading source files; use existing local copies only")
   public boolean noDownload = false;

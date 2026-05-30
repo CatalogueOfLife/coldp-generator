@@ -25,6 +25,9 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 | `--date` | | Date filter for incremental updates for WSC                |
 | `--no-download` | `false` | Skip downloading source files; reuse existing local copies |
 | `--enrich` | `false` | (USDA only) Fetch PlantProfile API for each accepted name; adds Distribution, TaxonProperty, Media |
+| `--year` | | (colac only) Annual checklist year 2005–2019; selects MariaDB database `col{year}ac` |
+| `--db-host / --db-port` | `localhost` / `3306` | (colac only) MariaDB host and port |
+| `--db-user / --db-pass` | `root` / `root` | (colac only) MariaDB credentials |
 
 ## Supported Sources
 
@@ -35,6 +38,7 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 | `birdlife` | [Birdlife HBW](http://datazone.birdlife.org/species/taxonomy) | [170809](https://www.checklistbank.org/dataset/170809) | Handbook of the Birds of the World |
 | `biolib` | [BioLib](https://www.biolib.cz) | [54592](https://www.checklistbank.org/dataset/54592) | |
 | `clements` | [Clements](https://www.birds.cornell.edu/clementschecklist/) | [2013](https://www.checklistbank.org/dataset/2013) | Clements Checklist of Birds of the World |
+| `colac` | [CoL Annual Checklists](https://www.catalogueoflife.org/data/download) | | Historical CoL Annual Checklists 2005–2019 (one archive per `--year`, from local MariaDB dumps) |
 | `cycads` | [Cycads](https://cycadlist.org) | [1163](https://www.checklistbank.org/dataset/1163) | The World List of Cycads |
 | `grin` | [GRIN](https://npgsweb.ars-grin.gov/gringlobal/taxon/abouttaxonomy) | [2018](https://www.checklistbank.org/dataset/2018) | GRIN-Global Taxonomy (cultivated plants) |
 | `ioc` | [IOC World Bird List](https://www.worldbirdnames.org/) | [2036](https://www.checklistbank.org/dataset/2036) | IOC World Bird List (latest version auto-detected) |
@@ -54,6 +58,27 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 | `wsc` | [WSC](https://wsc.nmbe.ch/) | [56185](https://www.checklistbank.org/dataset/56185) | World Spider Catalog |
 
 ## Generator-specific Notes
+
+### CoL Annual Checklists (colac)
+
+Converts the historical Catalogue of Life Annual Checklists **2005–2019**, one ColDP archive per year. There is no API — each year exists only as a MySQL/MariaDB dump. **The dumps are publicly downloadable from <https://www.catalogueoflife.org/data/download>**; restore them into a local MariaDB with one database per year named `col{year}ac` (e.g. `col2015ac`).
+
+```bash
+java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s colac --year 2015 -r /tmp/coldp/archives
+```
+
+Two database schemas are handled and dispatched by year:
+
+- **2005–2011** (`OldSchemaReader`): the accepted classification is the `taxa` tree (Kingdom→Infraspecies via `parent_id`); names/authors/synonymy live in `scientific_names`. Status comes from `sp2000_status_id` + the per-year `sp2000_statuses` lookup — the id→label assignment and the `scientific_name_references.reference_type` vocabulary both **drift across these years**, so accepted-vs-synonym and reference categories are derived from labels, not hardcoded ids.
+- **2012–2019** (`NewSchemaReader`): the normalized Species 2000 format, read via its fully-populated denormalized helper tables `_taxon_tree` (hierarchy) and `_search_scientific` (names/authors/status/source); synonyms are `_search_scientific` rows with `accepted_species_id > 0`.
+
+**Output:** `NameUsage` (accepted + synonyms), `VernacularName`, `Distribution`, `Reference`, and a `metadata.yaml` whose `source:` registry lists every contributing Global Species Database (GSD). Each NameUsage carries a `sourceID` pointing to its GSD.
+
+**Reference links** map by category: nomenclatural references (`NomRef`/`AuthorRef`, or type 1 in the new schema) → `nameReferenceID`; taxonomic-acceptance references (`TaxAccRef`/`StatusRef`, or type 2) → `referenceID` (multiple per name are comma-joined; ids are `r<n>` and never contain a comma); common-name references (`ComNameRef` / `reference_to_common_name`) → VernacularName `referenceID`.
+
+**IDs:** `t<id>` accepted taxa, `s<id>` synonyms, `r<id>` references, `d<id>` source databases.
+
+Requires a MariaDB reachable over TCP (default `localhost:3306`, user/pass `root`/`root`; override with `--db-host/--db-port/--db-user/--db-pass`). The larger years (~4M name usages) benefit from a roomy heap, e.g. `java -Xmx8g`.
 
 ### GRIN
 

@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CatalogueOfLife/coldp/master/metadata.json
+---
+alias: CoL{year}AC
+title: Catalogue of Life {year} Annual Checklist
+description: |-
+  The Catalogue of Life {year} Annual Checklist is a historical edition of the Catalogue of Life,
+  an integrated, quality-checked global index of the world's known species assembled from many
+  Global Species Databases (GSDs). Each Annual Checklist was a fixed, citable yearly snapshot.
+
+  This ColDP archive was generated from the original Species 2000 / Catalogue of Life Annual
+  Checklist MySQL database for {year}. It contains the accepted classification, synonyms,
+  vernacular names, distributions and references, with each name attributed to its contributing
+  source database via sourceID. The contributing databases are listed below as sources.
+
+  The original MySQL dumps for all Annual Checklists are available from
+  https://www.catalogueoflife.org/data/download
+issued: {issued}
+version: {version}
+contact:
+  organisation: Catalogue of Life
+  url: https://www.catalogueoflife.org
+contributor:
+  - family: Döring
+    given: Markus
+    orcid: 0000-0001-7757-1889
+    country: Germany
+    city: Berlin
+    email: mdoering@gbif.org
+    note: Developer of ColDP generator code
+creator:
+  - organisation: Species 2000
+    url: https://www.catalogueoflife.org
+  - organisation: Integrated Taxonomic Information System (ITIS)
+license: CC BY
+url: https://www.catalogueoflife.org/data/download
+taxonomicScope: all life
+geographicScope: global
+confidence: 4
+completeness: 100
+notes: |-
+  Generated from the historical CoL Annual Checklist MySQL database col{year}ac.
+  IDs: t<id> accepted taxa, s<id> synonyms, r<id> references, d<id> source databases (GSDs).
+  Nomenclatural code assigned per kingdom. Each NameUsage.sourceID points to the contributing GSD.
+{sources}
