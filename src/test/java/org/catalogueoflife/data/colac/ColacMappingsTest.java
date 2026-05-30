@@ -4,6 +4,7 @@ import org.gbif.nameparser.api.NomCode;
 import org.junit.Test;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.catalogueoflife.data.colac.ColacMappings.*;
 import static org.junit.Assert.*;
@@ -38,17 +39,6 @@ public class ColacMappingsTest {
   }
 
   @Test
-  public void testEstablishment() {
-    assertEquals("native", establishment("native"));
-    assertEquals("native", establishment("native-domesticated"));
-    assertEquals("introduced", establishment("alien"));
-    assertEquals("introduced", establishment("alien-domesticated"));
-    assertEquals("introduced", establishment("domesticated"));
-    assertNull(establishment("uncertain"));
-    assertNull(establishment(null));
-  }
-
-  @Test
   public void testSynonymName() {
     assertEquals("Helix bombycina", synonymName("Helix", "bombycina", "", ""));
     assertEquals("Helix spaldingi carinata", synonymName("Helix", "spaldingi", "", "carinata"));
@@ -72,5 +62,25 @@ public class ColacMappingsTest {
   public void testJoinRefsRejectsComma() {
     // a value containing the separator would corrupt the multi-valued field
     joinRefs(List.of("r1", "r2,r3"));
+  }
+
+  @Test
+  public void testParseEditors() {
+    assertEquals("F.A.|Bisby; Y.R.|Roskov; T.M.|Orrell",
+        fmt(parseEditors("Bisby F.A., Roskov Y.R., Orrell T.M.")));
+    // single-initial surname
+    assertEquals("Y.|Roskov", fmt(parseEditors("Roskov Y.")));
+    // multi-part surname (no particle to move)
+    assertEquals("A.|De Wever", fmt(parseEditors("De Wever A.")));
+    // trailing lowercase particle moves before the surname
+    assertEquals("E.|van Nieukerken", fmt(parseEditors("Nieukerken E. van")));
+    // compound initials and camelCase surname
+    assertEquals("R.E.|DeWalt", fmt(parseEditors("DeWalt R.E.")));
+    assertTrue(parseEditors(null).isEmpty());
+    assertTrue(parseEditors("  ").isEmpty());
+  }
+
+  private static String fmt(List<String[]> eds) {
+    return eds.stream().map(e -> e[0] + "|" + e[1]).collect(Collectors.joining("; "));
   }
 }

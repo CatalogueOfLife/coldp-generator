@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/CatalogueOfLife/coldp/master/metadata.json
 ---
-alias: CoL{year}AC
-title: Catalogue of Life {year} Annual Checklist
+alias: {alias}
+title: Catalogue of Life Checklist
 description: |-
   The Catalogue of Life {year} Annual Checklist is a historical edition of the Catalogue of Life,
   an integrated, quality-checked global index of the world's known species assembled from many
@@ -16,23 +16,22 @@ description: |-
   https://www.catalogueoflife.org/data/download
 issued: {issued}
 version: {version}
+{issn}
 contact:
-  organisation: Catalogue of Life
+  organisation: Species 2000 & ITIS Catalogue of Life
   url: https://www.catalogueoflife.org
+creator:
+{creators}
 contributor:
   - family: Döring
     given: Markus
     orcid: 0000-0001-7757-1889
-    country: Germany
+    country: DE
     city: Berlin
     email: mdoering@gbif.org
     note: Developer of ColDP generator code
-creator:
-  - organisation: Species 2000
-    url: https://www.catalogueoflife.org
-  - organisation: Integrated Taxonomic Information System (ITIS)
 license: CC BY
-url: https://www.catalogueoflife.org/data/download
+url: {url}
 taxonomicScope: all life
 geographicScope: global
 confidence: 4

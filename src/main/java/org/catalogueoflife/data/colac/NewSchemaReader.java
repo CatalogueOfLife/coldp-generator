@@ -305,7 +305,8 @@ class NewSchemaReader extends SchemaReader {
         Generator.set(distW, ColdpTerm.taxonID, "t" + rs.getInt("taxon_detail_id"));
         Generator.set(distW, ColdpTerm.area, area);
         Generator.set(distW, ColdpTerm.gazetteer, regionGazetteer.getOrDefault(regionId, "text"));
-        Generator.set(distW, ColdpTerm.establishmentMeans, establishment(distStatus.get(rs.getInt("distribution_status_id"))));
+        // keep the original distribution_status label verbatim; ChecklistBank parses/maps it on import
+        Generator.set(distW, ColdpTerm.establishmentMeans, distStatus.get(rs.getInt("distribution_status_id")));
         distW.next();
         n++;
       }

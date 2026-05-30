@@ -2,8 +2,10 @@ package org.catalogueoflife.data.colac;
 
 import org.gbif.nameparser.api.NomCode;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.StringJoiner;
@@ -52,19 +54,6 @@ public class ColacMappings {
   }
 
   /**
-   * Maps a new-schema distribution_status label to a ColDP establishmentMeans value, or
-   * null when it carries no useful establishment information.
-   */
-  static String establishment(String distStatus) {
-    if (distStatus == null) return null;
-    return switch (distStatus.trim().toLowerCase(Locale.ENGLISH)) {
-      case "native", "native-domesticated"            -> "native";
-      case "alien", "alien-domesticated", "domesticated" -> "introduced";
-      default                                          -> null; // uncertain / unknown
-    };
-  }
-
-  /**
    * Reconstructs a scientific name (without authorship) from atomized parts. Parts are
    * emitted in the order genus, species, infraspecific marker, infraspecies; blank parts
    * are skipped and the result is single-space separated. Returns null when no part is set.
@@ -86,6 +75,36 @@ public class ColacMappings {
    * @throws IllegalArgumentException if any ID contains the comma separator, which would
    *         corrupt the multi-valued field.
    */
+  /**
+   * Parses a comma-separated citation author list of the form "Surname I.I., Surname I., ..."
+   * into a list of {@code [given, family]} pairs. Handles trailing lowercase particles
+   * ("Nieukerken E. van" → family "van Nieukerken") and multi-word surnames ("De Wever A.").
+   * Returns an empty list for null/blank input.
+   */
+  static List<String[]> parseEditors(String authors) {
+    List<String[]> out = new ArrayList<>();
+    if (authors == null || authors.isBlank()) return out;
+    for (String name : authors.split(",")) {
+      name = name.trim();
+      if (name.isEmpty()) continue;
+      String[] tokens = name.split("\\s+");
+      int initIdx = -1;
+      for (int i = 0; i < tokens.length; i++) {
+        if (tokens[i].matches("(\\p{Lu}\\.)+")) { initIdx = i; break; }
+      }
+      if (initIdx < 0) { // no initials found: treat the whole as a family/organisation name
+        out.add(new String[]{null, name});
+        continue;
+      }
+      String given = tokens[initIdx];
+      StringJoiner family = new StringJoiner(" ");
+      for (int i = initIdx + 1; i < tokens.length; i++) family.add(tokens[i]); // trailing particles first
+      for (int i = 0; i < initIdx; i++) family.add(tokens[i]);
+      out.add(new String[]{given, family.toString()});
+    }
+    return out;
+  }
+
   static String joinRefs(Collection<String> ids) {
     if (ids == null || ids.isEmpty()) return null;
     Set<String> unique = new LinkedHashSet<>();
