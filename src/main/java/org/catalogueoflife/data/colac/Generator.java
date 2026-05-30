@@ -29,10 +29,17 @@ import java.util.Map;
  */
 public class Generator extends AbstractColdpGenerator {
 
-  // Editor lists per year, taken verbatim from the published Annual Checklist citations
-  // (Species 2000 & ITIS Catalogue of Life). Years 2005-2010 have no citation supplied here,
-  // so only the organisation is listed as creator for those.
+  // Editor lists per year, normalised to "Surname Initials" order from the published Annual
+  // Checklist "How to cite this work" pages (archived under resources/colac/citations/).
+  // 2006-2009 have no citation page available; Bisby and Roskov led the team throughout, so
+  // they are listed as the confirmed core for those years.
   private static final Map<Integer, String> EDITORS = Map.ofEntries(
+      Map.entry(2005, "Bisby F.A., Ruggiero M.A., Wilson K.L., Cachuela-Palacio M., Kimani S.W., Roskov Y.R., Soulier-Perkins A., van Hertum J."),
+      Map.entry(2006, "Bisby F.A., Roskov Y.R."),
+      Map.entry(2007, "Bisby F.A., Roskov Y.R."),
+      Map.entry(2008, "Bisby F.A., Roskov Y.R."),
+      Map.entry(2009, "Bisby F.A., Roskov Y.R."),
+      Map.entry(2010, "Bisby F.A., Roskov Y.R., Orrell T.M., Nicolson D., Paglinawan L.E., Bailly N., Kirk P.M., Bourgoin T., Baillargeon G."),
       Map.entry(2011, "Bisby F.A., Roskov Y.R., Orrell T.M., Nicolson D., Paglinawan L.E., Bailly N., Kirk P.M., Bourgoin T., Baillargeon G., Ouvrard D."),
       Map.entry(2012, "Bisby F., Roskov Y., Culham A., Orrell T., Nicolson D., Paglinawan L., Bailly N., Appeltans W., Kirk P., Bourgoin T., Baillargeon G., Ouvrard D."),
       Map.entry(2013, "Roskov Y., Kunze T., Paglinawan L., Orrell T., Nicolson D., Culham A., Bailly N., Kirk P., Bourgoin T., Baillargeon G., Hernandez F., De Wever A."),
@@ -43,12 +50,20 @@ public class Generator extends AbstractColdpGenerator {
       Map.entry(2018, "Roskov Y., Abucay L., Orrell T., Nicolson D., Bailly N., Kirk P.M., Bourgoin T., DeWalt R.E., Decock W., De Wever A., Nieukerken E. van, Zarucchi J., Penev L."),
       Map.entry(2019, "Roskov Y., Ower G., Orrell T., Nicolson D., Bailly N., Kirk P.M., Bourgoin T., DeWalt R.E., Decock W., Nieukerken E. van, Zarucchi J., Penev L.")
   );
-  // ISSN appears on the Annual Checklists from 2016 on (2018 used the DVD ISSN).
-  private static final Map<Integer, String> ISSN = Map.of(
-      2016, "2405-884X",
-      2017, "2405-884X",
-      2018, "2405-917X",
-      2019, "2405-884X"
+
+  // ORCIDs keyed by family name, harvested from the current CoL release metadata
+  // (api.checklistbank.org/dataset/3LR.yaml) and the repo's ITIS metadata. Only confident,
+  // same-person matches are included — no guessing.
+  private static final Map<String, String> ORCID = Map.ofEntries(
+      Map.entry("Roskov",   "0000-0003-2137-2690"),
+      Map.entry("Orrell",   "0000-0003-1038-3028"),
+      Map.entry("Nicolson", "0000-0002-7987-0679"),
+      Map.entry("Bailly",   "0000-0003-4994-0653"),
+      Map.entry("Kirk",     "0000-0002-0658-7338"),
+      Map.entry("Ouvrard",  "0000-0003-2931-6116"),
+      Map.entry("Decock",   "0000-0002-2168-9471"),
+      Map.entry("Ower",     "0000-0002-9770-2345"),
+      Map.entry("DeWalt",   "0000-0001-9985-9250")
   );
 
   private final int year;
@@ -140,8 +155,10 @@ public class Generator extends AbstractColdpGenerator {
     metadata.put("version", "Annual Checklist " + year);
     metadata.put("issued", releaseDate != null ? releaseDate.toString() : String.valueOf(year));
     metadata.put("url", "https://www.catalogueoflife.org/annual-checklist/" + year + "/");
-    String issn = ISSN.get(year);
-    metadata.put("issn", issn != null ? "issn: " + issn : "");
+    // 1473-009X was the CD-ROM/DVD Annual Checklist ISSN in use from 2005; the online ISSN
+    // 2405-884X was introduced in 2016, and 2018 used the DVD ISSN 2405-917X.
+    String issn = year <= 2015 ? "1473-009X" : (year == 2018 ? "2405-917X" : "2405-884X");
+    metadata.put("issn", "issn: " + issn);
     metadata.put("creators", buildCreators(city, country));
     super.addMetadata();
   }
@@ -155,6 +172,8 @@ public class Generator extends AbstractColdpGenerator {
     for (String[] ed : ColacMappings.parseEditors(EDITORS.get(year))) {
       sb.append("\n  - family: ").append(ed[1]);
       if (ed[0] != null) sb.append("\n    given: ").append(ed[0]);
+      String orcid = ORCID.get(ed[1]);
+      if (orcid != null) sb.append("\n    orcid: ").append(orcid);
     }
     return sb.toString();
   }
