@@ -2,6 +2,7 @@ package org.catalogueoflife.data.colac;
 
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import life.catalogue.coldp.ColdpTerm;
 
 import java.sql.Connection;
@@ -48,13 +49,34 @@ class OldSchemaReader extends SchemaReader {
 
     Map<Integer, String> familyKingdom = loadFamilyKingdom();
 
-    // accepted classification tree: child→parent + the kingdom name at each root; plus the
-    // name_code→ColDP id map used to attach synonyms, vernaculars and distributions.
+    // accepted classification tree: child→parent + the kingdom name at each root; the set of
+    // accepted taxa record_ids (used to repair dangling parent links); plus the accepted
+    // name_code→ColDP id map. Only ACCEPTED taxa nodes are mapped: a non-accepted node is never
+    // emitted, so a reference resolved to it would dangle (synonym parentID, vernacular/distribution
+    // taxonID). Synonym-coded references are instead resolved to their accepted taxon via the chain.
+    // acceptedByNameParent indexes accepted nodes by (name, parent_id) for accepted-homonym lookup;
+    // neededParents collects every parent_id referenced by an accepted node (to bound the repair).
     Int2IntOpenHashMap childParent = new Int2IntOpenHashMap();
     childParent.defaultReturnValue(0);
     Int2ObjectOpenHashMap<String> kingdomRoot = new Int2ObjectOpenHashMap<>();
-    Map<String, String> nameCodeToId = new HashMap<>();
-    loadTaxaTree(childParent, kingdomRoot, nameCodeToId);
+    IntOpenHashSet acceptedTaxa = new IntOpenHashSet();
+    Map<String, String> acceptedNameCodeToId = new HashMap<>();
+    Map<String, Integer> acceptedByNameParent = new HashMap<>();
+    IntOpenHashSet neededParents = new IntOpenHashSet();
+    loadTaxaTree(childParent, kingdomRoot, acceptedTaxa, acceptedNameCodeToId, acceptedByNameParent, neededParents);
+
+    // synonym name_code → its declared accepted_name_code, used to follow synonym→synonym chains
+    // (the 2005–2011 ITIS data has accepted_name_code values that are themselves synonyms) down to
+    // an accepted name with an emitted taxon.
+    Map<String, String> synAcceptedCode = loadSynonymChain(synonymIds);
+
+    // For every non-accepted node that is used as a parent (a species that is itself a synonym),
+    // pre-resolve the accepted taxon its accepted children should hang under: the accepted homonym
+    // of the same binomial (e.g. Monarda fistulosa L. rather than the synonym M. fistulosa Sims),
+    // else the synonym's accepted species via accepted_name_code (often a same-epithet recombination,
+    // e.g. Stipa nelsonii → Achnatherum nelsonii). Falls back to the genus only when neither exists.
+    Int2ObjectOpenHashMap<String> repairedParent = buildRepairedParents(
+        neededParents, acceptedByNameParent, acceptedNameCodeToId, synAcceptedCode);
 
     Map<String, String[]> accInfo = loadAcceptedInfo(statusLabels, acceptedIds);
 
@@ -66,10 +88,10 @@ class OldSchemaReader extends SchemaReader {
     loadSources();
     writeReferences();
 
-    int nAcc = emitAccepted(childParent, kingdomRoot, accInfo, nameRef, taxonRef);
-    int nSyn = emitSynonyms(statusLabels, synonymIds, familyKingdom, nameCodeToId, nameRef, taxonRef);
-    int nVern = emitVernaculars(nameCodeToId, comNameRef);
-    int nDist = emitDistributions(nameCodeToId);
+    int nAcc = emitAccepted(childParent, kingdomRoot, acceptedTaxa, repairedParent, accInfo, nameRef, taxonRef);
+    int nSyn = emitSynonyms(statusLabels, synonymIds, familyKingdom, acceptedNameCodeToId, synAcceptedCode, nameRef, taxonRef);
+    int nVern = emitVernaculars(acceptedNameCodeToId, synAcceptedCode, comNameRef);
+    int nDist = emitDistributions(acceptedNameCodeToId, synAcceptedCode);
     LOG.info("Old schema done: {} accepted, {} synonyms, {} vernaculars, {} distributions",
         nAcc, nSyn, nVern, nDist);
   }
@@ -112,23 +134,124 @@ class OldSchemaReader extends SchemaReader {
   }
 
   private void loadTaxaTree(Int2IntOpenHashMap childParent, Int2ObjectOpenHashMap<String> kingdomRoot,
-                            Map<String, String> nameCodeToId) throws Exception {
+                            IntOpenHashSet acceptedTaxa, Map<String, String> acceptedNameCodeToId,
+                            Map<String, Integer> acceptedByNameParent, IntOpenHashSet neededParents) throws Exception {
     try (Statement st = streamStmt();
-         ResultSet rs = st.executeQuery("SELECT record_id, parent_id, name, name_code FROM taxa")) {
+         ResultSet rs = st.executeQuery("SELECT record_id, parent_id, name, name_code, is_accepted_name FROM taxa")) {
       while (rs.next()) {
         int id = rs.getInt("record_id");
         int parent = rs.getInt("parent_id");
+        String name = rs.getString("name");
         childParent.put(id, parent);
         if (parent == 0) {
-          kingdomRoot.put(id, rs.getString("name")); // top-level node = kingdom
+          kingdomRoot.put(id, name); // top-level node = kingdom
         }
-        String nc = rs.getString("name_code");
-        if (nc != null && !nc.isBlank()) {
-          nameCodeToId.put(nc, "t" + id);
+        if (rs.getInt("is_accepted_name") == 1) {
+          acceptedTaxa.add(id); // emitted by emitAccepted; valid parentID/taxonID target
+          if (parent != 0) neededParents.add(parent); // candidate parent that may need repair
+          String nc = rs.getString("name_code");
+          if (nc != null && !nc.isBlank()) {
+            acceptedNameCodeToId.put(nc, "t" + id); // only accepted nodes are emitted
+          }
+          if (name != null && !name.isBlank()) {
+            acceptedByNameParent.putIfAbsent(nameParentKey(name, parent), id); // for homonym lookup
+          }
         }
       }
     }
-    LOG.info("Loaded {} taxa tree nodes, {} kingdoms", childParent.size(), kingdomRoot.size());
+    LOG.info("Loaded {} taxa tree nodes, {} accepted, {} kingdoms",
+        childParent.size(), acceptedTaxa.size(), kingdomRoot.size());
+  }
+
+  /**
+   * Streams the non-accepted taxa nodes that are used as parents (a species that is itself a
+   * synonym) and resolves, for each, the accepted taxon its accepted children should hang under.
+   * See {@link #repairParent}. Keeps only the nodes that resolve; the rest fall back to the nearest
+   * accepted ancestor at emit time.
+   */
+  private Int2ObjectOpenHashMap<String> buildRepairedParents(
+      IntOpenHashSet neededParents, Map<String, Integer> acceptedByNameParent,
+      Map<String, String> acceptedNameCodeToId, Map<String, String> synAcceptedCode) throws Exception {
+    Int2ObjectOpenHashMap<String> repaired = new Int2ObjectOpenHashMap<>();
+    int homonym = 0, viaAcceptedCode = 0;
+    try (Statement st = streamStmt();
+         ResultSet rs = st.executeQuery(
+             "SELECT record_id, parent_id, name, name_code FROM taxa WHERE is_accepted_name <> 1")) {
+      while (rs.next()) {
+        int id = rs.getInt("record_id");
+        if (!neededParents.contains(id)) continue; // only nodes actually used as a parent
+        String name = rs.getString("name");
+        int parent = rs.getInt("parent_id");
+        String nc = rs.getString("name_code");
+        Integer h = acceptedByNameParent.get(nameParentKey(name, parent));
+        String r = repairParent(h, nc, acceptedNameCodeToId, synAcceptedCode);
+        if (r != null) {
+          repaired.put(id, r);
+          if (h != null) homonym++; else viaAcceptedCode++;
+        }
+      }
+    }
+    LOG.info("Repaired {} synonym-parent links ({} via accepted homonym, {} via accepted_name_code)",
+        repaired.size(), homonym, viaAcceptedCode);
+    return repaired;
+  }
+
+  /** Composite key for the (name, parent_id) homonym index. */
+  static String nameParentKey(String name, int parentId) {
+    return name + "\u0001" + parentId; // \u0001 separator cannot occur in a scientific name
+  }
+
+  /**
+   * Resolves the accepted taxon an accepted infraspecies should hang under when its parent species
+   * node is itself a synonym (is_accepted_name=0, never emitted). Prefers the accepted homonym of
+   * the same binomial ({@code acceptedHomonymId}); otherwise the synonym's accepted species reached
+   * by following {@code accepted_name_code} ({@code parentNameCode}) through the synonym chain.
+   * Returns null when neither resolves (caller falls back to {@link #acceptedAncestor}).
+   */
+  static String repairParent(Integer acceptedHomonymId, String parentNameCode,
+                             Map<String, String> acceptedNameCodeToId, Map<String, String> synAcceptedCode) {
+    if (acceptedHomonymId != null) return "t" + acceptedHomonymId;
+    if (parentNameCode != null && !parentNameCode.isBlank()) {
+      return resolveAcceptedTaxon(parentNameCode, acceptedNameCodeToId, synAcceptedCode);
+    }
+    return null;
+  }
+
+  /** synonym name_code → accepted_name_code, for following synonym→synonym chains to an accepted name. */
+  private Map<String, String> loadSynonymChain(String synonymIds) throws Exception {
+    Map<String, String> m = new HashMap<>();
+    try (Statement st = streamStmt();
+         ResultSet rs = st.executeQuery(
+             "SELECT name_code, accepted_name_code FROM scientific_names WHERE sp2000_status_id IN " + synonymIds)) {
+      while (rs.next()) {
+        String nc = rs.getString("name_code");
+        String acc = rs.getString("accepted_name_code");
+        if (nc != null && !nc.isBlank() && acc != null && !acc.isBlank()) {
+          m.putIfAbsent(nc, acc);
+        }
+      }
+    }
+    LOG.info("Loaded {} synonym chain links", m.size());
+    return m;
+  }
+
+  /**
+   * Resolves a name_code to the ColDP id of its accepted taxon. Accepted name_codes map directly to
+   * their emitted {@code t<id>}; synonym name_codes follow {@code accepted_name_code} (possibly
+   * through several synonym hops) until an accepted name is reached. Returns null when no accepted
+   * taxon is reachable, in which case the reference is dropped rather than left dangling.
+   */
+  static String resolveAcceptedTaxon(String nameCode, Map<String, String> acceptedNameCodeToId,
+                                     Map<String, String> synAcceptedCode) {
+    String cur = nameCode;
+    for (int guard = 0; guard < 25 && cur != null; guard++) {
+      String tid = acceptedNameCodeToId.get(cur);
+      if (tid != null) return tid;          // landed on an accepted name's taxon
+      String next = synAcceptedCode.get(cur); // current is a synonym → step to its accepted code
+      if (next == null || next.equals(cur)) return null;
+      cur = next;
+    }
+    return null;
   }
 
   /** accepted name_code → [author, statusLabel, comment] from accepted scientific_names rows. */
@@ -240,9 +363,11 @@ class OldSchemaReader extends SchemaReader {
   }
 
   private int emitAccepted(Int2IntOpenHashMap childParent, Int2ObjectOpenHashMap<String> kingdomRoot,
+                           IntOpenHashSet acceptedTaxa, Int2ObjectOpenHashMap<String> repairedParent,
                            Map<String, String[]> accInfo, Map<String, String> nameRef,
                            Map<String, Set<String>> taxonRef) throws Exception {
     int n = 0;
+    int reparented = 0, viaAncestor = 0;
     try (Statement st = streamStmt();
          ResultSet rs = st.executeQuery(
              "SELECT record_id, parent_id, name, taxon, name_code, database_id FROM taxa " +
@@ -253,7 +378,25 @@ class OldSchemaReader extends SchemaReader {
         String nc = rs.getString("name_code");
 
         Generator.set(nameW, ColdpTerm.ID, "t" + id);
-        if (parent > 0) Generator.set(nameW, ColdpTerm.parentID, "t" + parent);
+        // The 2005–2010 ITIS data attaches accepted infraspecies under a species node that is itself
+        // a synonym (is_accepted_name=0) and is never emitted here. Redirect such links: prefer the
+        // pre-resolved accepted homonym / accepted species (repairedParent), else the nearest
+        // accepted ancestor (the genus), so the parentID always resolves.
+        if (parent > 0) {
+          String parentId;
+          if (acceptedTaxa.contains(parent)) {
+            parentId = "t" + parent;
+          } else {
+            parentId = repairedParent.get(parent);
+            if (parentId == null) {
+              int anc = acceptedAncestor(parent, childParent, acceptedTaxa);
+              parentId = anc > 0 ? "t" + anc : null;
+              if (anc > 0) viaAncestor++;
+            }
+            reparented++;
+          }
+          if (parentId != null) Generator.set(nameW, ColdpTerm.parentID, parentId);
+        }
         Generator.set(nameW, ColdpTerm.rank, lc(rs.getString("taxon")));
         Generator.set(nameW, ColdpTerm.scientificName, rs.getString("name"));
         Generator.set(nameW, ColdpTerm.code, nomCode(kingdomOf(id, childParent, kingdomRoot)));
@@ -277,13 +420,31 @@ class OldSchemaReader extends SchemaReader {
         n++;
       }
     }
-    LOG.info("Wrote {} accepted taxa", n);
+    LOG.info("Wrote {} accepted taxa ({} re-parented off a synonym species, {} of them only to the genus)",
+        n, reparented, viaAncestor);
     return n;
   }
 
+  /**
+   * Walks up the {@code childParent} map from {@code parentId} (inclusive) to the nearest ancestor
+   * that is an accepted taxa node. Last-resort fallback in {@link #emitAccepted} when a synonym
+   * parent species has neither an accepted homonym nor a resolvable {@code accepted_name_code}
+   * ({@link #repairParent}): the accepted infraspecies then attaches directly to the genus. All
+   * kingdom roots are accepted, so this resolves for every node; the guard limit only protects
+   * against a malformed cyclic tree. Returns 0 when no accepted ancestor exists (no parentID written).
+   */
+  static int acceptedAncestor(int parentId, Int2IntOpenHashMap childParent, IntOpenHashSet acceptedTaxa) {
+    int cur = parentId;
+    for (int guard = 0; guard < 100 && cur != 0; guard++) {
+      if (acceptedTaxa.contains(cur)) return cur;
+      cur = childParent.get(cur);
+    }
+    return 0;
+  }
+
   private int emitSynonyms(Map<Integer, String> statusLabels, String synonymIds, Map<Integer, String> familyKingdom,
-                           Map<String, String> nameCodeToId, Map<String, String> nameRef,
-                           Map<String, Set<String>> taxonRef) throws Exception {
+                           Map<String, String> acceptedNameCodeToId, Map<String, String> synAcceptedCode,
+                           Map<String, String> nameRef, Map<String, Set<String>> taxonRef) throws Exception {
     int n = 0;
     try (Statement st = streamStmt();
          ResultSet rs = st.executeQuery(
@@ -294,13 +455,15 @@ class OldSchemaReader extends SchemaReader {
         int id = rs.getInt("record_id");
         String nc = rs.getString("name_code");
         String synId = "s" + id;
-        if (nc != null && !nc.isBlank()) {
-          nameCodeToId.putIfAbsent(nc, synId); // attach vernaculars/distributions to the synonym
-        }
 
         Generator.set(nameW, ColdpTerm.ID, synId);
+        // a synonym's parent is its accepted taxon: resolve accepted_name_code through any
+        // synonym→synonym chain to an emitted accepted taxon (null = no accepted parent, dropped).
         String accCode = rs.getString("accepted_name_code");
-        if (accCode != null) Generator.set(nameW, ColdpTerm.parentID, nameCodeToId.get(accCode));
+        if (accCode != null) {
+          Generator.set(nameW, ColdpTerm.parentID,
+              resolveAcceptedTaxon(accCode, acceptedNameCodeToId, synAcceptedCode));
+        }
         String marker = rs.getString("infraspecies_marker");
         String infra = rs.getString("infraspecies");
         Generator.set(nameW, ColdpTerm.scientificName,
@@ -324,14 +487,16 @@ class OldSchemaReader extends SchemaReader {
     return n;
   }
 
-  private int emitVernaculars(Map<String, String> nameCodeToId, Map<String, Set<String>> comNameRef) throws Exception {
+  private int emitVernaculars(Map<String, String> acceptedNameCodeToId, Map<String, String> synAcceptedCode,
+                              Map<String, Set<String>> comNameRef) throws Exception {
     int n = 0;
     try (Statement st = streamStmt();
          ResultSet rs = st.executeQuery(
              "SELECT name_code, common_name, language, country FROM common_names")) {
       while (rs.next()) {
         String nc = rs.getString("name_code");
-        String taxonId = nameCodeToId.get(nc);
+        // attach to the accepted taxon, resolving synonym name_codes through the chain
+        String taxonId = resolveAcceptedTaxon(nc, acceptedNameCodeToId, synAcceptedCode);
         String name = rs.getString("common_name");
         if (taxonId == null || name == null || name.isBlank()) continue;
         Generator.set(vernW, ColdpTerm.taxonID, taxonId);
@@ -347,12 +512,13 @@ class OldSchemaReader extends SchemaReader {
     return n;
   }
 
-  private int emitDistributions(Map<String, String> nameCodeToId) throws Exception {
+  private int emitDistributions(Map<String, String> acceptedNameCodeToId, Map<String, String> synAcceptedCode) throws Exception {
     int n = 0;
     try (Statement st = streamStmt();
          ResultSet rs = st.executeQuery("SELECT name_code, distribution FROM distribution")) {
       while (rs.next()) {
-        String taxonId = nameCodeToId.get(rs.getString("name_code"));
+        // attach to the accepted taxon, resolving synonym name_codes through the chain
+        String taxonId = resolveAcceptedTaxon(rs.getString("name_code"), acceptedNameCodeToId, synAcceptedCode);
         String area = rs.getString("distribution");
         if (taxonId == null || area == null || area.isBlank()) continue;
         Generator.set(distW, ColdpTerm.taxonID, taxonId);
