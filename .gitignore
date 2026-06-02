@@ -17,3 +17,5 @@ buildNumber.properties
 .mvn/timing.properties
 # https://github.com/takari/maven-wrapper#usage-without-binary-jar
 .mvn/wrapper/maven-wrapper.jar
+# untracked local server settings for scripts/publish-col-annual.sh
+scripts/publish-col-annual.local

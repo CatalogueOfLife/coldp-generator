@@ -1,0 +1,24 @@
+# Local, untracked settings for publish-col-annual.sh
+# ---------------------------------------------------------------------------
+# Copy to  scripts/publish-col-annual.local  (git-ignored) and fill in the real
+# values. This keeps server hostnames/paths out of the public repo.
+#
+#   cp scripts/publish-col-annual.local.example scripts/publish-col-annual.local
+# ---------------------------------------------------------------------------
+
+# SSH account used for scp/ssh to the download server
+SSH_USER="your-ssh-user"
+SSH_HOST="your.download.host"
+
+# Public annual-checklist folder on the server (the zips are copied here as $RUN_AS)
+REMOTE_DIR="/path/to/col-download/col/annual"
+
+# Optional overrides (defaults shown):
+# REMOTE_STAGE="/tmp/col-annual-stage"   # world-readable upload staging dir on the server
+# RUN_AS="col"                            # local user on the server that owns REMOTE_DIR
+
+# Optional colac MariaDB overrides (defaults match the generator: localhost root/root):
+# DB_HOST="localhost"
+# DB_PORT="3306"
+# DB_USER="root"
+# DB_PASS="root"
