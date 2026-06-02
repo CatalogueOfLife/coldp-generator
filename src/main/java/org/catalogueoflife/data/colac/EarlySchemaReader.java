@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -159,11 +158,15 @@ class EarlySchemaReader extends SchemaReader {
     nameW.next();
   }
 
-  /** Treats the early-schema sentinel "none" (and blank) as null. */
+  /**
+   * Treats the early-schema "no value" sentinels as null: blank, "none" (empty atomized name
+   * parts) and "Not assigned" (unplaced HIERARCHY ranks). A child then attaches to its nearest
+   * real ancestor instead of to a junk node literally named "Not assigned".
+   */
   static String blankNone(String s) {
     if (s == null) return null;
     String t = s.trim();
-    return (t.isEmpty() || t.equalsIgnoreCase("none")) ? null : t;
+    return (t.isEmpty() || t.equalsIgnoreCase("none") || t.equalsIgnoreCase("not assigned")) ? null : t;
   }
 
   private static String infraRank(String marker, String infra) {
