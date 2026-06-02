@@ -84,10 +84,10 @@ public class Generator extends AbstractColdpGenerator {
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
     if (cfg.year == null) {
-      throw new IllegalArgumentException("--year is required for the colac source (2005-2019)");
+      throw new IllegalArgumentException("--year is required for the colac source (2000-2019, no 2001)");
     }
-    if (cfg.year < 2005 || cfg.year > 2019) {
-      throw new IllegalArgumentException("colac only supports annual checklist years 2005-2019, got " + cfg.year);
+    if (cfg.year < 2000 || cfg.year > 2019 || cfg.year == 2001) {
+      throw new IllegalArgumentException("colac supports annual checklist years 2000, 2002-2019 (2001 was never released), got " + cfg.year);
     }
     this.year = cfg.year;
     this.dbName = "col" + year + "ac";
@@ -141,7 +141,9 @@ public class Generator extends AbstractColdpGenerator {
           ColdpTerm.establishmentMeans
       ));
 
-      SchemaReader reader = year <= 2011 ? new OldSchemaReader(this, conn) : new NewSchemaReader(this, conn);
+      SchemaReader reader = year <= 2004 ? new EarlySchemaReader(this, conn)
+                          : year <= 2011 ? new OldSchemaReader(this, conn)
+                          : new NewSchemaReader(this, conn);
       LOG.info("Converting CoL {} Annual Checklist ({}) with {}", year, dbName, reader.getClass().getSimpleName());
       reader.read();
     }
