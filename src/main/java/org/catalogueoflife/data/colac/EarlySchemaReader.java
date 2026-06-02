@@ -39,15 +39,24 @@ class EarlySchemaReader extends SchemaReader {
   void read() throws Exception {
     // composite key normCode(HierarchyCode)+"|"+normCode(Family) -> [kingdom,phylum,class,order,family]
     Map<String, String[]> hier = loadHierarchy();
+    boolean hasDistribution = !tableColumns("DISTRIBUTION").isEmpty(); // false for 2000
+    // col2000/col2002 use old column names; col2003/col2004 use the renamed columns
+    Set<String> scinamesCols = tableColumns("SCINAMES");
+    boolean newStyle = scinamesCols.contains("scientificnameauthor"); // col2003+: ScientificNameAuthor / AuthorRefNumber / AcceptedNameCode
+    LOG.info("SCINAMES schema: {} style (ScientificNameAuthor={})", newStyle ? "new (2003+)" : "old (2000/2002)", newStyle);
     // accepted NameCode(normCode) -> emitted id (the verbatim NameCode)
     Map<String, String> acceptedNameCodeToId = new HashMap<>();
     Set<String> emittedNodes = new LinkedHashSet<>(); // synthetic path ids already written
 
-    int nAcc = emitAccepted(hier, emittedNodes, acceptedNameCodeToId);
-    Map<String, String> synAcceptedCode = loadSynonymChain();
-    int[] syn = emitSynonyms(acceptedNameCodeToId, synAcceptedCode);
-    LOG.info("Early schema done: {} accepted, {} synonyms, {} bare names ({} synthetic nodes)",
-        nAcc, syn[0], syn[1], emittedNodes.size());
+    int nAcc = emitAccepted(hier, emittedNodes, acceptedNameCodeToId, newStyle);
+    Map<String, String> synAcceptedCode = loadSynonymChain(newStyle);
+    loadSources();
+    writeReferences(newStyle);
+    int[] syn = emitSynonyms(acceptedNameCodeToId, synAcceptedCode, newStyle);
+    int nVern = emitVernaculars(acceptedNameCodeToId, synAcceptedCode, newStyle);
+    int nDist = hasDistribution ? emitDistributions(acceptedNameCodeToId, synAcceptedCode) : 0;
+    LOG.info("Early schema done: {} accepted, {} synonyms, {} bare names, {} vernaculars, {} distributions ({} synthetic nodes)",
+        nAcc, syn[0], syn[1], nVern, nDist, emittedNodes.size());
   }
 
   /**
@@ -80,12 +89,15 @@ class EarlySchemaReader extends SchemaReader {
    * then the species/infraspecies row itself is written.
    */
   private int emitAccepted(Map<String, String[]> hier, Set<String> emitted,
-                           Map<String, String> acceptedNameCodeToId) throws Exception {
+                           Map<String, String> acceptedNameCodeToId, boolean newStyle) throws Exception {
+    // col2000/2002: Author(s), AuthorRef; col2003/2004: ScientificNameAuthor, AuthorRefNumber
+    String authorCol   = newStyle ? "ScientificNameAuthor"     : "`Author(s)`";
+    String authorRef   = newStyle ? "AuthorRefNumber"          : "AuthorRef";
     int n = 0;
     try (Statement st = streamStmt();
          ResultSet rs = st.executeQuery(
              "SELECT NameCode, HierarchyCode, Family, Genus, Species, InfraSpecies, InfraSpMarker, " +
-             "ScientificNameAuthor, Sp2kStatus, AuthorRefNumber, DatabaseName, Comment " +
+             authorCol + " AS author, Sp2kStatus, " + authorRef + " AS authorRef, DatabaseName, Comment " +
              "FROM SCINAMES WHERE Sp2kStatus LIKE '%accepted%'")) {
       while (rs.next()) {
         String code = rs.getString("NameCode");
@@ -109,10 +121,10 @@ class EarlySchemaReader extends SchemaReader {
         Generator.set(nameW, ColdpTerm.rank, infraRank(marker, infra));
         Generator.set(nameW, ColdpTerm.scientificName,
             synonymName(rs.getString("Genus"), rs.getString("Species"), marker, infra));
-        Generator.set(nameW, ColdpTerm.authorship, rs.getString("ScientificNameAuthor"));
+        Generator.set(nameW, ColdpTerm.authorship, rs.getString("author"));
         Generator.set(nameW, ColdpTerm.code, nomCode(kingdom));
         Generator.set(nameW, ColdpTerm.sourceID, sourceId(rs.getString("DatabaseName")));
-        Generator.set(nameW, ColdpTerm.nameReferenceID, refId(rs.getString("AuthorRefNumber")));
+        Generator.set(nameW, ColdpTerm.nameReferenceID, refId(rs.getString("authorRef")));
         Generator.set(nameW, ColdpTerm.remarks, rs.getString("Comment"));
         nameW.next();
         acceptedNameCodeToId.put(nc, code);
@@ -162,14 +174,16 @@ class EarlySchemaReader extends SchemaReader {
   }
 
   /** synonym NameCode → its AcceptedNameCode (both normCode'd), for chain-following. */
-  private Map<String, String> loadSynonymChain() throws Exception {
+  private Map<String, String> loadSynonymChain(boolean newStyle) throws Exception {
+    // col2000/2002: accepted-name pointer is ANCode; col2003/2004: AcceptedNameCode
+    String accCol = newStyle ? "AcceptedNameCode" : "ANCode";
     Map<String, String> m = new HashMap<>();
     try (Statement st = streamStmt();
          ResultSet rs = st.executeQuery(
-             "SELECT NameCode, AcceptedNameCode FROM SCINAMES WHERE Sp2kStatus NOT LIKE '%accepted%'")) {
+             "SELECT NameCode, " + accCol + " AS accCode FROM SCINAMES WHERE Sp2kStatus NOT LIKE '%accepted%'")) {
       while (rs.next()) {
         String nc = normCode(rs.getString("NameCode"));
-        String acc = normCode(rs.getString("AcceptedNameCode"));
+        String acc = normCode(rs.getString("accCode"));
         if (nc != null && acc != null) m.putIfAbsent(nc, acc);
       }
     }
@@ -185,16 +199,22 @@ class EarlySchemaReader extends SchemaReader {
    *
    * @return {@code [synonyms, bareNames]} counts
    */
-  private int[] emitSynonyms(Map<String, String> acceptedNameCodeToId, Map<String, String> synAcceptedCode) throws Exception {
+  private int[] emitSynonyms(Map<String, String> acceptedNameCodeToId, Map<String, String> synAcceptedCode,
+                             boolean newStyle) throws Exception {
+    // col2000/2002: Author(s), AuthorRef, ANCode; col2003/2004: ScientificNameAuthor, AuthorRefNumber, AcceptedNameCode
+    String authorCol = newStyle ? "ScientificNameAuthor"     : "`Author(s)`";
+    String authorRef = newStyle ? "AuthorRefNumber"          : "AuthorRef";
+    String accCol    = newStyle ? "AcceptedNameCode"         : "ANCode";
     int nSyn = 0, nBare = 0;
     try (Statement st = streamStmt();
          ResultSet rs = st.executeQuery(
-             "SELECT NameCode, Genus, Species, InfraSpecies, InfraSpMarker, ScientificNameAuthor, " +
-             "Sp2kStatus, AcceptedNameCode, AuthorRefNumber, DatabaseName, Comment " +
+             "SELECT NameCode, Genus, Species, InfraSpecies, InfraSpMarker, " +
+             authorCol + " AS author, Sp2kStatus, " + accCol + " AS accCode, " +
+             authorRef + " AS authorRef, DatabaseName, Comment " +
              "FROM SCINAMES WHERE Sp2kStatus NOT LIKE '%accepted%'")) {
       while (rs.next()) {
         String code = rs.getString("NameCode");
-        String accCode = normCode(rs.getString("AcceptedNameCode"));
+        String accCode = normCode(rs.getString("accCode"));
         String parentId = accCode == null ? null : resolveAcceptedTaxon(accCode, acceptedNameCodeToId, synAcceptedCode);
         String statusLabel = status(rs.getString("Sp2kStatus"));
         String marker = blankNone(rs.getString("InfraSpMarker"));
@@ -203,10 +223,10 @@ class EarlySchemaReader extends SchemaReader {
 
         Generator.set(nameW, ColdpTerm.ID, code);
         Generator.set(nameW, ColdpTerm.scientificName, synonymName(rs.getString("Genus"), rs.getString("Species"), marker, infra));
-        Generator.set(nameW, ColdpTerm.authorship, rs.getString("ScientificNameAuthor"));
+        Generator.set(nameW, ColdpTerm.authorship, rs.getString("author"));
         Generator.set(nameW, ColdpTerm.rank, infraRank(marker, infra));
         Generator.set(nameW, ColdpTerm.sourceID, sourceId(rs.getString("DatabaseName")));
-        Generator.set(nameW, ColdpTerm.nameReferenceID, refId(rs.getString("AuthorRefNumber")));
+        Generator.set(nameW, ColdpTerm.nameReferenceID, refId(rs.getString("authorRef")));
         if (parentId != null) {
           Generator.set(nameW, ColdpTerm.parentID, parentId);
           Generator.set(nameW, ColdpTerm.status, statusLabel);
@@ -223,6 +243,89 @@ class EarlySchemaReader extends SchemaReader {
     }
     LOG.info("Wrote {} synonyms, {} bare names", nSyn, nBare);
     return new int[]{nSyn, nBare};
+  }
+
+  private void loadSources() throws Exception {
+    int n = 0;
+    try (Statement st = conn.createStatement();
+         ResultSet rs = st.executeQuery(
+             "SELECT DatabaseName, DbFullName, Abbr, Institute, Contact, Version, ReleaseDate FROM GSDATABASES")) {
+      while (rs.next()) {
+        String title = rs.getString("DbFullName");
+        if (title == null || title.isBlank()) title = rs.getString("DatabaseName");
+        addSourceCitation("d" + rs.getString("DatabaseName"), title, rs.getString("Abbr"),
+            rs.getString("Contact"), rs.getString("Institute"),
+            rs.getString("Version"), parseDate(rs.getString("ReleaseDate")));
+        n++;
+      }
+    }
+    LOG.info("Loaded {} source databases (GSDs)", n);
+  }
+
+  private void writeReferences(boolean newStyle) throws Exception {
+    // col2000/2002 use "Author(s)"; col2003/2004 use "ScientificNameAuthor"
+    String authorExpr = newStyle ? "ScientificNameAuthor" : "`Author(s)`";
+    int n = 0;
+    try (Statement st = streamStmt();
+         ResultSet rs = st.executeQuery(
+             "SELECT RefNumber, " + authorExpr + " AS author, Year, Title, Source FROM `REFERENCES`")) {
+      while (rs.next()) {
+        String ref = rs.getString("RefNumber");
+        if (ref == null || ref.isBlank()) continue;
+        Generator.set(refW, ColdpTerm.ID, "r" + ref.trim());
+        Generator.set(refW, ColdpTerm.author, rs.getString("author"));
+        Generator.set(refW, ColdpTerm.issued, rs.getString("Year"));
+        Generator.set(refW, ColdpTerm.title, rs.getString("Title"));
+        Generator.set(refW, ColdpTerm.containerTitle, rs.getString("Source"));
+        refW.next();
+        n++;
+      }
+    }
+    LOG.info("Wrote {} references", n);
+  }
+
+  private int emitVernaculars(Map<String, String> acceptedNameCodeToId, Map<String, String> synAcceptedCode,
+                              boolean newStyle) throws Exception {
+    // col2000/2002: reference column is ComNameRef; col2003/2004: RefNumber
+    String refCol = newStyle ? "RefNumber" : "ComNameRef";
+    int n = 0;
+    try (Statement st = streamStmt();
+         ResultSet rs = st.executeQuery(
+             "SELECT NameCode, CommonName, Language, Country, " + refCol + " AS refNum FROM COMNAMES")) {
+      while (rs.next()) {
+        String name = rs.getString("CommonName");
+        String taxonId = resolveAcceptedTaxon(normCode(rs.getString("NameCode")), acceptedNameCodeToId, synAcceptedCode);
+        if (taxonId == null || name == null || name.isBlank()) continue;
+        Generator.set(vernW, ColdpTerm.taxonID, taxonId);
+        Generator.set(vernW, ColdpTerm.name, name);
+        Generator.set(vernW, ColdpTerm.language, rs.getString("Language"));
+        Generator.set(vernW, ColdpTerm.country, rs.getString("Country"));
+        Generator.set(vernW, ColdpTerm.referenceID, refId(rs.getString("refNum")));
+        vernW.next();
+        n++;
+      }
+    }
+    LOG.info("Wrote {} vernacular names", n);
+    return n;
+  }
+
+  private int emitDistributions(Map<String, String> acceptedNameCodeToId, Map<String, String> synAcceptedCode) throws Exception {
+    int n = 0;
+    try (Statement st = streamStmt();
+         ResultSet rs = st.executeQuery("SELECT NameCode, Distribution FROM DISTRIBUTION")) {
+      while (rs.next()) {
+        String area = rs.getString("Distribution");
+        String taxonId = resolveAcceptedTaxon(normCode(rs.getString("NameCode")), acceptedNameCodeToId, synAcceptedCode);
+        if (taxonId == null || area == null || area.isBlank()) continue;
+        Generator.set(distW, ColdpTerm.taxonID, taxonId);
+        Generator.set(distW, ColdpTerm.area, area);
+        Generator.set(distW, ColdpTerm.gazetteer, "text");
+        distW.next();
+        n++;
+      }
+    }
+    LOG.info("Wrote {} distributions", n);
+    return n;
   }
 
   /**
