@@ -151,4 +151,18 @@ public class ColacMappings {
     if (unique.isEmpty()) return null;
     return String.join(",", unique);
   }
+
+  /**
+   * Picks a single reference ID — the first non-blank one in iteration order. Only
+   * {@code NameUsage.referenceID} may be multi-valued (comma-concatenated, see {@link #joinRefs});
+   * every other ColDP referenceID (VernacularName, Distribution, …) takes exactly one id, so those
+   * use this. Returns null for null/empty input.
+   */
+  static String firstRef(Collection<String> ids) {
+    if (ids == null) return null;
+    for (String id : ids) {
+      if (id != null && !id.isBlank()) return id;
+    }
+    return null;
+  }
 }

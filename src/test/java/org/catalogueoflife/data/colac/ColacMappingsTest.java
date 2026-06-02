@@ -3,6 +3,7 @@ package org.catalogueoflife.data.colac;
 import org.gbif.nameparser.api.NomCode;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -62,6 +63,17 @@ public class ColacMappingsTest {
   public void testJoinRefsRejectsComma() {
     // a value containing the separator would corrupt the multi-valued field
     joinRefs(List.of("r1", "r2,r3"));
+  }
+
+  @Test
+  public void testFirstRef() {
+    // single-valued fields (VernacularName, …) take the first ref only
+    assertEquals("r1", firstRef(List.of("r1", "r2", "r3")));
+    // skips leading blanks
+    assertEquals("r2", firstRef(Arrays.asList("", "  ", "r2", "r3")));
+    assertNull(firstRef(List.of()));
+    assertNull(firstRef(null));
+    assertNull(firstRef(Arrays.asList("", "  ")));
   }
 
   @Test

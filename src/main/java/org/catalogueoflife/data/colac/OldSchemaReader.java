@@ -503,7 +503,8 @@ class OldSchemaReader extends SchemaReader {
         Generator.set(vernW, ColdpTerm.name, name);
         Generator.set(vernW, ColdpTerm.language, rs.getString("language"));
         Generator.set(vernW, ColdpTerm.country, rs.getString("country"));
-        Generator.set(vernW, ColdpTerm.referenceID, joinRefs(comNameRef.get(nc)));
+        // VernacularName.referenceID is single-valued (only NameUsage may concatenate)
+        Generator.set(vernW, ColdpTerm.referenceID, firstRef(comNameRef.get(nc)));
         vernW.next();
         n++;
       }

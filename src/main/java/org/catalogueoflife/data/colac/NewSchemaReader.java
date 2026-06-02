@@ -283,7 +283,8 @@ class NewSchemaReader extends SchemaReader {
         Generator.set(vernW, ColdpTerm.name, name);
         Generator.set(vernW, ColdpTerm.language, rs.getString("language_iso"));
         Generator.set(vernW, ColdpTerm.country, rs.getString("country_iso"));
-        Generator.set(vernW, ColdpTerm.referenceID, joinRefs(comNameRef.get(rs.getInt("id"))));
+        // VernacularName.referenceID is single-valued (only NameUsage may concatenate)
+        Generator.set(vernW, ColdpTerm.referenceID, firstRef(comNameRef.get(rs.getInt("id"))));
         vernW.next();
         n++;
       }
