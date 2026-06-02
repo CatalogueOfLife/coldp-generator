@@ -31,4 +31,13 @@ public class GeneratorTest {
     new Generator(cfg).run();
     Utils.verifyMetadata(new File(cfg.archiveDir(), "metadata.yaml"));
   }
+
+  @Test
+  public void testEarlySchema2004() throws Exception {
+    GeneratorConfig cfg = new GeneratorConfig();
+    cfg.source = "colac";
+    cfg.year = 2004;
+    new Generator(cfg).run();
+    Utils.verifyMetadata(new File(cfg.archiveDir(), "metadata.yaml"));
+  }
 }
