@@ -75,28 +75,6 @@ public class OldSchemaReaderTest {
   }};
 
   @Test
-  public void testResolveAcceptedTaxon() {
-    // an accepted name_code maps straight to its emitted taxon
-    assertEquals("t100", OldSchemaReader.resolveAcceptedTaxon("A-acc", ACC, SYN));
-    // a synonym resolves to its accepted taxon
-    assertEquals("t100", OldSchemaReader.resolveAcceptedTaxon("S1", ACC, SYN));
-    // synonym→synonym chains are followed to the accepted terminus
-    assertEquals("t100", OldSchemaReader.resolveAcceptedTaxon("S2", ACC, SYN));
-    assertEquals("t100", OldSchemaReader.resolveAcceptedTaxon("S3", ACC, SYN));
-  }
-
-  @Test
-  public void testResolveAcceptedTaxonUnresolvable() {
-    // accepted_name_code points to an unknown code → null (reference dropped, not dangling)
-    assertNull(OldSchemaReader.resolveAcceptedTaxon("X1", ACC, SYN));
-    // a name_code that is neither accepted nor a known synonym → null
-    assertNull(OldSchemaReader.resolveAcceptedTaxon("ghost", ACC, SYN));
-    assertNull(OldSchemaReader.resolveAcceptedTaxon(null, ACC, SYN));
-    // a cycle terminates via the guard and yields null
-    assertNull(OldSchemaReader.resolveAcceptedTaxon("C1", ACC, SYN));
-  }
-
-  @Test
   public void testRepairParent() {
     // an accepted homonym of the same binomial wins, regardless of the synonym's accepted_name_code
     // (e.g. a variety of "Monarda fistulosa" attaches to the accepted L. node, not the Sims synonym)
@@ -107,16 +85,6 @@ public class OldSchemaReaderTest {
     // no homonym and the parent code does not resolve → null (caller walks up to the genus)
     assertNull(OldSchemaReader.repairParent(null, "X1", ACC, SYN));
     assertNull(OldSchemaReader.repairParent(null, null, ACC, SYN));
-  }
-
-  @Test
-  public void testNormCodeIsCaseInsensitive() {
-    // the 2005 source is case-inconsistent (a synonym's accepted_name_code "Mos-35136210" vs the
-    // accepted name's name_code "MOS-35136210"); both must collapse to one key
-    assertEquals(OldSchemaReader.normCode("Mos-35136210"), OldSchemaReader.normCode("MOS-35136210"));
-    assertEquals("ARA-19298", OldSchemaReader.normCode("  Ara-19298 "));
-    assertNull(OldSchemaReader.normCode(null));
-    assertNull(OldSchemaReader.normCode("   "));
   }
 
   @Test

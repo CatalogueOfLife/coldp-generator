@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.regex.Matcher;
@@ -48,8 +49,8 @@ public class ColacMappings {
     return switch (l) {
       case "accepted name"                -> "accepted";
       case "provisionally accepted name"  -> "provisionally accepted";
-      case "synonym"                      -> "synonym";
-      case "ambiguous synonym"            -> "ambiguous synonym";
+      case "synonym", "unambiguous synonym", "unambiguous synonyms" -> "synonym";
+      case "ambiguous synonym", "ambiguous synonyms"                -> "ambiguous synonym";
       case "misapplied name"              -> "misapplied";
       default                             -> "synonym";
     };
@@ -162,6 +163,29 @@ public class ColacMappings {
     if (ids == null) return null;
     for (String id : ids) {
       if (id != null && !id.isBlank()) return id;
+    }
+    return null;
+  }
+
+  /** Canonical (upper-cased, trimmed) form of a name_code for case-insensitive matching;
+   *  the early/old CoL data mixes e.g. "Mos-" and "MOS-". Returns null for null/blank. */
+  static String normCode(String code) {
+    if (code == null) return null;
+    String s = code.trim();
+    return s.isEmpty() ? null : s.toUpperCase(Locale.ENGLISH);
+  }
+
+  /** Resolves a name_code to the ColDP id of its accepted taxon, following synonym chains.
+   *  acceptedNameCodeToId keys and synAcceptedCode keys/values are pre-normalised with normCode. */
+  static String resolveAcceptedTaxon(String nameCode, Map<String, String> acceptedNameCodeToId,
+                                     Map<String, String> synAcceptedCode) {
+    String cur = nameCode;
+    for (int guard = 0; guard < 25 && cur != null; guard++) {
+      String tid = acceptedNameCodeToId.get(cur);
+      if (tid != null) return tid;
+      String next = synAcceptedCode.get(cur);
+      if (next == null || next.equals(cur)) return null;
+      cur = next;
     }
     return null;
   }

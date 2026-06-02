@@ -237,25 +237,6 @@ class OldSchemaReader extends SchemaReader {
     return m;
   }
 
-  /**
-   * Resolves a name_code to the ColDP id of its accepted taxon. Accepted name_codes map directly to
-   * their emitted {@code t<id>}; synonym name_codes follow {@code accepted_name_code} (possibly
-   * through several synonym hops) until an accepted name is reached. Returns null when no accepted
-   * taxon is reachable, in which case the reference is dropped rather than left dangling.
-   */
-  static String resolveAcceptedTaxon(String nameCode, Map<String, String> acceptedNameCodeToId,
-                                     Map<String, String> synAcceptedCode) {
-    String cur = nameCode;
-    for (int guard = 0; guard < 25 && cur != null; guard++) {
-      String tid = acceptedNameCodeToId.get(cur);
-      if (tid != null) return tid;          // landed on an accepted name's taxon
-      String next = synAcceptedCode.get(cur); // current is a synonym → step to its accepted code
-      if (next == null || next.equals(cur)) return null;
-      cur = next;
-    }
-    return null;
-  }
-
   /** accepted name_code → [author, statusLabel, comment] from accepted scientific_names rows. */
   private Map<String, String[]> loadAcceptedInfo(Map<Integer, String> statusLabels, String acceptedIds) throws Exception {
     Map<String, String[]> m = new HashMap<>();
@@ -601,19 +582,6 @@ class OldSchemaReader extends SchemaReader {
 
   private static String lc(String s) {
     return s == null ? null : s.toLowerCase(Locale.ENGLISH);
-  }
-
-  /**
-   * Canonical (upper-cased, trimmed) form of a name_code, used for all name_code matching. The 2005
-   * data is case-inconsistent — e.g. a synonym's accepted_name_code is "Mos-35136210" while the
-   * accepted name's name_code is "MOS-35136210". MySQL's case-insensitive collation treats these as
-   * equal (so the source links resolve), but a case-sensitive Java map would miss them. Returns null
-   * for null/blank input.
-   */
-  static String normCode(String code) {
-    if (code == null) return null;
-    String s = code.trim();
-    return s.isEmpty() ? null : s.toUpperCase(Locale.ENGLISH);
   }
 
   /** Best-effort rank for an atomized synonym: the infraspecies marker, else species/infraspecies. */
