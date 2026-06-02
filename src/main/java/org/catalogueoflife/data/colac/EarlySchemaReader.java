@@ -39,10 +39,8 @@ class EarlySchemaReader extends SchemaReader {
   void read() throws Exception {
     // composite key normCode(HierarchyCode)+"|"+normCode(Family) -> [kingdom,phylum,class,order,family]
     Map<String, String[]> hier = loadHierarchy();
-    // Distributions are only emitted when the DISTRIBUTION table is keyed by NameCode (2003/2004).
-    // 2000 has no DISTRIBUTION table; 2002's DISTRIBUTION is keyed by the atomized name (no NameCode)
-    // and only ~3.6% maps cleanly back to a taxon, so it is skipped rather than emit junk links.
-    boolean hasDistribution = tableColumns("DISTRIBUTION").contains("namecode");
+    // 2000: no DISTRIBUTION table (distCols empty); 2002: name-keyed (no NameCode); 2003/2004: NameCode-keyed.
+    Set<String> distCols = tableColumns("DISTRIBUTION");
     // col2000/col2002 use old column names; col2003/col2004 use the renamed columns
     Set<String> scinamesCols = tableColumns("SCINAMES");
     boolean newStyle = scinamesCols.contains("scientificnameauthor"); // col2003+: ScientificNameAuthor / AuthorRefNumber / AcceptedNameCode
@@ -57,7 +55,9 @@ class EarlySchemaReader extends SchemaReader {
     writeReferences(newStyle);
     int[] syn = emitSynonyms(acceptedNameCodeToId, synAcceptedCode, newStyle);
     int nVern = emitVernaculars(acceptedNameCodeToId, synAcceptedCode, newStyle);
-    int nDist = hasDistribution ? emitDistributions(acceptedNameCodeToId, synAcceptedCode) : 0;
+    int nDist = distCols.contains("namecode") ? emitDistributions(acceptedNameCodeToId, synAcceptedCode)
+              : !distCols.isEmpty()           ? emitDistributionsByName(acceptedNameCodeToId, synAcceptedCode)
+              : 0;
     LOG.info("Early schema done: {} accepted, {} synonyms, {} bare names, {} vernaculars, {} distributions ({} synthetic nodes)",
         nAcc, syn[0], syn[1], nVern, nDist, emittedNodes.size());
   }
@@ -328,6 +328,62 @@ class EarlySchemaReader extends SchemaReader {
       }
     }
     LOG.info("Wrote {} distributions", n);
+    return n;
+  }
+
+  /**
+   * Normalized lookup key shared by SCINAMES and the name-keyed DISTRIBUTION table:
+   * HierarchyCode + Genus + Species + InfraSpecies epithet, upper-cased; "none"/blank infra omitted.
+   * The infra MARKER is deliberately excluded because its format is unreliable across the two tables.
+   */
+  static String nameKey(String hierarchyCode, String genus, String species, String infraspecies) {
+    return nz(normCode(hierarchyCode)) + "|" + nz(normCode(genus)) + "|" +
+           nz(normCode(species)) + "|" + nz(normCode(blankNone(infraspecies)));
+  }
+
+  private static String nz(String s) { return s == null ? "" : s; }
+
+  /** Builds nameKey -> accepted taxon id from all SCINAMES rows; accepted rows take precedence. */
+  private Map<String, String> loadNameKeyToTaxon(Map<String, String> acceptedNameCodeToId,
+                                                 Map<String, String> synAcceptedCode) throws Exception {
+    Map<String, String> m = new HashMap<>();
+    try (Statement st = streamStmt();
+         ResultSet rs = st.executeQuery(
+             "SELECT NameCode, HierarchyCode, Genus, Species, InfraSpecies, Sp2kStatus FROM SCINAMES")) {
+      while (rs.next()) {
+        String taxon = resolveAcceptedTaxon(normCode(rs.getString("NameCode")), acceptedNameCodeToId, synAcceptedCode);
+        if (taxon == null) continue;
+        String key = nameKey(rs.getString("HierarchyCode"), rs.getString("Genus"),
+                             rs.getString("Species"), rs.getString("InfraSpecies"));
+        boolean accepted = rs.getString("Sp2kStatus") != null && rs.getString("Sp2kStatus").toLowerCase().contains("accepted");
+        if (accepted) m.put(key, taxon); else m.putIfAbsent(key, taxon);
+      }
+    }
+    LOG.info("Built {} name-key -> taxon entries for name-keyed distributions", m.size());
+    return m;
+  }
+
+  private int emitDistributionsByName(Map<String, String> acceptedNameCodeToId,
+                                      Map<String, String> synAcceptedCode) throws Exception {
+    Map<String, String> nameKeyToTaxon = loadNameKeyToTaxon(acceptedNameCodeToId, synAcceptedCode);
+    int n = 0, unmatched = 0;
+    try (Statement st = streamStmt();
+         ResultSet rs = st.executeQuery(
+             "SELECT HierarchyCode, Genus, Species, InfraSpecies, Distribution FROM DISTRIBUTION")) {
+      while (rs.next()) {
+        String area = rs.getString("Distribution");
+        if (area == null || area.isBlank()) continue;
+        String taxonId = nameKeyToTaxon.get(nameKey(rs.getString("HierarchyCode"), rs.getString("Genus"),
+                                                     rs.getString("Species"), rs.getString("InfraSpecies")));
+        if (taxonId == null) { unmatched++; continue; }
+        Generator.set(distW, ColdpTerm.taxonID, taxonId);
+        Generator.set(distW, ColdpTerm.area, area);
+        Generator.set(distW, ColdpTerm.gazetteer, "text");
+        distW.next();
+        n++;
+      }
+    }
+    LOG.info("Wrote {} name-keyed distributions ({} unmatched)", n, unmatched);
     return n;
   }
 

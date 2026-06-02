@@ -3,6 +3,7 @@ package org.catalogueoflife.data.colac;
 import org.junit.Test;
 import java.util.List;
 import static org.junit.Assert.*;
+import static org.junit.Assert.assertNotEquals;
 
 public class EarlySchemaReaderTest {
   @Test
@@ -18,5 +19,17 @@ public class EarlySchemaReaderTest {
         EarlySchemaReader.parentPathId("h|Plantae|Rhodophyta|Palmariaceae"));
     assertNull(EarlySchemaReader.parentPathId("h|Plantae")); // kingdom is a root
     assertNull(EarlySchemaReader.parentPathId(null));
+  }
+  @Test
+  public void testNameKey() {
+    // case-insensitive; the "none" infra sentinel and a blank infra collapse to the same key
+    assertEquals(EarlySchemaReader.nameKey("Animalia-Mollusca", "Nautilus", "pompilius", "none"),
+                 EarlySchemaReader.nameKey("animalia-mollusca", "NAUTILUS", "Pompilius", ""));
+    // a different species epithet is a different key
+    assertNotEquals(EarlySchemaReader.nameKey("H", "Nautilus", "pompilius", null),
+                    EarlySchemaReader.nameKey("H", "Nautilus", "belauensis", null));
+    // an infraspecies key differs from the bare species key
+    assertNotEquals(EarlySchemaReader.nameKey("H", "Aus", "bus", "cus"),
+                    EarlySchemaReader.nameKey("H", "Aus", "bus", "none"));
   }
 }
