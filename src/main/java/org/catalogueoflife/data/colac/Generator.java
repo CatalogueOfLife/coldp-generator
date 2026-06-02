@@ -10,6 +10,7 @@ import org.catalogueoflife.data.GeneratorConfig;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -37,6 +38,10 @@ public class Generator extends AbstractColdpGenerator {
   // 2006-2009 have no citation page available; Bisby and Roskov led the team throughout, so
   // they are listed as the confirmed core for those years.
   private static final Map<Integer, String> EDITORS = Map.ofEntries(
+      Map.entry(2000, "Bisby F.A., Roskov Y.R."),
+      Map.entry(2002, "Bisby F.A., Roskov Y.R."),
+      Map.entry(2003, "Bisby F.A., Roskov Y.R."),
+      Map.entry(2004, "Bisby F.A., Roskov Y.R."),
       Map.entry(2005, "Bisby F.A., Ruggiero M.A., Wilson K.L., Cachuela-Palacio M., Kimani S.W., Roskov Y.R., Soulier-Perkins A., van Hertum J."),
       Map.entry(2006, "Bisby F.A., Roskov Y.R."),
       Map.entry(2007, "Bisby F.A., Roskov Y.R."),
@@ -140,6 +145,14 @@ public class Generator extends AbstractColdpGenerator {
           ColdpTerm.gazetteer,
           ColdpTerm.establishmentMeans
       ));
+
+      if (year <= 2004) {
+        // the early CD-ROM release date is the canonical "issued" date
+        try (Statement st2 = conn.createStatement();
+             ResultSet rs = st2.executeQuery("SELECT `Date` FROM `CD-Date` LIMIT 1")) {
+          if (rs.next()) noteReleaseDate(SchemaReader.parseDate(rs.getString(1)));
+        }
+      }
 
       SchemaReader reader = year <= 2004 ? new EarlySchemaReader(this, conn)
                           : year <= 2011 ? new OldSchemaReader(this, conn)
