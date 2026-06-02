@@ -110,6 +110,16 @@ public class OldSchemaReaderTest {
   }
 
   @Test
+  public void testNormCodeIsCaseInsensitive() {
+    // the 2005 source is case-inconsistent (a synonym's accepted_name_code "Mos-35136210" vs the
+    // accepted name's name_code "MOS-35136210"); both must collapse to one key
+    assertEquals(OldSchemaReader.normCode("Mos-35136210"), OldSchemaReader.normCode("MOS-35136210"));
+    assertEquals("ARA-19298", OldSchemaReader.normCode("  Ara-19298 "));
+    assertNull(OldSchemaReader.normCode(null));
+    assertNull(OldSchemaReader.normCode("   "));
+  }
+
+  @Test
   public void testNameParentKey() {
     // distinct parents of a same-name homonym key apart; equal (name,parent) collide as intended
     assertEquals(OldSchemaReader.nameParentKey("Monarda fistulosa", 42),

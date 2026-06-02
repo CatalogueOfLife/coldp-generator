@@ -70,14 +70,6 @@ class OldSchemaReader extends SchemaReader {
     // an accepted name with an emitted taxon.
     Map<String, String> synAcceptedCode = loadSynonymChain(synonymIds);
 
-    // For every non-accepted node that is used as a parent (a species that is itself a synonym),
-    // pre-resolve the accepted taxon its accepted children should hang under: the accepted homonym
-    // of the same binomial (e.g. Monarda fistulosa L. rather than the synonym M. fistulosa Sims),
-    // else the synonym's accepted species via accepted_name_code (often a same-epithet recombination,
-    // e.g. Stipa nelsonii → Achnatherum nelsonii). Falls back to the genus only when neither exists.
-    Int2ObjectOpenHashMap<String> repairedParent = buildRepairedParents(
-        neededParents, acceptedByNameParent, acceptedNameCodeToId, synAcceptedCode);
-
     Map<String, String[]> accInfo = loadAcceptedInfo(statusLabels, acceptedIds);
 
     Map<String, String> nameRef = new HashMap<>();
@@ -88,12 +80,22 @@ class OldSchemaReader extends SchemaReader {
     loadSources();
     writeReferences();
 
-    int nAcc = emitAccepted(childParent, kingdomRoot, acceptedTaxa, repairedParent, accInfo, nameRef, taxonRef);
-    int nSyn = emitSynonyms(statusLabels, synonymIds, familyKingdom, acceptedNameCodeToId, synAcceptedCode, nameRef, taxonRef);
+    int nAcc = emitAccepted(childParent, kingdomRoot, acceptedTaxa,
+        // repair infraspecies whose parent species is a synonym: accepted homonym of the same
+        // binomial (Monarda fistulosa L., not the synonym Sims), else the synonym's accepted species
+        // via accepted_name_code (e.g. Stipa nelsonii → Achnatherum nelsonii), else the genus.
+        buildRepairedParents(neededParents, acceptedByNameParent, acceptedNameCodeToId, synAcceptedCode),
+        accInfo, nameRef, taxonRef);
+    // Some accepted names exist in scientific_names (status 1/2) but have no node in the taxa tree
+    // (the source lists them with an empty Classification, e.g. Achaearanea hirta (Taczanowski)).
+    // Emit them as accepted but parentless, so synonyms can link to their real accepted name.
+    int nMiss = emitMissingAccepted(statusLabels, acceptedIds, familyKingdom, acceptedNameCodeToId, nameRef, taxonRef);
+    int[] syn = emitSynonyms(statusLabels, synonymIds, familyKingdom, acceptedNameCodeToId, synAcceptedCode, nameRef, taxonRef);
     int nVern = emitVernaculars(acceptedNameCodeToId, synAcceptedCode, comNameRef);
     int nDist = emitDistributions(acceptedNameCodeToId, synAcceptedCode);
-    LOG.info("Old schema done: {} accepted, {} synonyms, {} vernaculars, {} distributions",
-        nAcc, nSyn, nVern, nDist);
+    LOG.info("Old schema done: {} accepted (+{} accepted without classification), {} synonyms, " +
+        "{} bare names (synonym without accepted name), {} vernaculars, {} distributions",
+        nAcc, nMiss, syn[0], syn[1], nVern, nDist);
   }
 
   private Map<Integer, String> loadStatusLabels() throws Exception {
@@ -149,7 +151,7 @@ class OldSchemaReader extends SchemaReader {
         if (rs.getInt("is_accepted_name") == 1) {
           acceptedTaxa.add(id); // emitted by emitAccepted; valid parentID/taxonID target
           if (parent != 0) neededParents.add(parent); // candidate parent that may need repair
-          String nc = rs.getString("name_code");
+          String nc = normCode(rs.getString("name_code"));
           if (nc != null && !nc.isBlank()) {
             acceptedNameCodeToId.put(nc, "t" + id); // only accepted nodes are emitted
           }
@@ -182,7 +184,7 @@ class OldSchemaReader extends SchemaReader {
         if (!neededParents.contains(id)) continue; // only nodes actually used as a parent
         String name = rs.getString("name");
         int parent = rs.getInt("parent_id");
-        String nc = rs.getString("name_code");
+        String nc = normCode(rs.getString("name_code"));
         Integer h = acceptedByNameParent.get(nameParentKey(name, parent));
         String r = repairParent(h, nc, acceptedNameCodeToId, synAcceptedCode);
         if (r != null) {
@@ -224,8 +226,8 @@ class OldSchemaReader extends SchemaReader {
          ResultSet rs = st.executeQuery(
              "SELECT name_code, accepted_name_code FROM scientific_names WHERE sp2000_status_id IN " + synonymIds)) {
       while (rs.next()) {
-        String nc = rs.getString("name_code");
-        String acc = rs.getString("accepted_name_code");
+        String nc = normCode(rs.getString("name_code"));
+        String acc = normCode(rs.getString("accepted_name_code"));
         if (nc != null && !nc.isBlank() && acc != null && !acc.isBlank()) {
           m.putIfAbsent(nc, acc);
         }
@@ -262,7 +264,7 @@ class OldSchemaReader extends SchemaReader {
              "SELECT name_code, author, sp2000_status_id, comment FROM scientific_names " +
              "WHERE sp2000_status_id IN " + acceptedIds)) {
       while (rs.next()) {
-        String nc = rs.getString("name_code");
+        String nc = normCode(rs.getString("name_code"));
         if (nc == null || nc.isBlank()) continue;
         m.put(nc, new String[]{
             rs.getString("author"),
@@ -282,7 +284,7 @@ class OldSchemaReader extends SchemaReader {
          ResultSet rs = st.executeQuery(
              "SELECT name_code, reference_type, reference_id FROM scientific_name_references")) {
       while (rs.next()) {
-        String nc = rs.getString("name_code");
+        String nc = normCode(rs.getString("name_code"));
         if (nc == null || nc.isBlank()) continue;
         String type = rs.getString("reference_type");
         String rid = "r" + rs.getInt("reference_id");
@@ -375,7 +377,7 @@ class OldSchemaReader extends SchemaReader {
       while (rs.next()) {
         int id = rs.getInt("record_id");
         int parent = rs.getInt("parent_id");
-        String nc = rs.getString("name_code");
+        String nc = normCode(rs.getString("name_code"));
 
         Generator.set(nameW, ColdpTerm.ID, "t" + id);
         // The 2005–2010 ITIS data attaches accepted infraspecies under a species node that is itself
@@ -442,10 +444,68 @@ class OldSchemaReader extends SchemaReader {
     return 0;
   }
 
-  private int emitSynonyms(Map<Integer, String> statusLabels, String synonymIds, Map<Integer, String> familyKingdom,
-                           Map<String, String> acceptedNameCodeToId, Map<String, String> synAcceptedCode,
-                           Map<String, String> nameRef, Map<String, Set<String>> taxonRef) throws Exception {
+  /**
+   * Emits accepted names that exist in {@code scientific_names} (accepted status) but have no node
+   * in the {@code taxa} tree — the source lists them with an empty classification (e.g.
+   * <em>Achaearanea hirta</em> (Taczanowski, 1873)). They are written as accepted but parentless,
+   * and registered in {@code acceptedNameCodeToId} so synonyms can link to their real accepted name.
+   * Must run before {@link #emitSynonyms}, {@link #emitVernaculars} and {@link #emitDistributions}.
+   *
+   * @return number of accepted-without-classification names emitted
+   */
+  private int emitMissingAccepted(Map<Integer, String> statusLabels, String acceptedIds,
+                                  Map<Integer, String> familyKingdom, Map<String, String> acceptedNameCodeToId,
+                                  Map<String, String> nameRef, Map<String, Set<String>> taxonRef) throws Exception {
     int n = 0;
+    try (Statement st = streamStmt();
+         ResultSet rs = st.executeQuery(
+             "SELECT record_id, name_code, genus, species, infraspecies, infraspecies_marker, " +
+             "author, sp2000_status_id, database_id, comment, family_id " +
+             "FROM scientific_names WHERE sp2000_status_id IN " + acceptedIds)) {
+      while (rs.next()) {
+        String nc = normCode(rs.getString("name_code"));
+        if (nc == null || nc.isBlank() || acceptedNameCodeToId.containsKey(nc)) continue; // already in the tree
+        int id = rs.getInt("record_id");
+        String accId = "a" + id;
+        acceptedNameCodeToId.put(nc, accId); // so synonyms / vernaculars / distributions can link
+
+        String marker = rs.getString("infraspecies_marker");
+        String infra = rs.getString("infraspecies");
+        Generator.set(nameW, ColdpTerm.ID, accId);
+        // parentless on purpose: the source has no classification for these accepted names
+        Generator.set(nameW, ColdpTerm.status, ColacMappings.status(statusLabels.get(rs.getInt("sp2000_status_id"))));
+        Generator.set(nameW, ColdpTerm.rank, synonymRank(marker, infra));
+        Generator.set(nameW, ColdpTerm.scientificName,
+            synonymName(rs.getString("genus"), rs.getString("species"), marker, infra));
+        Generator.set(nameW, ColdpTerm.authorship, rs.getString("author"));
+        Generator.set(nameW, ColdpTerm.code, nomCode(familyKingdom.get(rs.getInt("family_id"))));
+        int dbId = rs.getInt("database_id");
+        if (dbId > 0) Generator.set(nameW, ColdpTerm.sourceID, "d" + dbId);
+        Generator.set(nameW, ColdpTerm.nameReferenceID, nameRef.get(nc));
+        Generator.set(nameW, ColdpTerm.referenceID, joinRefs(taxonRef.get(nc)));
+        Generator.set(nameW, ColdpTerm.remarks, rs.getString("comment"));
+        nameW.next();
+        n++;
+      }
+    }
+    LOG.info("Wrote {} accepted names without classification (missing from the taxa tree)", n);
+    return n;
+  }
+
+  /**
+   * Emits the {@code scientific_names} synonyms. A synonym whose {@code accepted_name_code} resolves
+   * (through any synonym→synonym chain) to an emitted accepted taxon is written as a real synonym
+   * pointing to it. A synonym whose accepted name does not exist at all in the source (the source
+   * itself reports "no accepted name found", e.g. <em>Helix fulva</em>) cannot be a ColDP synonym,
+   * so it is written as a <em>bare name</em> (no parent, no taxonomic data) with the original
+   * synonym status kept in {@code remarks}.
+   *
+   * @return {@code [synonyms, bareNames]} counts
+   */
+  private int[] emitSynonyms(Map<Integer, String> statusLabels, String synonymIds, Map<Integer, String> familyKingdom,
+                             Map<String, String> acceptedNameCodeToId, Map<String, String> synAcceptedCode,
+                             Map<String, String> nameRef, Map<String, Set<String>> taxonRef) throws Exception {
+    int nSyn = 0, nBare = 0;
     try (Statement st = streamStmt();
          ResultSet rs = st.executeQuery(
              "SELECT record_id, name_code, genus, species, infraspecies, infraspecies_marker, " +
@@ -453,38 +513,44 @@ class OldSchemaReader extends SchemaReader {
              "FROM scientific_names WHERE sp2000_status_id IN " + synonymIds)) {
       while (rs.next()) {
         int id = rs.getInt("record_id");
-        String nc = rs.getString("name_code");
-        String synId = "s" + id;
-
-        Generator.set(nameW, ColdpTerm.ID, synId);
-        // a synonym's parent is its accepted taxon: resolve accepted_name_code through any
-        // synonym→synonym chain to an emitted accepted taxon (null = no accepted parent, dropped).
-        String accCode = rs.getString("accepted_name_code");
-        if (accCode != null) {
-          Generator.set(nameW, ColdpTerm.parentID,
-              resolveAcceptedTaxon(accCode, acceptedNameCodeToId, synAcceptedCode));
-        }
+        String nc = normCode(rs.getString("name_code"));
+        String accCode = normCode(rs.getString("accepted_name_code"));
+        String parentId = accCode == null ? null : resolveAcceptedTaxon(accCode, acceptedNameCodeToId, synAcceptedCode);
+        String statusLabel = ColacMappings.status(statusLabels.get(rs.getInt("sp2000_status_id")));
         String marker = rs.getString("infraspecies_marker");
         String infra = rs.getString("infraspecies");
+        String comment = rs.getString("comment");
+
+        Generator.set(nameW, ColdpTerm.ID, "s" + id);
         Generator.set(nameW, ColdpTerm.scientificName,
             synonymName(rs.getString("genus"), rs.getString("species"), marker, infra));
         Generator.set(nameW, ColdpTerm.authorship, rs.getString("author"));
         Generator.set(nameW, ColdpTerm.rank, synonymRank(marker, infra));
-        Generator.set(nameW, ColdpTerm.status, ColacMappings.status(statusLabels.get(rs.getInt("sp2000_status_id"))));
         Generator.set(nameW, ColdpTerm.code, nomCode(familyKingdom.get(rs.getInt("family_id"))));
         int dbId = rs.getInt("database_id");
         if (dbId > 0) Generator.set(nameW, ColdpTerm.sourceID, "d" + dbId);
-        if (nc != null) {
-          Generator.set(nameW, ColdpTerm.nameReferenceID, nameRef.get(nc));
-          Generator.set(nameW, ColdpTerm.referenceID, joinRefs(taxonRef.get(nc)));
+        if (nc != null) Generator.set(nameW, ColdpTerm.nameReferenceID, nameRef.get(nc));
+
+        if (parentId != null) {
+          // a real synonym pointing to its accepted taxon
+          Generator.set(nameW, ColdpTerm.parentID, parentId);
+          Generator.set(nameW, ColdpTerm.status, statusLabel);
+          if (nc != null) Generator.set(nameW, ColdpTerm.referenceID, joinRefs(taxonRef.get(nc)));
+          Generator.set(nameW, ColdpTerm.remarks, comment);
+          nSyn++;
+        } else {
+          // no accepted name in the source → a bare name: name only, no parent / no taxon data
+          Generator.set(nameW, ColdpTerm.status, "bare name");
+          String note = (statusLabel != null ? statusLabel : "synonym") + " without accepted name";
+          Generator.set(nameW, ColdpTerm.remarks,
+              comment == null || comment.isBlank() ? note : note + "; " + comment);
+          nBare++;
         }
-        Generator.set(nameW, ColdpTerm.remarks, rs.getString("comment"));
         nameW.next();
-        n++;
       }
     }
-    LOG.info("Wrote {} synonyms", n);
-    return n;
+    LOG.info("Wrote {} synonyms, {} bare names (synonym without an accepted name)", nSyn, nBare);
+    return new int[]{nSyn, nBare};
   }
 
   private int emitVernaculars(Map<String, String> acceptedNameCodeToId, Map<String, String> synAcceptedCode,
@@ -494,7 +560,7 @@ class OldSchemaReader extends SchemaReader {
          ResultSet rs = st.executeQuery(
              "SELECT name_code, common_name, language, country FROM common_names")) {
       while (rs.next()) {
-        String nc = rs.getString("name_code");
+        String nc = normCode(rs.getString("name_code"));
         // attach to the accepted taxon, resolving synonym name_codes through the chain
         String taxonId = resolveAcceptedTaxon(nc, acceptedNameCodeToId, synAcceptedCode);
         String name = rs.getString("common_name");
@@ -519,7 +585,7 @@ class OldSchemaReader extends SchemaReader {
          ResultSet rs = st.executeQuery("SELECT name_code, distribution FROM distribution")) {
       while (rs.next()) {
         // attach to the accepted taxon, resolving synonym name_codes through the chain
-        String taxonId = resolveAcceptedTaxon(rs.getString("name_code"), acceptedNameCodeToId, synAcceptedCode);
+        String taxonId = resolveAcceptedTaxon(normCode(rs.getString("name_code")), acceptedNameCodeToId, synAcceptedCode);
         String area = rs.getString("distribution");
         if (taxonId == null || area == null || area.isBlank()) continue;
         Generator.set(distW, ColdpTerm.taxonID, taxonId);
@@ -535,6 +601,19 @@ class OldSchemaReader extends SchemaReader {
 
   private static String lc(String s) {
     return s == null ? null : s.toLowerCase(Locale.ENGLISH);
+  }
+
+  /**
+   * Canonical (upper-cased, trimmed) form of a name_code, used for all name_code matching. The 2005
+   * data is case-inconsistent — e.g. a synonym's accepted_name_code is "Mos-35136210" while the
+   * accepted name's name_code is "MOS-35136210". MySQL's case-insensitive collation treats these as
+   * equal (so the source links resolve), but a case-sensitive Java map would miss them. Returns null
+   * for null/blank input.
+   */
+  static String normCode(String code) {
+    if (code == null) return null;
+    String s = code.trim();
+    return s.isEmpty() ? null : s.toUpperCase(Locale.ENGLISH);
   }
 
   /** Best-effort rank for an atomized synonym: the infraspecies marker, else species/infraspecies. */
