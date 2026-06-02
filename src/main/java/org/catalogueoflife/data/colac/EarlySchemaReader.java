@@ -44,7 +44,10 @@ class EarlySchemaReader extends SchemaReader {
     Set<String> emittedNodes = new LinkedHashSet<>(); // synthetic path ids already written
 
     int nAcc = emitAccepted(hier, emittedNodes, acceptedNameCodeToId);
-    LOG.info("Early schema done: {} accepted ({} synthetic nodes)", nAcc, emittedNodes.size());
+    Map<String, String> synAcceptedCode = loadSynonymChain();
+    int[] syn = emitSynonyms(acceptedNameCodeToId, synAcceptedCode);
+    LOG.info("Early schema done: {} accepted, {} synonyms, {} bare names ({} synthetic nodes)",
+        nAcc, syn[0], syn[1], emittedNodes.size());
   }
 
   /**
@@ -156,6 +159,70 @@ class EarlySchemaReader extends SchemaReader {
     Generator.set(nameW, ColdpTerm.scientificName, path.get(path.size() - 1));
     Generator.set(nameW, ColdpTerm.code, nomCode(path.get(0)));
     nameW.next();
+  }
+
+  /** synonym NameCode → its AcceptedNameCode (both normCode'd), for chain-following. */
+  private Map<String, String> loadSynonymChain() throws Exception {
+    Map<String, String> m = new HashMap<>();
+    try (Statement st = streamStmt();
+         ResultSet rs = st.executeQuery(
+             "SELECT NameCode, AcceptedNameCode FROM SCINAMES WHERE Sp2kStatus NOT LIKE '%accepted%'")) {
+      while (rs.next()) {
+        String nc = normCode(rs.getString("NameCode"));
+        String acc = normCode(rs.getString("AcceptedNameCode"));
+        if (nc != null && acc != null) m.putIfAbsent(nc, acc);
+      }
+    }
+    LOG.info("Loaded {} synonym chain links", m.size());
+    return m;
+  }
+
+  /**
+   * Emits all synonym rows from SCINAMES (Sp2kStatus NOT LIKE '%accepted%').
+   * A synonym whose AcceptedNameCode resolves (through any synonym→synonym chain) to an emitted
+   * accepted taxon is written as a real synonym pointing to it. Otherwise it is emitted as a bare
+   * name (no parent, status = "bare name") with the original status kept in remarks.
+   *
+   * @return {@code [synonyms, bareNames]} counts
+   */
+  private int[] emitSynonyms(Map<String, String> acceptedNameCodeToId, Map<String, String> synAcceptedCode) throws Exception {
+    int nSyn = 0, nBare = 0;
+    try (Statement st = streamStmt();
+         ResultSet rs = st.executeQuery(
+             "SELECT NameCode, Genus, Species, InfraSpecies, InfraSpMarker, ScientificNameAuthor, " +
+             "Sp2kStatus, AcceptedNameCode, AuthorRefNumber, DatabaseName, Comment " +
+             "FROM SCINAMES WHERE Sp2kStatus NOT LIKE '%accepted%'")) {
+      while (rs.next()) {
+        String code = rs.getString("NameCode");
+        String accCode = normCode(rs.getString("AcceptedNameCode"));
+        String parentId = accCode == null ? null : resolveAcceptedTaxon(accCode, acceptedNameCodeToId, synAcceptedCode);
+        String statusLabel = status(rs.getString("Sp2kStatus"));
+        String marker = blankNone(rs.getString("InfraSpMarker"));
+        String infra  = blankNone(rs.getString("InfraSpecies"));
+        String comment = rs.getString("Comment");
+
+        Generator.set(nameW, ColdpTerm.ID, code);
+        Generator.set(nameW, ColdpTerm.scientificName, synonymName(rs.getString("Genus"), rs.getString("Species"), marker, infra));
+        Generator.set(nameW, ColdpTerm.authorship, rs.getString("ScientificNameAuthor"));
+        Generator.set(nameW, ColdpTerm.rank, infraRank(marker, infra));
+        Generator.set(nameW, ColdpTerm.sourceID, sourceId(rs.getString("DatabaseName")));
+        Generator.set(nameW, ColdpTerm.nameReferenceID, refId(rs.getString("AuthorRefNumber")));
+        if (parentId != null) {
+          Generator.set(nameW, ColdpTerm.parentID, parentId);
+          Generator.set(nameW, ColdpTerm.status, statusLabel);
+          Generator.set(nameW, ColdpTerm.remarks, comment);
+          nSyn++;
+        } else {
+          Generator.set(nameW, ColdpTerm.status, "bare name");
+          String note = (statusLabel != null ? statusLabel : "synonym") + " without accepted name";
+          Generator.set(nameW, ColdpTerm.remarks, comment == null || comment.isBlank() ? note : note + "; " + comment);
+          nBare++;
+        }
+        nameW.next();
+      }
+    }
+    LOG.info("Wrote {} synonyms, {} bare names", nSyn, nBare);
+    return new int[]{nSyn, nBare};
   }
 
   /**
