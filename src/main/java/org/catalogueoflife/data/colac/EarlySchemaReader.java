@@ -39,7 +39,10 @@ class EarlySchemaReader extends SchemaReader {
   void read() throws Exception {
     // composite key normCode(HierarchyCode)+"|"+normCode(Family) -> [kingdom,phylum,class,order,family]
     Map<String, String[]> hier = loadHierarchy();
-    boolean hasDistribution = !tableColumns("DISTRIBUTION").isEmpty(); // false for 2000
+    // Distributions are only emitted when the DISTRIBUTION table is keyed by NameCode (2003/2004).
+    // 2000 has no DISTRIBUTION table; 2002's DISTRIBUTION is keyed by the atomized name (no NameCode)
+    // and only ~3.6% maps cleanly back to a taxon, so it is skipped rather than emit junk links.
+    boolean hasDistribution = tableColumns("DISTRIBUTION").contains("namecode");
     // col2000/col2002 use old column names; col2003/col2004 use the renamed columns
     Set<String> scinamesCols = tableColumns("SCINAMES");
     boolean newStyle = scinamesCols.contains("scientificnameauthor"); // col2003+: ScientificNameAuthor / AuthorRefNumber / AcceptedNameCode
