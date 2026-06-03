@@ -314,7 +314,7 @@ class EarlySchemaReader extends SchemaReader {
         if (taxonId == null || name == null || name.isBlank()) continue;
         Generator.set(vernW, ColdpTerm.taxonID, taxonId);
         Generator.set(vernW, ColdpTerm.name, name);
-        Generator.set(vernW, ColdpTerm.language, rs.getString("Language"));
+        Generator.set(vernW, ColdpTerm.language, cleanLanguage(rs.getString("Language")));
         Generator.set(vernW, ColdpTerm.country, rs.getString("Country"));
         Generator.set(vernW, ColdpTerm.referenceID, refId(rs.getString("refNum"), refIds));
         vernW.next();
@@ -409,6 +409,19 @@ class EarlySchemaReader extends SchemaReader {
     if (s == null) return null;
     String t = s.trim();
     return (t.isEmpty() || t.equalsIgnoreCase("none") || t.equalsIgnoreCase("not assigned")) ? null : t;
+  }
+
+  /**
+   * COMNAMES.Language is a free-text English language name; the "no language" sentinels
+   * ("Not specified" in 2004, "Missing" in 2000, "Other", "Unknown") are returned as null so they
+   * are not emitted as a bogus language (CLB would flag ~50k "vernacular language invalid"/year).
+   * Real language names (English, Spanish, …) pass through for CLB to map to an ISO code.
+   */
+  static String cleanLanguage(String s) {
+    String t = blankNone(s);
+    if (t == null) return null;
+    return (t.equalsIgnoreCase("not specified") || t.equalsIgnoreCase("missing")
+         || t.equalsIgnoreCase("other") || t.equalsIgnoreCase("unknown")) ? null : t;
   }
 
   private static String infraRank(String marker, String infra) {

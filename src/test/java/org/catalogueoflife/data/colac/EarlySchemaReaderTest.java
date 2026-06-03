@@ -21,6 +21,19 @@ public class EarlySchemaReaderTest {
     assertNull(EarlySchemaReader.parentPathId(null));
   }
   @Test
+  public void testCleanLanguage() {
+    // real language names pass through for CLB to map to an ISO code
+    assertEquals("English", EarlySchemaReader.cleanLanguage("English"));
+    assertEquals("Creole, French", EarlySchemaReader.cleanLanguage("Creole, French"));
+    // "no language" sentinels become null
+    assertNull(EarlySchemaReader.cleanLanguage("Not specified"));
+    assertNull(EarlySchemaReader.cleanLanguage("missing"));
+    assertNull(EarlySchemaReader.cleanLanguage("Other"));
+    assertNull(EarlySchemaReader.cleanLanguage("  "));
+    assertNull(EarlySchemaReader.cleanLanguage(null));
+  }
+
+  @Test
   public void testNameKey() {
     // case-insensitive; the "none" infra sentinel and a blank infra collapse to the same key
     assertEquals(EarlySchemaReader.nameKey("Animalia-Mollusca", "Nautilus", "pompilius", "none"),
