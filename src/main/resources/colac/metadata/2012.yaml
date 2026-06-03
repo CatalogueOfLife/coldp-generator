@@ -94,9 +94,10 @@ contributor:
 conversion:
   url: https://github.com/CatalogueOfLife/coldp-generator
   description: >-
-    Converted to ColDP from the original Species 2000/ITIS Annual Checklist MySQL database with the export scripts in this repository.
+    Converted to ColDP from the original Species 2000/ITIS Annual Checklist MySQL database with the coldp-generator colac script.
 notes: |-
   Generated from the historical CoL Annual Checklist MySQL database col2012ac.
+  available at https://download.checklistbank.org/col/annual/2012_mysql.sql.gz.
   IDs: t<id> accepted taxa, a<id> accepted names without classification, s<id> synonyms (and bare names), r<id> references, d<id> source databases (GSDs).
   Each NameUsage.sourceID points to its contributing Global Species Database.
 {sources}
