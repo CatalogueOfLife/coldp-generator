@@ -378,6 +378,14 @@ class OldSchemaReader extends SchemaReader {
             }
             reparented++;
           }
+          // Guard against a self-loop: an autonym's parent species can itself be a synonym of that
+          // very autonym (e.g. "Amanita gemmata" → "Amanita gemmata var. gemmata"), so the repair
+          // resolves the child's parent back to the child. Fall back to the nearest accepted
+          // ancestor (the genus) instead.
+          if (parentId != null && parentId.equals("t" + id)) {
+            int anc = acceptedAncestor(parent, childParent, acceptedTaxa);
+            parentId = anc > 0 && anc != id ? "t" + anc : null;
+          }
           if (parentId != null) Generator.set(nameW, ColdpTerm.parentID, parentId);
         }
         Generator.set(nameW, ColdpTerm.rank, lc(rs.getString("taxon")));
