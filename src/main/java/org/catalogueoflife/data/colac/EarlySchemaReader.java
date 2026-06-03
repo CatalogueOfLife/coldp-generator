@@ -49,12 +49,13 @@ class EarlySchemaReader extends SchemaReader {
     Map<String, String> acceptedNameCodeToId = new HashMap<>();
     Set<String> emittedNodes = new LinkedHashSet<>(); // synthetic path ids already written
 
-    int nAcc = emitAccepted(hier, emittedNodes, acceptedNameCodeToId, newStyle);
-    Map<String, String> synAcceptedCode = loadSynonymChain(newStyle);
     loadSources();
-    writeReferences(newStyle);
-    int[] syn = emitSynonyms(acceptedNameCodeToId, synAcceptedCode, newStyle);
-    int nVern = emitVernaculars(acceptedNameCodeToId, synAcceptedCode, newStyle);
+    // emit references first: returns the set of valid ref ids used to resolve name/vernacular refs
+    Map<String, String> refIds = writeReferences(newStyle);
+    int nAcc = emitAccepted(hier, emittedNodes, acceptedNameCodeToId, newStyle, refIds);
+    Map<String, String> synAcceptedCode = loadSynonymChain(newStyle);
+    int[] syn = emitSynonyms(acceptedNameCodeToId, synAcceptedCode, newStyle, refIds);
+    int nVern = emitVernaculars(acceptedNameCodeToId, synAcceptedCode, newStyle, refIds);
     int nDist = distCols.contains("namecode") ? emitDistributions(acceptedNameCodeToId, synAcceptedCode)
               : !distCols.isEmpty()           ? emitDistributionsByName(acceptedNameCodeToId, synAcceptedCode)
               : 0;
@@ -92,7 +93,8 @@ class EarlySchemaReader extends SchemaReader {
    * then the species/infraspecies row itself is written.
    */
   private int emitAccepted(Map<String, String[]> hier, Set<String> emitted,
-                           Map<String, String> acceptedNameCodeToId, boolean newStyle) throws Exception {
+                           Map<String, String> acceptedNameCodeToId, boolean newStyle,
+                           Map<String, String> refIds) throws Exception {
     // col2000/2002: Author(s), AuthorRef; col2003/2004: ScientificNameAuthor, AuthorRefNumber
     String authorCol   = newStyle ? "ScientificNameAuthor"     : "`Author(s)`";
     String authorRef   = newStyle ? "AuthorRefNumber"          : "AuthorRef";
@@ -127,7 +129,7 @@ class EarlySchemaReader extends SchemaReader {
         Generator.set(nameW, ColdpTerm.authorship, rs.getString("author"));
         Generator.set(nameW, ColdpTerm.code, nomCode(kingdom));
         Generator.set(nameW, ColdpTerm.sourceID, sourceId(rs.getString("DatabaseName")));
-        Generator.set(nameW, ColdpTerm.nameReferenceID, refId(rs.getString("authorRef")));
+        Generator.set(nameW, ColdpTerm.nameReferenceID, refId(rs.getString("authorRef"), refIds));
         Generator.set(nameW, ColdpTerm.remarks, rs.getString("Comment"));
         nameW.next();
         acceptedNameCodeToId.put(nc, code);
@@ -203,7 +205,7 @@ class EarlySchemaReader extends SchemaReader {
    * @return {@code [synonyms, bareNames]} counts
    */
   private int[] emitSynonyms(Map<String, String> acceptedNameCodeToId, Map<String, String> synAcceptedCode,
-                             boolean newStyle) throws Exception {
+                             boolean newStyle, Map<String, String> refIds) throws Exception {
     // col2000/2002: Author(s), AuthorRef, ANCode; col2003/2004: ScientificNameAuthor, AuthorRefNumber, AcceptedNameCode
     String authorCol = newStyle ? "ScientificNameAuthor"     : "`Author(s)`";
     String authorRef = newStyle ? "AuthorRefNumber"          : "AuthorRef";
@@ -229,7 +231,7 @@ class EarlySchemaReader extends SchemaReader {
         Generator.set(nameW, ColdpTerm.authorship, rs.getString("author"));
         Generator.set(nameW, ColdpTerm.rank, infraRank(marker, infra));
         Generator.set(nameW, ColdpTerm.sourceID, sourceId(rs.getString("DatabaseName")));
-        Generator.set(nameW, ColdpTerm.nameReferenceID, refId(rs.getString("authorRef")));
+        Generator.set(nameW, ColdpTerm.nameReferenceID, refId(rs.getString("authorRef"), refIds));
         if (parentId != null) {
           Generator.set(nameW, ColdpTerm.parentID, parentId);
           Generator.set(nameW, ColdpTerm.status, statusLabel);
@@ -265,9 +267,17 @@ class EarlySchemaReader extends SchemaReader {
     LOG.info("Loaded {} source databases (GSDs)", n);
   }
 
-  private void writeReferences(boolean newStyle) throws Exception {
+  /**
+   * Emits the REFERENCES rows and returns {@code normCode(RefNumber) -> "r"+RefNumber} — the set of
+   * reference ids actually emitted. {@code AuthorRefNumber}/{@code COMNAMES.RefNumber} are free-text
+   * and contain sentinels ("NA") and codes that have no REFERENCES row, so reference links are
+   * resolved through this map ({@link #refId}) and dropped when they don't resolve, rather than
+   * emitting a dangling {@code rNA}/{@code r…}.
+   */
+  private Map<String, String> writeReferences(boolean newStyle) throws Exception {
     // col2000/2002 use "Author(s)"; col2003/2004 use "ScientificNameAuthor"
     String authorExpr = newStyle ? "ScientificNameAuthor" : "`Author(s)`";
+    Map<String, String> refIds = new HashMap<>();
     int n = 0;
     try (Statement st = streamStmt();
          ResultSet rs = st.executeQuery(
@@ -275,7 +285,9 @@ class EarlySchemaReader extends SchemaReader {
       while (rs.next()) {
         String ref = rs.getString("RefNumber");
         if (ref == null || ref.isBlank()) continue;
-        Generator.set(refW, ColdpTerm.ID, "r" + ref.trim());
+        String id = "r" + ref.trim();
+        if (refIds.putIfAbsent(normCode(ref), id) != null) continue; // de-duplicate by code
+        Generator.set(refW, ColdpTerm.ID, id);
         Generator.set(refW, ColdpTerm.author, rs.getString("author"));
         Generator.set(refW, ColdpTerm.issued, rs.getString("Year"));
         Generator.set(refW, ColdpTerm.title, rs.getString("Title"));
@@ -285,10 +297,11 @@ class EarlySchemaReader extends SchemaReader {
       }
     }
     LOG.info("Wrote {} references", n);
+    return refIds;
   }
 
   private int emitVernaculars(Map<String, String> acceptedNameCodeToId, Map<String, String> synAcceptedCode,
-                              boolean newStyle) throws Exception {
+                              boolean newStyle, Map<String, String> refIds) throws Exception {
     // col2000/2002: reference column is ComNameRef; col2003/2004: RefNumber
     String refCol = newStyle ? "RefNumber" : "ComNameRef";
     int n = 0;
@@ -303,7 +316,7 @@ class EarlySchemaReader extends SchemaReader {
         Generator.set(vernW, ColdpTerm.name, name);
         Generator.set(vernW, ColdpTerm.language, rs.getString("Language"));
         Generator.set(vernW, ColdpTerm.country, rs.getString("Country"));
-        Generator.set(vernW, ColdpTerm.referenceID, refId(rs.getString("refNum")));
+        Generator.set(vernW, ColdpTerm.referenceID, refId(rs.getString("refNum"), refIds));
         vernW.next();
         n++;
       }
@@ -404,5 +417,10 @@ class EarlySchemaReader extends SchemaReader {
   }
 
   private static String sourceId(String db) { return blankNone(db) == null ? null : "d" + db.trim(); }
-  private static String refId(String ref)   { return blankNone(ref) == null ? null : "r" + ref.trim(); }
+  /** Reference id for a free-text RefNumber, but only when it resolves to an emitted Reference
+   *  (drops "NA" sentinels and codes with no REFERENCES row; case-insensitive via normCode). */
+  private static String refId(String ref, Map<String, String> refIds) {
+    String nc = normCode(ref);
+    return nc == null ? null : refIds.get(nc);
+  }
 }
