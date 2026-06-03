@@ -1,0 +1,103 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CatalogueOfLife/coldp/master/metadata.json
+---
+alias: COL18
+title: 'Species 2000 & ITIS Catalogue of Life: 2018 Annual Checklist.'
+description: |-
+  This release of the Catalogue of Life contains contributions from 168 taxonomic databases with information on 1,744,204 living and 59,284 extinct species, 158,147 living and 561 extinct infraspecific taxa which belong to 175,363 genera, 11,716 families, 1,523 orders, 352 classes, 101 phyla and 7 kingdoms plus viruses, it also includes 1,638,520 synonyms and 428,289 common names, and covering the following groups:
+
+  Viruses • Viruses and Subviral agents from ICTV_MSL
+
+  Bacteria and Archaea from ITIS Global UPDATED!
+
+  Chromista • Chromistan fungi from Species Fungorum UPDATED! • Foraminifers from WoRMS Foraminifera UPDATED!
+
+  Protozoa • Major groups from ITIS Regional UPDATED! • Ciliates from CilCat • Polycystines from WoRMS Polycystina UPDATED! • Protozoan fungi from Species Fungorum UPDATED! and Trichomycetes UPDATED! • Microsporidians from Microsporidia UPDATED! • Slime moulds from Nomen.eumycetozoa.com UPDATED!
+
+  Fungi • Various taxa in whole or in part from CABI Bioservices databases (Species Fungorum UPDATED!, Phyllachorales UPDATED!, Rhytismatales UPDATED!, Saccharomycetes UPDATED! and Zygomycetes UPDATED!) and from four other databases covering Xylariaceae UPDATED!, Glomeromycota UPDATED!, Trichomycetes UPDATED!, Dothideomycetes UPDATED! • Lichens from LIAS
+
+  Plantae (Plants) • Mosses from MOST • Liverworts and hornworts from ELPT UPDATED! • Ferns and fern-allies from World Ferns UPDATED! • Cycads from The World List of Cycads • Conifers from Conifer Database • 113 flowering plant families from WCSP UPDATED! and 294 families from World Plants UPDATED! • Plus individual flowering plant families from AnnonBase, Brassicaceae, Droseraceae Database, ILDIS, WWW UPDATED!, RJB Geranium UPDATED!.
+
+  Animalia (Animals) • Marine groups from ITIS Global UPDATED!, ETI WBD (Euphausiacea), Brachiopoda Database UPDATED!, Phoronida Database UPDATED!, WoRMS Antipatharia NEW!, WoRMS Appendicularia NEW!, WoRMS Ascidiacea NEW!, WoRMS Asteroidea UPDATED!, WoRMS Bochusacea UPDATED!, WoRMS Brachypoda UPDATED!, WoRMS Brachyura UPDATED!, WoRMS Bryozoa UPDATED!, WoRMS Cephalochordata UPDATED!, WoRMS Ceriantharia NEW!, WoRMS Cestoda, WoRMS Chaetognatha UPDATED!, WoRMS Copepoda NEW!, WoRMS Corallimorpharia NEW!, WoRMS Ctenophora NEW!, WoRMS Cubozoa NEW!, WoRMS Cumacea UPDATED!, WoRMS Echinoidea UPDATED!, , WoRMS Foraminifera UPDATED!, WoRMS Gastrotricha UPDATED!, WoRMS Gnathostomulida UPDATED!, WoRMS Hexacoral NEW!, WoRMS Holothuroidea UPDATED!, WoRMS Hydrozoa UPDATED!, WoRMS Isopoda UPDATED!, WoRMS Kinorhyncha UPDATED!, WoRMS Leptostraca UPDATED!, WoRMS Loricifera NEW!, WoRMS Merostomata UPDATED!, WoRMS MilliBase NEW!, WoRMS Mollusca, WoRMS Monogenea, WoRMS Mystacocarida UPDATED!, WoRMS Myxozoa, WoRMS Nemertea UPDATED!, WoRMS Octocorallia UPDATED!, WoRMS Oligochaeta UPDATED!, WoRMS Ophiuroidea UPDATED!, WoRMS Orthonectida UPDATED!, WoRMS Ostracoda NEW!, WoRMS Placozoa UPDATED!, WoRMS Polychaeta UPDATED!, WoRMS Polycystina UPDATED!, WoRMS Porifera UPDATED!, WoRMS Priapulida UPDATED!, WoRMS PycnoBase NEW!, WoRMS Remipedia UPDATED!, WoRMS Rhombozoa UPDATED!, WoRMS Scleractinia NEW!, WoRMS Scyphozoa NEW!, WoRMS Staurozoa NEW!, WoRMS Tanaidacea UPDATED!, WoRMS Tantulocarida UPDATED!, WoRMS Thaliacea NEW!, WoRMS Thermosbaenacea UPDATED!, WoRMS Trematoda, WoRMS Turbellarians NEW!, WoRMS Xenoturbellida UPDATED!, WoRMS Zoantharia NEW! • Rotifers, mayflies, freshwater hairworms, planarians, water fleas and aquatic mites from FADA databases: FADA Rotifera, FADA Ephemeroptera, FADA Nematomorpha, FADA Cladocera & FADA Halacaridae • Entoprocts, water bears from ITIS Global UPDATED! • Spiders, scorpions, ticks & mites from WSC UPDATED!, The Scorpion Files, ITIS Global UPDATED!, TicksBase, SpmWeb BdelloideaBase & Mites GSDs: OlogamasidBase, PhytoseiidBase, RhodacaridBase & TenuipalpidBase • Centipedes from ChiloBase • Dragonflies and damselflies from Odonata database • Stoneflies from SF Plecoptera UPDATED! • Cockroaches from SF Cockroach UPDATED! • Termites from SF Isoptera NEW! • Praying mantids from SF Mantodea UPDATED! • Stick and leaf insects from SF Phasmida UPDATED! • Ice crawlers from SF Grylloblattodea UPDATED! • Earwigs from SF Dermaptera UPDATED! • Grasshoppers, locusts, katydids and crickets from SF Orthoptera UPDATED! • Rock crawlers, gladiators from SF Mantophasmatodea UPDATED! • Webspinners from SF Embioptera UPDATED! • Zorapterans from SF Zoraptera UPDATED! • Bark & parasitic lices from SF Psocodea UPDATED! • Some groups of true bugs from ScaleNet, FLOW UPDATED!, COOL UPDATED!, Psyllist UPDATED!, SF Aphid UPDATED!, MBB, SF Coleorrhyncha NEW!, 3i Auchenorrhyncha NEW!, MOWD, SF Coreoidea UPDATED!, The White-Files UPDATED!, Tessaratomidae Database UPDATED!, Lace Bugs Database UPDATED!, PBI Plant Bug & SF Lygaeoidea UPDATED! • Twisted-wing parasites from Strepsiptera Database UPDATED! • Lacewings, antlions, owlflies, fishflies, dobsonflies & snakeflies from LDL NSW UPDATED! • Some beetle groups from the Scarabs UPDATED!, TITAN, WTaxa, Brentids UPDATED!, 3i Curculio UPDATED!, CarabCat UPDATED!, Jewel Beetles NEW! & ITIS Global UPDATED! • Fleas from Parhost • Flies, mosquitoes, bots, midges and gnats from Systema Dipterorum, CCW & CIPA • Butterflies and moths from LepIndex, GloBIS (GART), Tineidae NHM, Global Gracillariidae, Nepticuloidea, Pterophoroidea NEW! • Bees & wasps from ITIS Bees, Taxapad Ichneumonoidea, UCD, ZOBODAT Vespoidea, HymIS UPDATED! & SF Chrysididae UPDATED! • Fishes from FishBase UPDATED! • Reptiles from ReptileDB • Amphibians, birds and mammals from ITIS Global UPDATED!
+
+  PLUS additional species of various taxa from ITIS Regional UPDATED!, NZIB, CoL China, extinct taxa from PaleoBioDB UPDATED!, and missing parts of the classification down to genus level from IRMNG NEW!
+
+  Acknowledgements
+  The Catalogue of Life (CoL) thanks Naturalis in the Netherlands, the US Geological Survey, the Smithsonian Institution and the Illinois Natural History Survey in the USA, FIN in the Philippines, and Biodiversity Committee, Chinese Academy of Sciences in China. We further thank all those organisations and individuals that contributed to the CoL, and the European Commission for funding the network and infrastructure development projects: EuroCat (EVR1-CT-2002-20011, 2003-2006), 4D4Life (FP7-238988, 2009-2012) and i4Life (FP7-261555, 2010-2013). The infrastructure project (named CoL+) is made possible in collaboration with GBIF through financial contributions of NLBIF (Natu170727hv1, 2017-2019), GBIF, Naturalis Biodiversity Center and Species 2000/Catalogue of Life.
+  The Catalogue of Life Programme thanks all of over 150 organisations that continue to contribute taxonomic expertise. We acknowledge all of the people from the GSD community who provided us with valuable support in data export and transformation this and preceding years: Matthew Clapham, Christine Johnson, Dmitry Mozzherin, Daniel Gloor, Eli Agbayani, Yde de Jong, Simon Woodman, Timalka Kalubowila, Michael Hassler, Viktoras Didžiulis, Heimo Rainer, Alexander Kroupa, Bart Vanhoorne, Leen Vandepitte, Hernán Pereira, Marilyn Beckman, Dagmar Triebel, Adrian Hine, Angel Anta, Michael Malicky, Ward Appeltans, Guy Baillargeon, Vanderlei Perez Canhos, Rosario Dioguardi, Richard Flood, Johannes Goll, Anton Güntsch, Sergey Jezniakowsky, Antonella Linguanti, Silvia Lusa, Lisa Walley and Markus Weiss. We also acknowledge programmers who contributed in the software development in the past: Jorrit van Hertum (CoL interface), Richard White (Taxon Matcher), Viktoras Didžiulis (CoL Workbench), Gideon Gijswijt, Dennis Seijts, Ayco Holleman, Núria Torrescasana Aloy. We thank Ari Örn for his remarkable HtmlToUnicode converter.
+  The Catalogue of Life would like to express gratitude to all authors of databases who kindly contributed data in the past: CephBase by James Wood, Catriona Day & Ron O'Dor (2000-2005), AlgaeBase by Michael Guiry (2000-2012), FWCrabs by Célio Magalhães (2010-2012), Rosaceae checklist by Richard Pankhurst✝ via IOPI-GPC (2006-2013), EbenaBase by Bruno Wallnöfer (2012-2014), Melastomataceae.Net by Susanne Renner with colleagues (2012-2014), World Umbellifer Database by Mark Watson (2012-2014), BIOS database by Junko Shimura with colleagues (2000-2015), SalticidDB by Jerzy Prószyński (2010-2015), SpidCat: The World Spider Catalog by Norman Platnick (2006-2015), SCaDs: Selected Caryophyllales databases by Magda Sitko with colleagues (2013-2015), WoRMS Acanthocephala by David Gibson (2015), AFD Pulmonata by Brian Smith with colleagues (2002-2016), MolluscaFW: World Checklist of Freshwater Mollusca by Mary Seddon & Ben Rowson (2013-2016), FADA World checklist of freshwater Bivalvia species by Arthur Bogan (2013-2016), Global Compositae Checklist by Christina Flann with colleagues (2010-2017), URMO: UNESCO-IOC Register of Marine Organisms by Jacob van der Land✝ (2000-2017), World checklist of freshwater Copepoda species by Geoff Boxshall & Danielle Defaye (2009-2017), IOPI Global Plant Checklist by Karen Wilson & Walter Berendsohn with colleagues (2000-2017), Solanaceae Source by Sandra Knapp with colleagues (2009-2017), ChenoBase by Johannes Walter (2012-2017), Lacistemataceae Holistic Database by Fiona Young (2009-2017), The Lecythidaceae Pages by Scott Mori, Ghillean Prance & Melissa Tulig (2007-2017), FADA World checklist of freshwater Turbellaria species by Tom Artois with colleagues (2013-2017), Fauna Europaea: subphylum Turbellaria (Platyhelminthes) by Carolina Noreña & Anno Faubel (2015-2017), 3i Cicadellinae & 3i Typhlocybinae by Dmitry Dmitriev (2011-2017; both evolved into 3i Auchenorrhyncha), SysMyr by Jörg Spelda (2007-2018; it evolved into MilliBase).
+  Our very special thanks go to former CoL database managers Monalisa Cachuela-Palacio (2002-2005) and Luvie Paglinawan (2006-2013), to database manager assistant Jeremiah Jansalin (2013-2017), to former CoL editorial assistant Thomas Kunze (2013-2014), to former CoL systems managers Peter Brewer (2006-2007) and Viktoras Didžiulis (2009-2013), to valuable member of the Secretariat Christina Flann (2014-2016). We acknowledge all people, who kindly help us with translation of user interface in different languages: David Ouvrard & Nicolas Bailly (French), Francisco Quevedo Fernandez & Carlos Aedo Pérez (Spanish), Li-Song Wang & Li-Qiang Ji (Chinese), Marina Novoselova (Russian), Dora Ann Langes Canhos (Portuguese), Wouter Addink (Dutch), Phuripong Meksuwan (Thai), Dang Mau Trinh (Vietnamese), Viktoras Didžiulis (Lithuanian), Magdalena Sitko (Polish) and Thomas Kunze (German). We thank Mil de Reus at the Species 2000 Secretariat for distributing DVD copies around the world and handling requests.
+issued: {issued}
+version: Annual Checklist 2018
+issn: 2405-884X
+keyword:
+  - COL
+  - Catalogue of Life
+  - species list
+  - community
+url: http://www.catalogueoflife.org/annual-checklist/2018/
+taxonomicScope: Biota
+geographicScope: Global
+temporalScope: Extant & extinct taxa
+confidence: 4
+completeness: 76
+license: CC BY
+contact:
+  organisation: COL Secretariat
+  city: Amsterdam
+  country: NL
+  email: support@catalogueoflife.org
+publisher:
+  organisation: Species 2000 & ITIS Catalogue of Life
+  city: 'Leiden'
+  country: NL
+editor:
+  - family: Roskov
+    given: Yury R.
+    orcid: 0000-0003-2137-2690
+  - family: Abucay
+    given: Luisa
+  - family: Orrell
+    given: Thomas M.
+    orcid: 0000-0003-1038-3028
+  - family: Nicolson
+    given: David
+    orcid: 0000-0002-7987-0679
+  - family: Bailly
+    given: Nicolas
+    orcid: 0000-0003-4994-0653
+  - family: Kirk
+    given: Paul M.
+    orcid: 0000-0002-0658-7338
+  - family: Bourgoin
+    given: Thierry
+  - family: DeWalt
+    given: R. Edward
+    orcid: 0000-0001-9985-9250
+  - family: Decock
+    given: Wim
+    orcid: 0000-0002-2168-9471
+  - family: De Wever
+    given: Aaike
+  - family: van Nieukerken
+    given: Erik J.
+  - family: Zarucchi
+    given: James L.
+  - family: Penev
+    given: Lyubomir
+contributor:
+  - family: Döring
+    given: Markus
+    orcid: 0000-0001-7757-1889
+    country: DE
+    city: Berlin
+    email: mdoering@gbif.org
+    note: Developer of the ColDP generator code
+conversion:
+  url: https://github.com/CatalogueOfLife/coldp-generator
+  description: >-
+    Converted to ColDP from the original Species 2000/ITIS Annual Checklist MySQL database with the export scripts in this repository.
+notes: |-
+  Generated from the historical CoL Annual Checklist MySQL database col2018ac.
+  IDs: t<id> accepted taxa, a<id> accepted names without classification, s<id> synonyms (and bare names), r<id> references, d<id> source databases (GSDs).
+  Each NameUsage.sourceID points to its contributing Global Species Database.
+{sources}

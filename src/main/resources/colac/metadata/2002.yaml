@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CatalogueOfLife/coldp/master/metadata.json
+---
+alias: COL02
+title: 'Species 2000 & ITIS Catalogue of Life: Indexing the world''s known species. Year 2002 Annual Checklist.'
+description: |-
+  The Yеаr 2002 Annual Checklist includes datasets for the following:
+
+  Viruses
+  •	Virus species from IСТVdВ (the Universal Virus Database)
+
+  Microorganisms and protists
+  •	Bacteria and Archaea from BIOS
+  •	Brown, green and red seaweeds from AlgaeBase
+
+  Fungi
+  •	11 orders in whole ог in part from САВ International's Species Fungorum
+
+  Animals
+  •	Fish (Б classes) from FishBase
+  •	Birds, isopods, hydrozoan stony corals, turtles, crocodiles, and small groups of mammals, amphibians, molluscs, and crustaceans from ITIS
+  •	Scarabaeid beetles from the World Scarabaeidae Database
+  •	Cephalopods from CephBase
+  •	Marine organisms (9 phyla, 3 classes and 2 orders) from the UNESCO/IOC Register of Marine Organisms
+  •	Sea anemones (Order Actiniaria) from Hexacorallians of the World
+
+  Plants
+  •	Legumes from the ILDIS World Database of Legumes
+  •	Cycads and З angiosperm families from the IOPI Global Plant Checklist
+  •	Seagrasses from AlgaeBase
+  •	Mosses from Moss TROPICOS
+
+  PLUS additional species from the Integrated Taxonomic Information System (ITIS).
+issued: {issued}
+version: Annual Checklist 2002
+issn: 1473-009X
+keyword:
+  - COL
+  - Catalogue of Life
+  - species list
+  - community
+url: http://www.catalogueoflife.org/annual-checklist/2002/
+taxonomicScope: Biota
+geographicScope: Global
+temporalScope: Extant taxa
+confidence: 4
+completeness: 10
+license: CC BY
+contact:
+  organisation: COL Secretariat
+  city: Amsterdam
+  country: NL
+  email: support@catalogueoflife.org
+publisher:
+  organisation: Species 2000 & ITIS Catalogue of Life
+  city: 'Los Baños'
+  country: PH
+editor:
+  - family: Froese
+    given: Rainer
+  - family: Bisby
+    given: Frank A.
+contributor:
+  - family: Döring
+    given: Markus
+    orcid: 0000-0001-7757-1889
+    country: DE
+    city: Berlin
+    email: mdoering@gbif.org
+    note: Developer of the ColDP generator code
+conversion:
+  url: https://github.com/CatalogueOfLife/coldp-generator
+  description: >-
+    Converted to ColDP from the original Species 2000/ITIS Annual Checklist MySQL database with the export scripts in this repository. These early checklists were originally distributed as MS Access databases, which were first imported into MySQL before conversion.
+notes: |-
+  Generated from the historical CoL Annual Checklist MySQL database col2002ac.
+  IDs: t<id> accepted taxa, a<id> accepted names without classification, s<id> synonyms (and bare names), r<id> references, d<id> source databases (GSDs).
+  Each NameUsage.sourceID points to its contributing Global Species Database.
+{sources}

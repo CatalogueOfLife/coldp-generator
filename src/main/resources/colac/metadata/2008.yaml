@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CatalogueOfLife/coldp/master/metadata.json
+---
+alias: COL08
+title: 'Species 2000 & ITIS Catalogue of Life: 2008 Annual Checklist.'
+description: |-
+  The 2008 Annual Checklist contains contributions from 52 databases with information on 1,105,589 species and 86,426 infraspecific taxa, and also includes 720,040 synonyms and 461,182 common names covering the following groups:
+
+  Viruses • Viruses and Subviral agents from ICTV.
+
+  Bacteria and Archaea from BIOS • Blue-green algae (Cyanobacteria) from AlgaeBase.
+
+  Chromista • Chromistan fungi from Species Fungorum • Chromistan algae from AlgaeBase.
+
+  Protozoa • Major groups from ITIS and AlgaeBase • Protozoan fungi from Species Fungorum and Trichomycetes database • Eumycetozoa.com NEW!
+
+  Fungi • Various taxa in whole or in part from CABI Bioscience databases (Species Fungorum, Phyllachorales, Rhytismatales and Zygomycetes databases) and from three other databases covering Xylariaceae, Glomeromycota and Trichomycetes
+
+  Plantae (Plants) • Mosses from MOST • Conifers from Conifer Database • Cycads and 6 flowering plant families from IOPI-GPC and 94 families from World Checklist of Selected Plant Families (NEW SECTORS: gnetophytes & monocots) • Custard Apple family from AnnonBase • Legumes from ILDIS • Cranesbills from RJB Geranium • Brazil Nut family from LecyPages
+
+  Animalia (Animals) • Sponges from Porifera database • Marine invertebrates (13 phyla & 7 classes) and chordates (4 classes) from URMO • Sea anemones from the Hexacorallians of the World • Rotifers from Rotifera database • Spiders from SpidCat • Ticks from TicksBase • Krill from ETI WBD • Diplopods, centipedes, pauropods and symphylans from SysMyr and ChiloBase • Dragonflies from the Odonata database • Crickets, grasshoppers, locusts, and katydids from the OSF • Stick and leaf insects from PSF NEW! • Cockroaches from BSF NEW! • Planthoppers from FLOW • Froghoppers from COOL NEW! • Scale insects from ScaleNet • Bees and wasps from ITIS, UCD and ZOBODAT • Scarab beetles from the World Scarabaeidae Database • Longhorn beetles from TITAN • Weevils from WTaxa • Fleas from Parhost • Flies, craneflies, mosquitoes, bots, midges and gnats from BDWD, CCW, CIPA and ITIS • Butterflies and moths from LepIndex, Tineidae NHM, World Gracillariidae NEW! • and GloBIS/GART • Snails and slugs (some groups) from AFD and ITIS • Fishes from FishBase • Reptiles from TIGR Reptiles • Amphibians, birds and mammals from ITIS.
+
+  PLUS additional species of many groups from ITIS.
+
+  Acknowledgements
+  The Catalogue of Life partnership thanks all who contributed to the content and production of this Annual Checklist. In particular, thanks to Species 2000 Asia-Oceania, Species 2000 europa, NBII, GBIF, University of Reading (Centre for Plant Diversity and Systematics), European Commission (EC EDIT NoE), WorldFish Center (SeaLifeBase project), NIES, ETI BioInformatics, Encyclopedia of Life and Consortium for the Bar Code of Life. Thanks also go to Paul Klinkenberg, ETI BioInformatics for the cover design, to Peter Brewer, Reading and to Eli Agbayani, WorldFish Center for supporting the online development database.
+  We would like to acknowledge all the people from the GSD community who provide us valuable support in data export and transformation: Anton G�ntsch, Angel Anta, Johannes Goll, Richard Flood, Bart Vanhoorne, Silvia Lusa, Antonella Linguanti, Rosario Dioguardi and Sergey Jezniakowsky.
+issued: {issued}
+version: Annual Checklist 2008
+issn: 1473-009X
+keyword:
+  - COL
+  - Catalogue of Life
+  - species list
+  - community
+url: http://www.catalogueoflife.org/annual-checklist/2008/
+taxonomicScope: Biota
+geographicScope: Global
+temporalScope: Extant taxa
+confidence: 4
+completeness: 46
+license: CC BY
+contact:
+  organisation: COL Secretariat
+  city: Amsterdam
+  country: NL
+  email: support@catalogueoflife.org
+publisher:
+  organisation: Species 2000 & ITIS Catalogue of Life
+  city: 'Reading'
+  country: GB
+editor:
+  - family: Bisby
+    given: Frank A.
+  - family: Roskov
+    given: Yury R.
+    orcid: 0000-0003-2137-2690
+  - family: Orrell
+    given: Thomas M.
+    orcid: 0000-0003-1038-3028
+  - family: Nicolson
+    given: David
+    orcid: 0000-0002-7987-0679
+  - family: Paglinawan
+    given: L.E.
+  - family: Bailly
+    given: Nicolas
+    orcid: 0000-0003-4994-0653
+  - family: Kirk
+    given: Paul M.
+    orcid: 0000-0002-0658-7338
+  - family: Bourgoin
+    given: Thierry
+  - family: van Hertum
+    given: Jorrit
+contributor:
+  - family: Döring
+    given: Markus
+    orcid: 0000-0001-7757-1889
+    country: DE
+    city: Berlin
+    email: mdoering@gbif.org
+    note: Developer of the ColDP generator code
+conversion:
+  url: https://github.com/CatalogueOfLife/coldp-generator
+  description: >-
+    Converted to ColDP from the original Species 2000/ITIS Annual Checklist MySQL database with the export scripts in this repository.
+notes: |-
+  Generated from the historical CoL Annual Checklist MySQL database col2008ac.
+  IDs: t<id> accepted taxa, a<id> accepted names without classification, s<id> synonyms (and bare names), r<id> references, d<id> source databases (GSDs).
+  Each NameUsage.sourceID points to its contributing Global Species Database.
+{sources}

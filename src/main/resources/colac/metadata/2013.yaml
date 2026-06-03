@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CatalogueOfLife/coldp/master/metadata.json
+---
+alias: COL13
+title: 'Species 2000 & ITIS Catalogue of Life: 2013 Annual Checklist.'
+description: |-
+  This release of the Catalogue of Life contains contributions from 132 databases with information on 1,352,112 species, 114,069 infraspecific taxa and also includes 928,147 synonyms and 408,689 common names covering the following groups:
+
+  Viruses • Viruses and Subviral agents from ICTV_MSL UPDATED!
+
+  Bacteria and Archaea from BIOS
+
+  Chromista • Chromistan fungi from Species Fungorum
+
+  Protozoa • Major groups from ITIS Regional, • Ciliates from CilCat, • Polycystines from WoRMS Polycystina UPDATED!, • Protozoan fungi from Species Fungorum and Trichomycetes database • Slime moulds from Nomen.eumycetozoa.com
+
+  Fungi • Various taxa in whole or in part from CABI Bioservices databases (Species Fungorum, Phyllachorales, Rhytismatales, Saccharomycetes and Zygomycetes databases) and from three other databases covering Xylariaceae, Glomeromycota, Trichomycetes, Dothideomycetes • Lichens from LIAS UPDATED!
+
+  Plantae (Plants) • Mosses from MOST • Liverworts and hornworts from ELPT • Conifers from Conifer Database • Cycads and 6 flowering plant families from IOPI-GPC, and 99 families from WCSP • Plus individual flowering plants families from AnnonBase, Brassicaceae, ChenoBase, Droseraceae Database, EbenaBase, GCC UPDATED!, ILDIS UPDATED!, LecyPages, LHD, MELnet UPDATED!, RJB Geranium, Solanaceae Source, Umbellifers.
+
+  Animalia (Animals) • Marine groups from URMO, ITIS Global, Hexacorals, ETI WBD (Euphausiacea), WoRMS: WoRMS Asteroidea UPDATED!, WoRMS Bochusacea UPDATED!, WoRMS Brachiopoda UPDATED!, WoRMS Brachypoda UPDATED!, WoRMS Brachyura UPDATED!, WoRMS Bryozoa UPDATED!, WoRMS Cestoda NEW!, WoRMS Chaetognatha UPDATED!, WoRMS Cumacea UPDATED!, WoRMS Echinoidea UPDATED!, WoRMS Gastrotricha NEW!, WoRMS Gnathostomulida NEW!, WoRMS Holothuroidea UPDATED!, WoRMS Hydrozoa UPDATED!, WoRMS Isopoda UPDATED!, WoRMS Leptostraca UPDATED!, WoRMS Monogenea NEW!, WoRMS Mystacocarida UPDATED!, WoRMS Myxozoa NEW!, WoRMS Nemertea UPDATED!, WoRMS Oligochaeta UPDATED!, WoRMS Ophiuroidea UPDATED!, WoRMS Phoronida UPDATED!, WoRMS Placozoa NEW!, WoRMS Polychaeta UPDATED!, WoRMS Polycystina UPDATED!, WoRMS Porifera UPDATED!, WoRMS Priapulida NEW!, WoRMS Proseriata and Kalyptorhynchia UPDATED!, WoRMS Remipedia UPDATED!, WoRMS Scaphopoda UPDATED!, WoRMS Tanaidacea UPDATED!, WoRMS Tantulocarida UPDATED!, WoRMS Thermosbaenacea UPDATED!, WoRMS Trematoda NEW!, WoRMS Xenoturbellida UPDATED! • Rotifers, mayflies, freshwater hairworms, planarians from FADA databases: FADA Rotifera UPDATED!, FADA Ephemeroptera NEW!, FADA Nematomorpha NEW! & FADA Turbellaria NEW! • Entoprocts, water bears from ITIS Global • Spiders, scorpions, ticks & mites from SpidCat via ITIS UPDATED!, SalticidDB , ITIS Global, TicksBase, SpmWeb BdelloideaBase UPDATED! & Mites GSDs: OlogamasidBase, PhytoseiidBase, RhodacaridBase & TenuipalpidBase • Diplopods, centipedes, pauropods and symphylans from SysMyr UPDATED! & ChiloBase • Dragonflies and damselflies from Odonata database • Stoneflies from PlecopteraSF UPDATED! • Cockroaches from BlattodeaSF UPDATED! • Praying mantids from MantodeaSF UPDATED! • Stick and leaf insects from PhasmidaSF UPDATED! • Grasshoppers, locusts, katydids and crickets from OrthopteraSF UPDATED! • Webspinners from EmbiopteraSF UPDATED! • Bark & parasitic lices from PsocodeaSF NEW! • Some groups of true bugs from ScaleNet, FLOW, COOL, Psyllist, AphidSF UPDATED! , MBB, 3i Cicadellinae, 3i Typhlocybinae, MOWD & CoreoideaSF NEW!• Twisted-wing parasites from Strepsiptera Database UPDATED! • Lacewings, antlions, owlflies, fishflies, dobsonflies & snakeflies from LDL Neuropterida • Some beetle groups from the Scarabs UPDATED!, TITAN, WTaxa & ITIS Global • Fleas from Parhost • Flies, mosquitoes, bots, midges and gnats from Systema Dipterorum, CCW & CIPA • Butterflies and moths from LepIndex UPDATED!, GloBIS (GART) UPDATED!, Tineidae NHM, World Gracillariidae • Bees & wasps from ITIS Bees, Taxapad Ichneumonoidea, UCD, ZOBODAT Vespoidea & HymIS Rhopalosomatidae NEW!• Molluscs from WoRMS Mollusca NEW!, FADA Bivalvia NEW!, MolluscaFW NEW! & AFD (Pulmonata) • Fishes from FishBase UPDATED! • Reptiles from TIGR Reptiles • Amphibians, birds and mammals from ITIS Global
+
+  PLUS additional species of many groups from ITIS Regional, NZIB and CoL China NEW!
+
+  Acknowledgements
+  The Catalogue of Life Programme thanks all those organisations that have contributed to the funding. In particular it thanks the European Commission DG-INFSO for our own two e-Infrastructure Projects – 4D4Life (2009-2012) and i4Life (2010-2013). We further thank US Geological Survey, the Smithsonian Institution and EoL in the USA, University of Reading (Centre for Plant Diversity & Systematics) in the UK, the SeaLifeBase Project and FIN in the Philippines, and ETI Bioinformatics in the Netherlands.
+  The Catalogue of Life Programme thanks all of the 100 organisations that continue to contribute taxonomic expertise. We acknowledge all of the people from the GSD community who provided us with valuable support in data export and transformation this year: Leen Vandepitte, Bart Vanhoorne, Marilyn Beckman, Dagmar Triebel, Adrian Hine, Angel Anta; as well as those acknowledged in the preceding years: Michael Malicky, Heimo Rainer, Ward Appeltans, Guy Baillargeon, Vanderlei Perez Canhos, Rosario Dioguardi, Richard Flood, Johannes Goll, Anton Güntsch, Sergey Jezniakowsky, Alexander Kroupa, Antonella Linguanti, Silvia Lusa, Lisa Walley and Markus Weiss.
+  We thank Richard White and Francisco Quevedo Fernandez for their work on the LSID Resolver, and Rebecca Mann at the Secretariat for distributing DVD copies around the world and handling requests. We acknowledge all people, who kindly help us with translation of user interface in different languages: David Ouvrard (French), Francisco Quevedo Fernandez (Spanish), Li-Song Wang (Chinese), Marina Novoselova (Russian), Dora Ann Langes Canhos (Portuguese), Wouter Addink (Dutch), Phuripong Meksuwan (Thai), Dang Mau Trinh (Vietnamese), Viktoras Didžiulis (Lithuanian), Magdalena Sitko (Polish) and Thomas Kunze (German).
+issued: {issued}
+version: Annual Checklist 2013
+issn: 1473-009X
+keyword:
+  - COL
+  - Catalogue of Life
+  - species list
+  - community
+url: http://www.catalogueoflife.org/annual-checklist/2013/
+taxonomicScope: Biota
+geographicScope: Global
+temporalScope: Extant taxa
+confidence: 4
+completeness: 59
+license: CC BY
+contact:
+  organisation: COL Secretariat
+  city: Amsterdam
+  country: NL
+  email: support@catalogueoflife.org
+publisher:
+  organisation: Species 2000 & ITIS Catalogue of Life
+  city: 'Reading'
+  country: GB
+editor:
+  - family: Roskov
+    given: Yury R.
+    orcid: 0000-0003-2137-2690
+  - family: Kunze
+    given: Thomas
+  - family: Paglinawan
+    given: L.
+  - family: Orrell
+    given: Thomas M.
+    orcid: 0000-0003-1038-3028
+  - family: Nicolson
+    given: David
+    orcid: 0000-0002-7987-0679
+  - family: Culham
+    given: Alastair
+  - family: Bailly
+    given: Nicolas
+    orcid: 0000-0003-4994-0653
+  - family: Kirk
+    given: Paul M.
+    orcid: 0000-0002-0658-7338
+  - family: Bourgoin
+    given: Thierry
+  - family: Baillargeon
+    given: Guy
+  - family: Hernandez
+    given: F.
+  - family: De Wever
+    given: Aaike
+contributor:
+  - family: Döring
+    given: Markus
+    orcid: 0000-0001-7757-1889
+    country: DE
+    city: Berlin
+    email: mdoering@gbif.org
+    note: Developer of the ColDP generator code
+conversion:
+  url: https://github.com/CatalogueOfLife/coldp-generator
+  description: >-
+    Converted to ColDP from the original Species 2000/ITIS Annual Checklist MySQL database with the export scripts in this repository.
+notes: |-
+  Generated from the historical CoL Annual Checklist MySQL database col2013ac.
+  IDs: t<id> accepted taxa, a<id> accepted names without classification, s<id> synonyms (and bare names), r<id> references, d<id> source databases (GSDs).
+  Each NameUsage.sourceID points to its contributing Global Species Database.
+{sources}

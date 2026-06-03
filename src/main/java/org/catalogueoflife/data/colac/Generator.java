@@ -15,7 +15,6 @@ import java.sql.Statement;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 
 /**
@@ -33,46 +32,10 @@ import java.util.regex.Matcher;
  */
 public class Generator extends AbstractColdpGenerator {
 
-  // Editor lists per year, normalised to "Surname Initials" order from the published Annual
-  // Checklist "How to cite this work" pages (archived under resources/colac/citations/).
-  // 2006-2009 have no citation page available; Bisby and Roskov led the team throughout, so
-  // they are listed as the confirmed core for those years.
-  private static final Map<Integer, String> EDITORS = Map.ofEntries(
-      Map.entry(2000, "Bisby F.A., Roskov Y.R."),
-      Map.entry(2002, "Bisby F.A., Roskov Y.R."),
-      Map.entry(2003, "Bisby F.A., Roskov Y.R."),
-      Map.entry(2004, "Bisby F.A., Roskov Y.R."),
-      Map.entry(2005, "Bisby F.A., Ruggiero M.A., Wilson K.L., Cachuela-Palacio M., Kimani S.W., Roskov Y.R., Soulier-Perkins A., van Hertum J."),
-      Map.entry(2006, "Bisby F.A., Roskov Y.R."),
-      Map.entry(2007, "Bisby F.A., Roskov Y.R."),
-      Map.entry(2008, "Bisby F.A., Roskov Y.R."),
-      Map.entry(2009, "Bisby F.A., Roskov Y.R."),
-      Map.entry(2010, "Bisby F.A., Roskov Y.R., Orrell T.M., Nicolson D., Paglinawan L.E., Bailly N., Kirk P.M., Bourgoin T., Baillargeon G."),
-      Map.entry(2011, "Bisby F.A., Roskov Y.R., Orrell T.M., Nicolson D., Paglinawan L.E., Bailly N., Kirk P.M., Bourgoin T., Baillargeon G., Ouvrard D."),
-      Map.entry(2012, "Bisby F., Roskov Y., Culham A., Orrell T., Nicolson D., Paglinawan L., Bailly N., Appeltans W., Kirk P., Bourgoin T., Baillargeon G., Ouvrard D."),
-      Map.entry(2013, "Roskov Y., Kunze T., Paglinawan L., Orrell T., Nicolson D., Culham A., Bailly N., Kirk P., Bourgoin T., Baillargeon G., Hernandez F., De Wever A."),
-      Map.entry(2014, "Roskov Y., Kunze T., Orrell T., Abucay L., Paglinawan L., Culham A., Bailly N., Kirk P., Bourgoin T., Baillargeon G., Decock W., De Wever A., Didžiulis V."),
-      Map.entry(2015, "Roskov Y., Abucay L., Orrell T., Nicolson D., Kunze T., Culham A., Bailly N., Kirk P., Bourgoin T., DeWalt R.E., Decock W., De Wever A."),
-      Map.entry(2016, "Roskov Y., Abucay L., Orrell T., Nicolson D., Flann C., Bailly N., Kirk P., Bourgoin T., DeWalt R.E., Decock W., De Wever A."),
-      Map.entry(2017, "Roskov Y., Abucay L., Orrell T., Nicolson D., Bailly N., Kirk P.M., Bourgoin T., DeWalt R.E., Decock W., De Wever A., Nieukerken E. van, Zarucchi J., Penev L."),
-      Map.entry(2018, "Roskov Y., Abucay L., Orrell T., Nicolson D., Bailly N., Kirk P.M., Bourgoin T., DeWalt R.E., Decock W., De Wever A., Nieukerken E. van, Zarucchi J., Penev L."),
-      Map.entry(2019, "Roskov Y., Ower G., Orrell T., Nicolson D., Bailly N., Kirk P.M., Bourgoin T., DeWalt R.E., Decock W., Nieukerken E. van, Zarucchi J., Penev L.")
-  );
-
-  // ORCIDs keyed by family name, harvested from the current CoL release metadata
-  // (api.checklistbank.org/dataset/3LR.yaml) and the repo's ITIS metadata. Only confident,
-  // same-person matches are included — no guessing.
-  private static final Map<String, String> ORCID = Map.ofEntries(
-      Map.entry("Roskov",   "0000-0003-2137-2690"),
-      Map.entry("Orrell",   "0000-0003-1038-3028"),
-      Map.entry("Nicolson", "0000-0002-7987-0679"),
-      Map.entry("Bailly",   "0000-0003-4994-0653"),
-      Map.entry("Kirk",     "0000-0002-0658-7338"),
-      Map.entry("Ouvrard",  "0000-0003-2931-6116"),
-      Map.entry("Decock",   "0000-0002-2168-9471"),
-      Map.entry("Ower",     "0000-0002-9770-2345"),
-      Map.entry("DeWalt",   "0000-0001-9985-9250")
-  );
+  // Per-year metadata (title, editors, publisher, scopes, …) lives in explicit YAML files under
+  // resources/colac/metadata/<year>.yaml, compiled from the editor's metadata spreadsheet
+  // (resources/colac/citations/ACs_metadata_summary_v1.xlsx via scripts/gen_colac_metadata.py).
+  // Only the issued date and the GSD source: registry are filled at runtime (see addMetadata).
 
   private final int year;
   private final String dbName;
@@ -162,35 +125,23 @@ public class Generator extends AbstractColdpGenerator {
     }
   }
 
+  /** Each year has its own explicit metadata file under resources/colac/metadata/. */
+  @Override
+  protected String metadataTemplatePath() {
+    return "colac/metadata/" + year + ".yaml";
+  }
+
   @Override
   protected void addMetadata() throws Exception {
-    // Species 2000 moved from Reading (UK) to Leiden (NL) in 2013; the 2014 checklist was the
-    // first released from Leiden.
-    boolean leiden = year >= 2014;
-    String city = leiden ? "Leiden" : "Reading";
-    String country = leiden ? "NL" : "GB";
-
-    metadata.put("year", String.valueOf(year));
-    metadata.put("alias", String.format("COL%02d", year % 100));
-    // explicit put() overrides the today-default applied by AbstractColdpGenerator
-    metadata.put("version", "Annual Checklist " + year);
+    // The per-year metadata file is fully explicit (title, editors, publisher, scopes, …);
+    // only two values are runtime-derived: the issued date (latest GSD / CD-ROM release date)
+    // and the GSD source: registry appended from the actual data.
     metadata.put("issued", releaseDate != null ? releaseDate.toString() : String.valueOf(year));
-    metadata.put("url", "https://www.catalogueoflife.org/annual-checklist/" + year + "/");
-    // 1473-009X was the CD-ROM/DVD Annual Checklist ISSN in use from 2005; the ISSN
-    // 2405-884X was used from 2016 on.
-    String issn = year <= 2015 ? "1473-009X" : "2405-884X";
-    metadata.put("issn", "issn: " + issn);
-    // city/country fill the publisher: block in the template; Species 2000 (the publisher) is
-    // not a creator/author — creator holds only the annual checklist editors.
-    metadata.put("city", city);
-    metadata.put("country", country);
-    metadata.put("creators", buildCreators());
-
-    // Render the GSD source registry ourselves. The shared metadata template is filled by
-    // SimpleTemplate, which substitutes via Matcher.appendReplacement — that interprets the
-    // backslashes snakeyaml emits (escaped quotes, wrapped-line continuations) as replacement
-    // metacharacters and corrupts the YAML. Matcher.quoteReplacement makes the value literal.
-    // sourceCitations is left empty so the base class does not re-inject an unescaped copy.
+    // Render the GSD source registry ourselves. The template is filled by SimpleTemplate, which
+    // substitutes via Matcher.appendReplacement — that interprets the backslashes snakeyaml emits
+    // (escaped quotes, wrapped-line continuations) as replacement metacharacters and corrupts the
+    // YAML. Matcher.quoteReplacement makes the value literal. sourceCitations is left empty so the
+    // base class does not re-inject an unescaped copy.
     metadata.put("sources", Matcher.quoteReplacement(renderSources()));
     super.addMetadata();
   }
@@ -198,21 +149,6 @@ public class Generator extends AbstractColdpGenerator {
   /** Renders the {@code source:} YAML block from the GSD citations (alias set on each). */
   private String renderSources() throws JsonProcessingException {
     return citAsYaml(gsdSources).map(y -> "source: \n" + y).orElse("");
-  }
-
-  /** Builds the ColDP {@code creator:} list YAML — the per-year Annual Checklist editors. */
-  private String buildCreators() {
-    StringBuilder sb = new StringBuilder();
-    boolean first = true;
-    for (String[] ed : ColacMappings.parseEditors(EDITORS.get(year))) {
-      if (!first) sb.append('\n');
-      first = false;
-      sb.append("  - family: ").append(ed[1]);
-      if (ed[0] != null) sb.append("\n    given: ").append(ed[0]);
-      String orcid = ORCID.get(ed[1]);
-      if (orcid != null) sb.append("\n    orcid: ").append(orcid);
-    }
-    return sb.toString();
   }
 
   // ── package-private accessors for the schema readers (inherited protected members) ──

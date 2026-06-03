@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/CatalogueOfLife/coldp/master/metadata.json
+---
+alias: COL11
+title: 'Species 2000 & ITIS Catalogue of Life: 2011 Annual Checklist.'
+description: |-
+  The Catalogue of Life: 2011 Annual Checklist contains contributions from 99 databases with information on 1,347,224 species and 92,306 infraspecific taxa, and also includes 895,441 synonyms and 366,401 common names covering the following groups:
+
+  Viruses • Viruses and Subviral agents from ICTV_MSL
+
+  Bacteria and Archaea from BIOS • Blue-green algae (Cyanobacteria) from AlgaeBase
+
+  Chromista • Chromistan fungi from Species Fungorum • Chromistan algae from AlgaeBase
+
+  Protozoa • Major groups from ITIS and AlgaeBase • Protozoan fungi from Species Fungorum and Trichomycetes database • Slime moulds from Nomen.eumycetozoa.com
+
+  Fungi • Various taxa in whole or in part from CABI Bioservices databases (Species Fungorum, Phyllachorales, Rhytismatales, Saccharomycetes NEW! and Zygomycetes databases) and from three other databases covering Xylariaceae, Glomeromycota, Trichomycetes, Dothideomycetes NEW! Lichens from LIAS NEW!
+
+  Plantae (Plants) • Mosses from MOST • Liverworts and hornworts from ELPT • Conifers from Conifer Database • Cycads and 6 flowering plant families from IOPI-GPC and 99 families from WCSP • Plus individual groups: Brazil Nut family (LecyPages), Cranesbills (RJB Geranium), Crucifers (Brassicaceae), Custard Apple family (AnnonBase), Legume family (ILDIS), Nightshade genus (Solanaceae Source), Sundew family (Droseraceae Database), Sunflower family (GCC) and Waits Numi family (LHD)
+
+  Animalia (Animals) • Sponges, freeliving flatworms, ribbon worms, marine oligochaetes, bristle worms, remipedes, brachypods, cumaceans, pillbugs, slaters, woodlice, bryozoans, lamp-shells, horseshoe worms, sea stars, brittle and basket stars from WoRMS (13 NEW! checklists) • Other marine invertebrates (10 phyla & 21 classes ) and chordates (4 classes) from URMO • Sea anemones from the Hexacorals • Rotifers from Rotifera database • Entoprocts, cycliophorans, velvet worms, water bears from ITIS • Shrimps, krill, cumaceans, freshwater crabs from ITIS, ETI WBD (Euphausiacea), FWCrabs • Spiders, scorpions, ticks & mites from SpidCat, SalticidDB , ITIS, TicksBase, Mites GSDs, SpmWeb NEW! & CunaxidBase NEW! • Diplopods, centipedes, pauropods and symphylans from SysMyr and ChiloBase • Dragonflies and damselflies from Odonata database • Stoneflies from PlecopteraSF • Cockroaches from BlattodeaSF • Praying mantids from MantodeaSF • Stick and leaf insects from PhasmidaSF • Grasshoppers, locusts, katydids and crickets from OrthopteraSF • Webspinners from EmbiopteraSF NEW! • Some groups of true bugs from ScaleNet, FLOW, COOL, Psyllist, AphidSF , MBB, 3i Cicadellinae NEW!, 3i Typhlocybinae NEW! & MOWD NEW! • Lacewings, antlions, owlflies, fishflies, dobsonflies & snakeflies from LDL Neuropterida • Some beetle groups from the Scarabs , TITAN, WTaxa & ITIS • Fleas from Parhost • Flies, mosquitoes, bots, midges and gnats from Systema Dipterorum, CCW & CIPA • Butterflies and moths from LepIndex, GloBIS (GART), Tineidae NHM, World Gracillariidae • Bees & wasps from ITIS Bees, Taxapad Ichneumonoidea, UCD and ZOBODAT (Vespoidea) • Snails and slugs from AFD (Pulmonata) • brachypods, bristle worms, brittle and basket stars, bryozoans, horseshoe worms, hot-springs shrimps, lamp-shells, mystacocarids, pillbugs, slaters & woodlice, remipedes, ribbon worms, sea stars, tantulocaridans from WoRMS • Fishes from FishBase • Reptiles from TIGR Reptiles • Amphibians, birds and mammals from ITIS
+
+  PLUS additional species of many groups from ITIS & NZIB.
+
+  Acknowledgements
+  The Catalogue of Life Programme thanks all those organisations that have contributed to the funding. In particular it thanks the European Commission DG-INFSO for our own two e-Infrastructure Projects - 4D4Life (2009-2012) and i4Life (2010-2013) - as well as contributions via EC EDIT NoE, EC KeyToNature, EC BHL-Europe, and EC OpenUp! We further thank NBII, the Smithsonian Institution and EoL in the USA, University of Reading (Centre for Plant Diversity & Systematics) and Cardiff University in the UK, the SeaLifeBase Project and FIN in the Philippines, NIES in Japan, and ETI Bioinformatics in the Netherlands. 
+  The Catalogue of Life Programme thanks all of the 100 organisations that continue to contribute taxonomic expertise. This year we especially thank David Eades (principal database developer of Species Files), Ward Appeltans (data manager of WoRMS), and Paul Kirk (coordinator of fungal databases). We acknowledge all of the people from the GSD community who provided us with valuable support in data export and transformation this year: Dagmar Triebel and Markus Weiss; as well as those acknowledged in the three preceding years: Angel Anta, Guy Baillargeon, Vanderlei Perez Canhos, Rosario Dioguardi, Richard Flood, Johannes Goll, Anton Güntsch, Sergey Jezniakowsky, Alexander Kroupa, Antonella Linguanti, Silvia Lusa, Bart Vanhoorne and Lisa Walley. 
+  We thank Richard White and Francisco Quevedo Fernandez for their work on the LSID Resolver, and Rebecca Mann at the Secretariat for distributing DVD copies around the world and handling requests. 
+
+issued: {issued}
+version: Annual Checklist 2011
+issn: 1473-009X
+keyword:
+  - COL
+  - Catalogue of Life
+  - species list
+  - community
+url: http://www.catalogueoflife.org/annual-checklist/2011/
+taxonomicScope: Biota
+geographicScope: Global
+temporalScope: Extant taxa
+confidence: 4
+completeness: 59
+license: CC BY
+contact:
+  organisation: COL Secretariat
+  city: Amsterdam
+  country: NL
+  email: support@catalogueoflife.org
+publisher:
+  organisation: Species 2000 & ITIS Catalogue of Life
+  city: 'Reading'
+  country: GB
+editor:
+  - family: Bisby
+    given: Frank A.
+  - family: Roskov
+    given: Yury R.
+    orcid: 0000-0003-2137-2690
+  - family: Orrell
+    given: Thomas M.
+    orcid: 0000-0003-1038-3028
+  - family: Nicolson
+    given: David
+    orcid: 0000-0002-7987-0679
+  - family: Paglinawan
+    given: L.E.
+  - family: Bailly
+    given: Nicolas
+    orcid: 0000-0003-4994-0653
+  - family: Kirk
+    given: Paul M.
+    orcid: 0000-0002-0658-7338
+  - family: Bourgoin
+    given: Thierry
+  - family: Baillargeon
+    given: Guy
+  - family: Ouvrard
+    given: David
+    orcid: 0000-0003-2931-6116
+contributor:
+  - family: Döring
+    given: Markus
+    orcid: 0000-0001-7757-1889
+    country: DE
+    city: Berlin
+    email: mdoering@gbif.org
+    note: Developer of the ColDP generator code
+conversion:
+  url: https://github.com/CatalogueOfLife/coldp-generator
+  description: >-
+    Converted to ColDP from the original Species 2000/ITIS Annual Checklist MySQL database with the export scripts in this repository.
+notes: |-
+  Generated from the historical CoL Annual Checklist MySQL database col2011ac.
+  IDs: t<id> accepted taxa, a<id> accepted names without classification, s<id> synonyms (and bare names), r<id> references, d<id> source databases (GSDs).
+  Each NameUsage.sourceID points to its contributing Global Species Database.
+{sources}
