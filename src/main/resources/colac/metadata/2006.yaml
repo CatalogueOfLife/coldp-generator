@@ -44,19 +44,34 @@ contact:
   country: NL
   email: support@catalogueoflife.org
 publisher:
-  organisation: Species 2000 & ITIS Catalogue of Life
+  organisation: Species 2000
   city: 'Reading'
   country: GB
 editor:
   - family: Bisby
     given: Frank A.
+    organisation: 'University of Reading'
+    department: 'School of Plant Sciences'
+    city: 'Reading'
+    country: GB
   - family: Ruggiero
     given: Michael A.
+    organisation: 'Integrated Taxonomic Information System (ITIS)'
+    city: 'Washington'
+    state: 'DC'
+    country: US
   - family: Roskov
     given: Yury R.
     orcid: 0000-0003-2137-2690
+    organisation: 'University of Reading'
+    department: 'School of Plant Sciences'
+    city: 'Reading'
+    country: GB
   - family: Cachuela-Palacio
     given: Monalisa
+    organisation: 'WorldFish Center'
+    city: 'Los Baños'
+    country: PH
   - family: Kimani
     given: Susana
     organisation: 'The University of Reading'
@@ -65,11 +80,21 @@ editor:
   - family: Kirk
     given: Paul M.
     orcid: 0000-0002-0658-7338
+    organisation: 'CABI Bioscience'
+    city: 'Egham'
+    country: GB
   - family: Soulier-Perkins
     given: Adeline
     orcid: 0000-0002-9537-8537
+    organisation: 'Muséum National d''Histoire Naturelle'
+    department: 'Entomologie'
+    city: 'Paris'
+    country: FR
   - family: van Hertum
     given: Jorrit
+    organisation: 'ETI Bioinformatics'
+    city: 'Amsterdam'
+    country: NL
 contributor:
   - family: Döring
     given: Markus
