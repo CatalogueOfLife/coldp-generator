@@ -58,12 +58,16 @@ editor:
   - family: Cachuela-Palacio
     given: Monalisa
   - family: Kimani
-    given: S.W.
+    given: Susana
+    organisation: 'The University of Reading'
+    city: 'Reading'
+    country: GB
   - family: Kirk
     given: Paul M.
     orcid: 0000-0002-0658-7338
   - family: Soulier-Perkins
     given: Adeline
+    orcid: 0000-0002-9537-8537
   - family: van Hertum
     given: Jorrit
 contributor:

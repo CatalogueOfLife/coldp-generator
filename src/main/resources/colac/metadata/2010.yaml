@@ -60,7 +60,10 @@ editor:
     given: David
     orcid: 0000-0002-7987-0679
   - family: Paglinawan
-    given: L.E.
+    given: Luvie
+    organisation: 'WorldFish Center'
+    city: 'Los Baños'
+    country: PH
   - family: Bailly
     given: Nicolas
     orcid: 0000-0003-4994-0653

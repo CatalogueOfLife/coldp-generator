@@ -56,7 +56,10 @@ editor:
   - family: Kunze
     given: Thomas
   - family: Paglinawan
-    given: L.
+    given: Luvie
+    organisation: 'The FishBase Information and Research Group, Inc. (FIN)'
+    city: 'Los Baños'
+    country: PH
   - family: Orrell
     given: Thomas M.
     orcid: 0000-0003-1038-3028
@@ -76,7 +79,10 @@ editor:
   - family: Baillargeon
     given: Guy
   - family: Hernandez
-    given: F.
+    given: Francisco
+    organisation: 'Vlaams Instituut Voor De Zee'
+    city: 'Ostend'
+    country: BE
   - family: De Wever
     given: Aaike
 contributor:

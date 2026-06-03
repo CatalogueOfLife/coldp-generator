@@ -56,8 +56,16 @@ publisher:
 editor:
   - family: Froese
     given: Rainer
+    orcid: 0000-0001-9745-636X
+    organisation: 'International Center for Living Aquatic Resources Management (ICLARM)'
+    city: 'Makati City'
+    country: PH
   - family: Bisby
     given: Frank A.
+    organisation: 'University of Reading'
+    department: 'School of Plant Sciences'
+    city: 'Reading'
+    country: GB
 contributor:
   - family: Döring
     given: Markus

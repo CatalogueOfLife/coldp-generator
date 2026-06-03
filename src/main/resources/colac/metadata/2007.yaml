@@ -59,7 +59,10 @@ editor:
     given: Thomas M.
     orcid: 0000-0003-1038-3028
   - family: Paglinawan
-    given: L.E.
+    given: Luvie
+    organisation: 'WorldFish Center'
+    city: 'Los Baños'
+    country: PH
   - family: Brewer
     given: Peter W.
   - family: Bailly

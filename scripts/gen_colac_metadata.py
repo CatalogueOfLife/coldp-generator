@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
 Generate the per-year ColDP metadata files for the colac (CoL Annual Checklist) source
-from the editor's compilation spreadsheet (resources/colac/citations/ACs_metadata_summary_v1.xlsx).
+from the editor's compilation spreadsheets in resources/colac/citations/:
+  - ACs_metadata_summary_v1.xlsx — per-year title/description/scope/editor list/etc.
+  - ACs_editors00-19_v1.xlsx     — per-year, per-editor full ColDP Agent records (orcid +
+    organisation/department/city/state/country); populated for 2000 & 2002-2005 only.
 
 Writes src/main/resources/colac/metadata/<year>.yaml — one explicit, hand-editable file per year.
 Two placeholders remain for the generator to fill at runtime: {issued} and the trailing {sources}.
@@ -12,10 +15,57 @@ import openpyxl, os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XLSX = os.path.join(ROOT, "src/main/resources/colac/citations/ACs_metadata_summary_v1.xlsx")
+# Per-year, per-editor full ColDP Agent records (orcid + affiliation). Columns map 1:1 to the
+# ColDP Agent type. Only the 2000 & 2002-2005 sheets carry data; 2006-2019 are headers only,
+# so editors in those years fall back to the AUTHORS map + affiliation() below.
+EDITORS_XLSX = os.path.join(ROOT, "src/main/resources/colac/citations/ACs_editors00-19_v1.xlsx")
 OUT  = os.path.join(ROOT, "src/main/resources/colac/metadata")
 
+# Country name -> ISO 3166-1 alpha-2, for the editor spreadsheet's free-text Country column.
+COUNTRY_ISO = {
+    "philippines": "PH", "uk": "GB", "united kingdom": "GB", "germany": "DE",
+    "australia": "AU", "usa": "US", "united states": "US", "france": "FR",
+    "netherlands": "NL", "the netherlands": "NL",
+}
+
+# Fix obvious typos in the hand-compiled editor spreadsheet's organisation/city text.
+TEXT_FIXES = {"Reasearch": "Research", "Liebniz": "Leibniz", "Los-Baños": "Los Baños"}
+
+def fix_text(s):
+    for bad, good in TEXT_FIXES.items():
+        s = s.replace(bad, good)
+    return s
+
+def iso(country):
+    c = country.strip()
+    return COUNTRY_ISO.get(c.casefold(), c)
+
+def load_editor_details():
+    """(year, family.casefold()) -> dict of ColDP Agent fields from ACs_editors00-19_v1.xlsx.
+    Columns: 0 Family 1 Given 2 email 3 ORCID 4 Organisation 5 RORID 6 Department 7 City
+    8 State 9 Country 10 Url 11 Note."""
+    wb = openpyxl.load_workbook(EDITORS_XLSX, data_only=True)
+    out = {}
+    for sheet in wb.sheetnames:
+        try: year = int(sheet)
+        except ValueError: continue
+        for r in list(wb[sheet].iter_rows(values_only=True))[1:]:   # skip header
+            cell = lambda i: ("" if i >= len(r) or r[i] is None else str(r[i]).strip())
+            family = cell(0)
+            if not family: continue
+            out[(year, family.casefold())] = {
+                "orcid":        cell(3),
+                "organisation": fix_text(cell(4)),
+                "department":   fix_text(cell(6)),
+                "city":         fix_text(cell(7)),
+                "state":        cell(8),
+                "country":      iso(cell(9)) if cell(9) else "",
+            }
+    return out
+
 # Expanded author names; ORCIDs only where verified (this repo's prior map + dataset/3).
-# Uncertain given names (Kimani, Hernandez, Paglinawan) are intentionally left as initials.
+# Given names + affiliations for Kimani, Hernandez and Paglinawan confirmed by the editor (2026);
+# affiliations are emitted per editor (see affiliation()).
 AUTHORS = {
     "Abucay L.":            ("Luisa", "Abucay", None),
     "Appeltans W.":         ("Ward", "Appeltans", None),
@@ -32,10 +82,10 @@ AUTHORS = {
     "Decock W.":            ("Wim", "Decock", "0000-0002-2168-9471"),
     "Didžiulis V.":         ("Viktoras", "Didžiulis", None),
     "Flann C.":             ("Christina", "Flann", None),
-    "Froese R.":            ("Rainer", "Froese", None),
-    "Hernandez F.":         ("F.", "Hernandez", None),          # uncertain — initials kept
-    "Kimani S.":            ("S.", "Kimani", None),             # uncertain
-    "Kimani S.W.":          ("S.W.", "Kimani", None),           # uncertain
+    "Froese R.":            ("Rainer", "Froese", "0000-0001-9745-636X"),
+    "Hernandez F.":         ("Francisco", "Hernandez", None),
+    "Kimani S.":            ("Susana", "Kimani", None),
+    "Kimani S.W.":          ("Susana", "Kimani", None),
     "Kirk P.":              ("Paul M.", "Kirk", "0000-0002-0658-7338"),
     "Kirk P.M.":            ("Paul M.", "Kirk", "0000-0002-0658-7338"),
     "Kunze T.":             ("Thomas", "Kunze", None),
@@ -45,19 +95,32 @@ AUTHORS = {
     "Orrell T.M.":          ("Thomas M.", "Orrell", "0000-0003-1038-3028"),
     "Ouvrard D.":           ("David", "Ouvrard", "0000-0003-2931-6116"),
     "Ower G.":              ("Geoff", "Ower", "0000-0002-9770-2345"),
-    "Paglinawan L.":        ("L.", "Paglinawan", None),         # uncertain
-    "Paglinawan L.E.":      ("L.E.", "Paglinawan", None),       # uncertain
+    "Paglinawan L.":        ("Luvie", "Paglinawan", None),
+    "Paglinawan L.E.":      ("Luvie", "Paglinawan", None),
     "Penev L.":             ("Lyubomir", "Penev", None),
     "Roskov Y.":            ("Yury R.", "Roskov", "0000-0003-2137-2690"),
     "Roskov Y.R.":          ("Yury R.", "Roskov", "0000-0003-2137-2690"),
     "Ruggiero M.":          ("Michael A.", "Ruggiero", None),
     "Ruggiero M.A.":        ("Michael A.", "Ruggiero", None),
-    "Soulier-Perkins A.":   ("Adeline", "Soulier-Perkins", None),
-    "Wilson K.":            ("Karen L.", "Wilson", None),
-    "Wilson K.L.":          ("Karen L.", "Wilson", None),
+    "Soulier-Perkins A.":   ("Adeline", "Soulier-Perkins", "0000-0002-9537-8537"),
+    "Wilson K.":            ("Karen L.", "Wilson", "0000-0001-7419-8222"),
+    "Wilson K.L.":          ("Karen L.", "Wilson", "0000-0001-7419-8222"),
     "Zarucchi J.":          ("James L.", "Zarucchi", None),
     "van Hertum J.":        ("Jorrit", "van Hertum", None),
 }
+
+# Editor affiliations confirmed by the editor (2026) for the three formerly-initialled editors.
+# Returns (organisation, city, country) or None. Paglinawan moved institution, so it is year-keyed.
+def affiliation(family, year):
+    if family == "Kimani":
+        return ("The University of Reading", "Reading", "GB")
+    if family == "Hernandez":
+        return ("Vlaams Instituut Voor De Zee", "Ostend", "BE")
+    if family == "Paglinawan":
+        if year <= 2010:
+            return ("WorldFish Center", "Los Baños", "PH")
+        return ("The FishBase Information and Research Group, Inc. (FIN)", "Los Baños", "PH")
+    return None
 
 # publisher city/country per era (ISO country codes) from the spreadsheet
 def publisher(year):
@@ -102,6 +165,7 @@ def conversion_desc(year):
 
 def main():
     wb = openpyxl.load_workbook(XLSX, data_only=True)
+    details = load_editor_details()
     ws = wb["Sheet1"]; rows = list(ws.iter_rows(values_only=True))
     years = [int(c) for c in rows[0] if c is not None]
     F = {str(r[0]): [("" if c is None else str(c)) for c in r[1:1+len(years)]] for r in rows[1:] if r[0]}
@@ -140,9 +204,24 @@ def main():
         L.append(f"  country: {country}")
         L.append("editor:")
         for given, family, orcid in parse_editors(g('Editor')):
+            det = details.get((year, family.casefold()))
             L.append(f"  - family: {family}")
             if given: L.append(f"    given: {given}")
-            if orcid: L.append(f"    orcid: {orcid}")
+            eff_orcid = (det and det["orcid"]) or orcid
+            if eff_orcid: L.append(f"    orcid: {eff_orcid}")
+            if det:                                  # full per-year affiliation from the editor sheet
+                if det["organisation"]: L.append(f"    organisation: {sq(det['organisation'])}")
+                if det["department"]:   L.append(f"    department: {sq(det['department'])}")
+                if det["city"]:         L.append(f"    city: {sq(det['city'])}")
+                if det["state"]:        L.append(f"    state: {sq(det['state'])}")
+                if det["country"]:      L.append(f"    country: {det['country']}")
+            else:                                    # fall back to the 3 confirmed affiliations
+                aff = affiliation(family, year)
+                if aff:
+                    org, city, country = aff
+                    L.append(f"    organisation: {sq(org)}")
+                    L.append(f"    city: {sq(city)}")
+                    L.append(f"    country: {country}")
         L.append("contributor:")
         L.append("  - family: Döring")
         L.append("    given: Markus")

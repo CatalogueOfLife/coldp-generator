@@ -65,21 +65,52 @@ publisher:
 editor:
   - family: Bisby
     given: Frank A.
+    organisation: 'University of Reading'
+    department: 'School of Plant Sciences'
+    city: 'Reading'
+    country: GB
   - family: Ruggiero
     given: Michael A.
+    organisation: 'Integrated Taxonomic Information System (ITIS)'
+    city: 'Washington'
+    state: 'DC'
+    country: US
   - family: Wilson
     given: Karen L.
+    orcid: 0000-0001-7419-8222
+    organisation: 'Royal Botanic Gardens Sydney'
+    city: 'Sydney'
+    country: AU
   - family: Cachuela-Palacio
     given: Monalisa
+    organisation: 'WorldFish Center'
+    city: 'Los Baños'
+    country: PH
   - family: Kimani
-    given: S.
+    given: Susana
+    organisation: 'University of Reading'
+    department: 'School of Plant Sciences'
+    city: 'Reading'
+    country: GB
   - family: Roskov
     given: Yury R.
     orcid: 0000-0003-2137-2690
+    organisation: 'University of Reading'
+    department: 'School of Plant Sciences'
+    city: 'Reading'
+    country: GB
   - family: Soulier-Perkins
     given: Adeline
+    orcid: 0000-0002-9537-8537
+    organisation: 'Muséum National d''Histoire Naturelle'
+    department: 'Entomologie'
+    city: 'Paris'
+    country: FR
   - family: van Hertum
     given: Jorrit
+    organisation: 'ETI Bioinformatics'
+    city: 'Amsterdam'
+    country: NL
 contributor:
   - family: Döring
     given: Markus

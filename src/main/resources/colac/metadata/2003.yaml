@@ -59,10 +59,22 @@ publisher:
 editor:
   - family: Froese
     given: Rainer
+    orcid: 0000-0001-9745-636X
+    organisation: 'Institute of Marine Research'
+    city: 'Kiel'
+    country: DE
   - family: Bisby
     given: Frank A.
+    organisation: 'University of Reading'
+    department: 'School of Plant Sciences'
+    city: 'Reading'
+    country: GB
   - family: Wilson
     given: Karen L.
+    orcid: 0000-0001-7419-8222
+    organisation: 'Royal Botanic Gardens Sydney'
+    city: 'Sydney'
+    country: AU
 contributor:
   - family: Döring
     given: Markus
