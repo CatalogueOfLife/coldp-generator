@@ -2,8 +2,9 @@
 #
 # publish-col-annual.sh
 # ---------------------------------------------------------------------------
-# Build every historical CoL Annual Checklist (colac, 2005-2019) into a ColDP
-# archive and publish the zips to the public annual-checklist download folder.
+# Build every historical CoL Annual Checklist (colac, 2000 + 2002-2019; 2001 was
+# never released) into a ColDP archive and publish the zips to the public
+# annual-checklist download folder.
 #
 # Stages:
 #   1. build the fat JAR (mvn package)                          [skip: --no-build]
@@ -28,7 +29,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 
 # ---- build / generate settings (override via env) -------------------------
-YEARS="${YEARS:-$(seq 2005 2019)}"
+YEARS="${YEARS:-2000 $(seq 2002 2019)}"   # 2000 + 2002-2019; 2001 was never released
 SRC="${SRC:-/tmp/colac-archives}"          # <SRC>/<year>/colac.zip is produced here
 STAGE="${STAGE:-/tmp/col-annual-upload}"   # renamed <year>_coldp.zip staged here
 MVN_ARGS="${MVN_ARGS:--q -DskipTests}"
