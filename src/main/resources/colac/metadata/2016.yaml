@@ -47,39 +47,83 @@ contact:
   country: NL
   email: support@catalogueoflife.org
 publisher:
-  organisation: Species 2000 & ITIS Catalogue of Life
+  organisation: Species 2000
   city: 'Leiden'
   country: NL
 editor:
   - family: Roskov
     given: Yury R.
     orcid: 0000-0003-2137-2690
+    organisation: 'University of Illinois'
+    department: 'Illinois Natural History Survey'
+    city: 'Champaign'
+    state: 'IL'
+    country: US
   - family: Abucay
     given: Luisa
+    orcid: 0009-0000-3595-6641
+    organisation: 'The FishBase Information and Research Group, Inc. (FIN)'
+    city: 'Los Baños'
+    country: PH
   - family: Orrell
     given: Thomas M.
     orcid: 0000-0003-1038-3028
+    organisation: 'Smithsonian Institution'
+    city: 'Washington'
+    state: 'DC'
+    country: US
   - family: Nicolson
     given: David
     orcid: 0000-0002-7987-0679
+    organisation: 'USGS/Smithsonian Institution'
+    city: 'Washington'
+    state: 'DC'
+    country: US
   - family: Flann
     given: Christina
+    orcid: 0000-0001-8248-2442
+    organisation: 'Naturalis'
+    department: 'Species 2000 Secretariat'
+    city: 'Leiden'
+    country: NL
   - family: Bailly
     given: Nicolas
     orcid: 0000-0003-4994-0653
+    organisation: 'Hellenic Centre for Marine Research'
+    city: 'Heraklion'
+    country: GR
   - family: Kirk
     given: Paul M.
     orcid: 0000-0002-0658-7338
+    organisation: 'Royal Botanic Gardens, Kew'
+    city: 'Richmond'
+    country: GB
   - family: Bourgoin
     given: Thierry
+    orcid: 0000-0001-9277-2478
+    organisation: 'Muséum National d''Histoire Naturelle'
+    city: 'Paris'
+    country: FR
   - family: DeWalt
     given: R. Edward
     orcid: 0000-0001-9985-9250
+    organisation: 'University of Illinois'
+    department: 'Illinois Natural History Survey'
+    city: 'Champaign'
+    state: 'IL'
+    country: US
   - family: Decock
     given: Wim
     orcid: 0000-0002-2168-9471
+    organisation: 'Vlaams Instituut Voor De Zee'
+    city: 'Ostend'
+    country: BE
   - family: De Wever
     given: Aaike
+    orcid: 0000-0001-8804-8321
+    organisation: 'Royal Belgian Institute of Natural Sciences'
+    city: 'Brussels'
+    country: BE
 contributor:
   - family: Döring
     given: Markus

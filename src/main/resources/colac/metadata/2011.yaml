@@ -47,21 +47,37 @@ contact:
   country: NL
   email: support@catalogueoflife.org
 publisher:
-  organisation: Species 2000 & ITIS Catalogue of Life
+  organisation: Species 2000
   city: 'Reading'
   country: GB
 editor:
   - family: Bisby
     given: Frank A.
+    organisation: 'University of Reading'
+    department: 'School of Plant Sciences'
+    city: 'Reading'
+    country: GB
   - family: Roskov
     given: Yury R.
     orcid: 0000-0003-2137-2690
+    organisation: 'University of Reading'
+    department: 'School of Plant Sciences'
+    city: 'Reading'
+    country: GB
   - family: Orrell
     given: Thomas M.
     orcid: 0000-0003-1038-3028
+    organisation: 'Smithsonian Institution'
+    city: 'Washington'
+    state: 'DC'
+    country: US
   - family: Nicolson
     given: David
     orcid: 0000-0002-7987-0679
+    organisation: 'USGS/Smithsonian Institution'
+    city: 'Washington'
+    state: 'DC'
+    country: US
   - family: Paglinawan
     given: Luvie
     organisation: 'The FishBase Information and Research Group, Inc. (FIN)'
@@ -70,16 +86,34 @@ editor:
   - family: Bailly
     given: Nicolas
     orcid: 0000-0003-4994-0653
+    organisation: 'WorldFish Center'
+    city: 'Los Baños'
+    country: PH
   - family: Kirk
     given: Paul M.
     orcid: 0000-0002-0658-7338
+    organisation: 'CABI'
+    city: 'Egham'
+    country: GB
   - family: Bourgoin
     given: Thierry
+    orcid: 0000-0001-9277-2478
+    organisation: 'Muséum National d''Histoire Naturelle'
+    city: 'Paris'
+    country: FR
   - family: Baillargeon
     given: Guy
+    organisation: 'Agriculture and Agri-Food Canada'
+    city: 'Rimouski'
+    state: 'Quebec'
+    country: CA
   - family: Ouvrard
     given: David
     orcid: 0000-0003-2931-6116
+    organisation: 'Muséum National d''Histoire Naturelle'
+    department: 'Entomologie'
+    city: 'Paris'
+    country: FR
 contributor:
   - family: Döring
     given: Markus
