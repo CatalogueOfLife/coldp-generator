@@ -46,7 +46,7 @@
     <junit.version>4.12</junit.version>
     <keycloak.version>23.0.7</keycloak.version>
     <logback.version>1.2.13</logback.version>
-    <name-parser.version>3.14.0</name-parser.version>
+    <name-parser.version>3.16.0</name-parser.version>
     <newick-io.version>1.0.6</newick-io.version>
     <poi.version>5.2.3</poi.version>
     <scribejava.version>8.3.3</scribejava.version>
