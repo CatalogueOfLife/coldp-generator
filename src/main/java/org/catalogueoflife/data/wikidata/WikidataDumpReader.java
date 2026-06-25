@@ -110,6 +110,12 @@ public class WikidataDumpReader {
   final Map<String, ExtIdInfo> extIdProperties = new LinkedHashMap<>();
   /** QID → Commons gallery name (P935), populated during pass 1 */
   final Map<String, String> galleryNames = new HashMap<>();
+  /**
+   * synonym QID → accepted QID, populated during pass 1 from P1420 ("taxon synonym").
+   * P1420 is declared on the accepted name and points to its synonyms, so the synonymy
+   * direction must be reconstructed here rather than read off the synonym's own record.
+   */
+  final Map<String, String> synonymToAccepted = new HashMap<>();
 
   // Sets of QIDs needed by taxa, collected during pass 1
   final Set<String> neededPubQids = new HashSet<>();
@@ -272,6 +278,9 @@ public class WikidataDumpReader {
 
     // Collect parent QID (not needed for lookup, just tracking)
     // Collect basionym QID (not needed for lookup)
+
+    // Record synonym → accepted links from P1420 (declared on the accepted name)
+    collectSynonymLinks(entity, taxonQid, synonymToAccepted);
 
     // Collect IUCN status QID
     JsonNode iucnVal = getClaimValue(entity, P141);
@@ -443,6 +452,21 @@ public class WikidataDumpReader {
       }
     }
     return values;
+  }
+
+  /**
+   * Record the synonym→accepted links declared by an accepted taxon via P1420 ("taxon synonym").
+   * P1420 points from the accepted name to each of its synonyms, so for an entity {@code acceptedQid}
+   * every P1420 value QID is a synonym whose accepted name is {@code acceptedQid}.
+   */
+  static void collectSynonymLinks(JsonNode entity, String acceptedQid, Map<String, String> out) {
+    if (acceptedQid == null) return;
+    for (JsonNode val : getClaimValues(entity, P1420)) {
+      String synonymQid = getItemId(val);
+      if (synonymQid != null && !synonymQid.equals(acceptedQid)) {
+        out.put(synonymQid, acceptedQid);
+      }
+    }
   }
 
   /**

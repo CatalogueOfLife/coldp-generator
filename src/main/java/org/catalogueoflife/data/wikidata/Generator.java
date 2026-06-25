@@ -566,7 +566,7 @@ public class Generator extends AbstractColdpGenerator {
       try {
         writeNameUsage(entity, qid, reader);
         taxonCount[0]++;
-        if (hasClaim(entity, P1420)) synCount[0]++;
+        if (reader.synonymToAccepted.containsKey(qid)) synCount[0]++;
 
         vernCount[0] += writeVernacularNames(entity, qid);
         distCount[0] += writeInvasiveDistributions(entity, qid, reader);
@@ -649,16 +649,13 @@ public class Generator extends AbstractColdpGenerator {
     writer.set(ColdpTerm.scientificName, name);
     writer.set(ColdpTerm.link, "https://www.wikidata.org/wiki/" + qid);
 
-    // Synonym status: P1420 = "taxon synonym of" (accepted name)
-    JsonNode acceptedVal = getClaimValue(entity, P1420);
-    if (acceptedVal != null) {
-      String acceptedQid = getItemId(acceptedVal);
-      if (acceptedQid != null) {
-        writer.set(ColdpTerm.status, "synonym");
-        writer.set(ColdpTerm.parentID, acceptedQid);
-      } else {
-        writer.set(ColdpTerm.status, "accepted");
-      }
+    // Synonym status: P1420 ("taxon synonym") is declared on the accepted name and points
+    // to its synonyms, so synonymy is reconstructed in pass 1 into reader.synonymToAccepted
+    // (synonym QID → accepted QID). A taxon listed there is a synonym of that accepted name.
+    String acceptedQid = reader.synonymToAccepted.get(qid);
+    if (acceptedQid != null) {
+      writer.set(ColdpTerm.status, "synonym");
+      writer.set(ColdpTerm.parentID, acceptedQid);
     } else {
       writer.set(ColdpTerm.status, "accepted");
       // Parent taxon (only for accepted names)

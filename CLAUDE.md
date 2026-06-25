@@ -250,7 +250,7 @@ Dumps are stored under `{sourceDir}/wikidata/` (default: `/tmp/coldp-generator-s
 | P225 | scientificName | primary filter |
 | P105 | rank | QID resolved via rankLabels map |
 | P171 | parentID | accepted taxa only |
-| P1420 | parentID + status=synonym | synonym taxa |
+| P1420 | parentID + status=synonym | **declared on the accepted name, pointing to its synonyms** — pass 1 inverts it into `synonymToAccepted` (synonym QID → accepted QID); a taxon found there is emitted as a synonym whose parentID is its accepted name |
 | P835 | authorship | author citation string |
 | P566 | basionymID | |
 | P694 | NameRelation type="replacement name" | replaced synonym |
