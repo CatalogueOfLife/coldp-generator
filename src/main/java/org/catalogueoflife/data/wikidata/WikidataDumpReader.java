@@ -2,12 +2,12 @@ package org.catalogueoflife.data.wikidata;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.catalogueoflife.data.utils.HttpUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -22,30 +22,41 @@ public class WikidataDumpReader {
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   /**
-   * Preconfigured CURIE prefixes for known Wikidata external-identifier properties,
-   * loaded from {@code wikidata/identifier-scopes.tsv} (classpath resource).
-   * Key: Wikidata property ID (e.g. "P1746"), value: desired prefix (e.g. "zoobank").
-   * Overrides the auto-derived prefix from the formatter URL.
+   * ChecklistBank identifier-scope vocabulary endpoint. Each scope carries an optional
+   * {@code wikidataProperty} field linking it to a Wikidata external-identifier property,
+   * which we use to assign a stable, CLB-recognised CURIE prefix to that property.
    */
-  private static final Map<String, String> PRECONFIGURED_PREFIXES = loadPreconfiguredPrefixes();
+  static final String ID_SCOPE_VOCAB_URL = "https://api.checklistbank.org/vocab/identifier-scope";
 
-  private static Map<String, String> loadPreconfiguredPrefixes() {
+  /**
+   * Wikidata property ID (e.g. {@code "P846"}) → ColDP identifier scope (e.g. {@code "gbif"}),
+   * fetched from {@link #ID_SCOPE_VOCAB_URL} at construction time. Overrides the auto-derived
+   * prefix from the formatter URL. Properties without a mapping (or if the fetch fails) fall
+   * back to an auto-derived prefix (see {@link #deriveExtIdPrefix}).
+   */
+  private final Map<String, String> idScopeByProperty;
+
+  public WikidataDumpReader() {
+    this.idScopeByProperty = loadIdentifierScopes();
+  }
+
+  /** Fetch the Wikidata property → identifier scope mapping from the ChecklistBank API. */
+  static Map<String, String> loadIdentifierScopes() {
     Map<String, String> map = new HashMap<>();
-    try (InputStream in = WikidataDumpReader.class.getResourceAsStream("/wikidata/identifier-scopes.tsv");
-         BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-      String line;
-      boolean header = true;
-      while ((line = br.readLine()) != null) {
-        if (header) { header = false; continue; } // skip header row
-        String[] cols = line.split("\t", -1);
-        if (cols.length >= 2 && !cols[0].isBlank() && !cols[1].isBlank()) {
-          map.put(cols[1].trim(), cols[0].trim()); // PID → prefix
+    try {
+      String json = new HttpUtils().getJSON(URI.create(ID_SCOPE_VOCAB_URL));
+      for (JsonNode node : MAPPER.readTree(json)) {
+        JsonNode pid = node.get("wikidataProperty");
+        JsonNode scope = node.get("scope");
+        if (pid != null && scope != null && !pid.asText().isBlank() && !scope.asText().isBlank()) {
+          map.put(pid.asText().trim(), scope.asText().trim()); // PID → scope
         }
       }
     } catch (Exception e) {
-      LOG.warn("Could not load identifier-scopes.tsv: {}", e.getMessage());
+      LOG.warn("Could not load identifier scopes from {}: {}. Falling back to auto-derived prefixes.",
+          ID_SCOPE_VOCAB_URL, e.getMessage());
     }
-    LOG.info("Loaded {} preconfigured identifier prefixes from identifier-scopes.tsv", map.size());
+    LOG.info("Loaded {} Wikidata property → identifier scope mappings from {}", map.size(), ID_SCOPE_VOCAB_URL);
     return Collections.unmodifiableMap(map);
   }
 
@@ -182,8 +193,8 @@ public class WikidataDumpReader {
         line.contains("\"P1476\"") || line.contains("\"P31\"") ||
         line.contains("\"P1630\"") || line.contains("\"P935\""); // P935 = Commons gallery
 
-    // Track used prefixes to ensure uniqueness; pre-seed with configured prefixes to avoid collisions
-    final Set<String> usedPrefixes = new HashSet<>(PRECONFIGURED_PREFIXES.values());
+    // Track used prefixes to ensure uniqueness; pre-seed with the CLB scopes to avoid collisions
+    final Set<String> usedPrefixes = new HashSet<>(idScopeByProperty.values());
     final Set<String> ignoredPrefixes = Set.of(
         P18,     // wikicommons media
         "P4839"  // wolframalpha
@@ -198,8 +209,8 @@ public class WikidataDumpReader {
         String formatterUrl = getStringClaimValue(entity, "P1630");
         String formatRegex = getStringClaimValue(entity, "P1793");
         String label = getEnglishLabel(entity);
-        String prefix = PRECONFIGURED_PREFIXES.containsKey(qid)
-            ? PRECONFIGURED_PREFIXES.get(qid)
+        String prefix = idScopeByProperty.containsKey(qid)
+            ? idScopeByProperty.get(qid)
             : deriveExtIdPrefix(formatterUrl, qid, usedPrefixes);
         if (prefix != null && formatterUrl != null) {
           extIdProperties.put(qid, new ExtIdInfo(prefix, label, formatterUrl, formatRegex));

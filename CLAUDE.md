@@ -266,10 +266,13 @@ Dumps are stored under `{sourceDir}/wikidata/` (default: `/tmp/coldp-generator-s
 | P18 | Media.url (representative image) | filename → Special:FilePath URL |
 | all P entities with P1630 | alternativeID (CURIEs) | dynamically discovered |
 
+##### CURIE prefixes (identifier scopes)
+The CURIE prefix for each external-identifier property is the ChecklistBank **identifier scope**. `WikidataDumpReader.loadIdentifierScopes()` fetches the CLB vocabulary `https://api.checklistbank.org/vocab/identifier-scope` at startup and builds a `wikidataProperty (PID) → scope` map (e.g. `P846 → gbif`, `P685 → ncbi`). A property with no matching scope (or if the API is unreachable) falls back to an auto-derived prefix from its formatter URL host (`deriveExtIdPrefix`). There is **no** local resource file — the mapping is always live from prod. (The `wikidataProperty` field is on dev now and will appear in prod shortly; until then prod returns 0 mappings and every property auto-derives.)
+
 #### Output files (in addition to standard ColDP)
 - `NameRelation.tsv` — replacement name relations (P694)
 - `wikidata-duplicates.tsv` — skipped duplicate-page entities
-- `identifier-registry.tsv` — all discovered external identifier properties with CURIE prefix, formatter URL, format regex
+- `identifier-registry.tsv` — all discovered external identifier properties with CURIE prefix (CLB scope or auto-derived), formatter URL, format regex
 - `Media.tsv` — taxon images from P18 (one per taxon, from Wikidata dump) plus full gallery images from the Commons dump
 
 #### Wikimedia Commons dump processing
