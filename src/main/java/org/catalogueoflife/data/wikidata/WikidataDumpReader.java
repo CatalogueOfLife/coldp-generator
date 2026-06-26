@@ -207,6 +207,11 @@ public class WikidataDumpReader {
       // Collect external identifier property metadata (P entities with formatter URL P1630)
       if (qid.startsWith("P") && !ignoredPrefixes.contains(qid) && hasClaim(entity, "P1630")) {
         String formatterUrl = getStringClaimValue(entity, "P1630");
+        // Skip Wikimedia Commons properties (e.g. P373 Commons category, P935 Commons gallery):
+        // these are links into Commons, not external taxon identifiers, so they make no sense as alternativeIDs.
+        if (formatterUrl != null && formatterUrl.contains("commons.wikimedia.org")) {
+          return;
+        }
         String formatRegex = getStringClaimValue(entity, "P1793");
         String label = getEnglishLabel(entity);
         String prefix = idScopeByProperty.containsKey(qid)
