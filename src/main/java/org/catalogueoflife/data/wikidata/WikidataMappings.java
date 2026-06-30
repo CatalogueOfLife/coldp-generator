@@ -100,7 +100,7 @@ public class WikidataMappings {
     return switch (pid) {
       case "P1034" -> "eats";
       case "P2975" -> "has host";
-      case "P1605" -> "symbiont of";
+      case "P1605" -> "has host";
       case "P1606" -> "host of";
       default -> null;
     };
