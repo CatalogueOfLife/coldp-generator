@@ -307,6 +307,10 @@ public class Generator extends AbstractColdpGenerator {
       LOG.info("Resolving {} unresolved publication QIDs via SPARQL...", reader.neededPubQids.size());
       resolvePubs(reader.neededPubQids, reader.pubInfo, reader.neededJournalQids, reader.journalLabels);
     }
+    if (!reader.neededAuthorQids.isEmpty()) {
+      LOG.info("Resolving {} unresolved author QIDs via SPARQL...", reader.neededAuthorQids.size());
+      resolveAuthors(reader.neededAuthorQids, reader.authors);
+    }
   }
 
   /**
@@ -422,6 +426,78 @@ public class Generator extends AbstractColdpGenerator {
       sleepBriefly();
     }
     qids.clear();
+  }
+
+  /** Resolve author items via SPARQL in batches of 200; same shape as resolvePubs. */
+  private void resolveAuthors(Set<String> qids, Map<String, WikidataDumpReader.AuthorInfo> target) {
+    List<String> qidList = new ArrayList<>(qids);
+    for (int i = 0; i < qidList.size(); i += 200) {
+      List<String> batch = qidList.subList(i, Math.min(i + 200, qidList.size()));
+      StringBuilder values = new StringBuilder();
+      for (String qid : batch) values.append(" wd:").append(qid);
+      String sparql = String.format("""
+          PREFIX wd: <http://www.wikidata.org/entity/>
+          PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+          PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+          SELECT ?a (SAMPLE(?label) AS ?lab) (SAMPLE(?given) AS ?g) (SAMPLE(?family) AS ?f)
+                 (SAMPLE(?abbr) AS ?ab) (SAMPLE(?cit) AS ?c) (SAMPLE(?birth) AS ?b)
+                 (SAMPLE(?death) AS ?d) (SAMPLE(?orcid) AS ?o) (SAMPLE(?sexL) AS ?s)
+                 (SAMPLE(?cc0) AS ?cc) (SAMPLE(?afflL) AS ?aff)
+          WHERE {
+            VALUES ?a {%s}
+            OPTIONAL { ?a rdfs:label ?label . FILTER(LANG(?label) = "en") }
+            OPTIONAL { ?a wdt:P735 ?gi . ?gi rdfs:label ?given . FILTER(LANG(?given) = "en") }
+            OPTIONAL { ?a wdt:P734 ?fi . ?fi rdfs:label ?family . FILTER(LANG(?family) = "en") }
+            OPTIONAL { ?a wdt:P428 ?abbr }
+            OPTIONAL { ?a wdt:P835 ?cit }
+            OPTIONAL { ?a wdt:P569 ?birth }
+            OPTIONAL { ?a wdt:P570 ?death }
+            OPTIONAL { ?a wdt:P496 ?orcid }
+            OPTIONAL { ?a wdt:P21 ?sx . ?sx rdfs:label ?sexL . FILTER(LANG(?sexL) = "en") }
+            OPTIONAL { ?a wdt:P27 ?ctry . ?ctry wdt:P297 ?cc0 }
+            OPTIONAL { ?a wdt:P108 ?af . ?af rdfs:label ?afflL . FILTER(LANG(?afflL) = "en") }
+          }
+          GROUP BY ?a
+          """, values);
+      try {
+        String result = querySparql(sparql);
+        if (result != null) parseSparqlAuthors(result, target);
+      } catch (Exception e) {
+        LOG.warn("SPARQL author resolution failed for batch starting at {}: {}", i, e.getMessage());
+      }
+      sleepBriefly();
+    }
+    qids.clear();
+  }
+
+  static void parseSparqlAuthors(String json, Map<String, WikidataDumpReader.AuthorInfo> target) {
+    try {
+      JsonNode bindings = mapper.readTree(json).path("results").path("bindings");
+      for (JsonNode b : bindings) {
+        String uri = b.path("a").path("value").asText(null);
+        if (uri == null) continue;
+        String qid = uri.substring(uri.lastIndexOf('/') + 1);
+        String label = v(b, "lab");
+        String family = firstNonNull(v(b, "f"), v(b, "c"), WikidataMappings.lastToken(label));
+        String given = firstNonNull(v(b, "g"), WikidataMappings.givenFromLabel(label, family));
+        target.put(qid, new WikidataDumpReader.AuthorInfo(
+            given, family, v(b, "ab"),
+            WikidataMappings.extractYear(v(b, "b")), WikidataMappings.extractYear(v(b, "d")),
+            v(b, "cc"), v(b, "s"), v(b, "aff"), v(b, "o")));
+      }
+    } catch (Exception e) {
+      LOG.warn("Failed to parse SPARQL author results: {}", e.getMessage());
+    }
+  }
+
+  private static String v(JsonNode binding, String key) {
+    String s = binding.path(key).path("value").asText(null);
+    return (s == null || s.isBlank()) ? null : s;
+  }
+
+  private static String firstNonNull(String... vals) {
+    for (String s : vals) if (s != null && !s.isBlank()) return s;
+    return null;
   }
 
   private String querySparql(String sparql) throws IOException {
