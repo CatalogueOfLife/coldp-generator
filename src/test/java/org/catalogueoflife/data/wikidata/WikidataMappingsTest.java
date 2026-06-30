@@ -64,7 +64,14 @@ public class WikidataMappingsTest {
     var a = WikidataMappings.assembleAuthorship(na, authorMap());
     assertEquals("Gertsch & Mulaik", a.combinationAuthorship());
     assertEquals("Q955086,Q22114001", a.combinationAuthorshipID());
+    assertEquals("1940", a.combinationAuthorshipYear());
     assertEquals("Gertsch & Mulaik, 1940", a.flat());
+  }
+
+  @Test public void assembleUnresolvedAuthorReturnsNull() {
+    // Q999 is not in the author map → must return null (caller falls back to P835)
+    var na = new WikidataDumpReader.NameAuthorship(java.util.List.of("Q999"), "1900", false);
+    assertNull(WikidataMappings.assembleAuthorship(na, authorMap()));
   }
 
   @Test public void assembleRecombination() {

@@ -16,6 +16,7 @@ public class WikidataMappings {
   }
 
   static String joinFamilies(List<String> families) {
+    if (families == null) return null;
     List<String> fs = families.stream().filter(f -> f != null && !f.isBlank()).toList();
     if (fs.isEmpty()) return null;
     if (fs.size() == 1) return fs.get(0);
@@ -49,13 +50,26 @@ public class WikidataMappings {
                     String combinationAuthorshipYear, String basionymAuthorship,
                     String basionymAuthorshipID, String basionymAuthorshipYear, String flat) {}
 
+  /**
+   * Assemble atomized ColDP authorship from a NameAuthorship record and a resolved-author map.
+   *
+   * Returns null when:
+   * - na is null or has no author QIDs (caller should fall back to the flat P835 string), OR
+   * - any referenced author QID is absent from the map or has a null/blank family name
+   *   (unresolved authors must NOT leak raw QIDs into the authorship fields; caller falls back
+   *   to the flat P835 string and avoids adding unresolved QIDs to usedAuthorQids).
+   */
   static Authorship assembleAuthorship(WikidataDumpReader.NameAuthorship na,
                                        Map<String, WikidataDumpReader.AuthorInfo> authors) {
     if (na == null || na.authorQids().isEmpty()) return null;
     List<String> families = new ArrayList<>();
     for (String qid : na.authorQids()) {
       WikidataDumpReader.AuthorInfo ai = authors.get(qid);
-      families.add(ai != null && ai.family() != null ? ai.family() : qid);
+      if (ai == null || ai.family() == null || ai.family().isBlank()) {
+        // Any unresolved author: abort and let the caller fall back to P835.
+        return null;
+      }
+      families.add(ai.family());
     }
     String fam = joinFamilies(families);
     String ids = String.join(",", na.authorQids());
