@@ -99,9 +99,9 @@ public class WikidataMappings {
     if (pid == null) return null;
     return switch (pid) {
       case "P1034" -> "eats";
-      case "P2975" -> "has_host";
-      case "P1605" -> "symbiont_of";
-      case "P1606" -> "host_of";
+      case "P2975" -> "has host";
+      case "P1605" -> "symbiont of";
+      case "P1606" -> "host of";
       default -> null;
     };
   }

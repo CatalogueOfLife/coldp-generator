@@ -701,9 +701,12 @@ public class WikidataDumpReader {
   static java.util.List<String[]> taxonPropertyRows(JsonNode entity,
       Map<String, TaxonPropInfo> taxonProps, Map<String, String> labels) {
     java.util.List<String[]> rows = new java.util.ArrayList<>();
-    for (var e : taxonProps.entrySet()) {
-      String pid = e.getKey();
-      TaxonPropInfo info = e.getValue();
+    JsonNode claims = entity.path("claims");
+    java.util.Iterator<String> pids = claims.fieldNames();
+    while (pids.hasNext()) {
+      String pid = pids.next();
+      TaxonPropInfo info = taxonProps.get(pid);
+      if (info == null) continue;
       for (JsonNode val : getClaimValues(entity, pid)) {
         String value = switch (info.datatype()) {
           case "WikibaseItem" -> {

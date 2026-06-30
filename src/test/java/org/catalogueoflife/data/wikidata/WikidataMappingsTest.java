@@ -93,9 +93,9 @@ public class WikidataMappingsTest {
 
   @Test public void interactionType() {
     assertEquals("eats", WikidataMappings.interactionType("P1034"));
-    assertEquals("has_host", WikidataMappings.interactionType("P2975"));
-    assertEquals("symbiont_of", WikidataMappings.interactionType("P1605"));
-    assertEquals("host_of", WikidataMappings.interactionType("P1606"));
+    assertEquals("has host", WikidataMappings.interactionType("P2975"));
+    assertEquals("symbiont of", WikidataMappings.interactionType("P1605"));
+    assertEquals("host of", WikidataMappings.interactionType("P1606"));
     assertNull(WikidataMappings.interactionType("P999"));
   }
 }
