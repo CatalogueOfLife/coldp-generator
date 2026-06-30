@@ -96,6 +96,18 @@ public class WikidataDumpReader {
   static final String P846  = "P846";  // GBIF species ID
   static final String P830  = "P830";  // Encyclopedia of Life ID
   static final String P961  = "P961";  // ITIS taxonomic serial number (TSN)
+  static final String P405  = "P405";  // taxon author (item) — qualifier on P225
+  static final String P734  = "P734";  // family name (item)
+  static final String P735  = "P735";  // given name (item)
+  static final String P496  = "P496";  // ORCID iD
+  static final String P569  = "P569";  // date of birth
+  static final String P570  = "P570";  // date of death
+  static final String P27   = "P27";   // country of citizenship
+  static final String P21   = "P21";   // sex or gender
+  static final String P108  = "P108";  // employer (affiliation)
+  static final String P3831 = "P3831"; // object has role (qualifier) — recombination flag
+  static final String P1403 = "P1403"; // original combination (basionym item)
+  static final String Q14594740 = "Q14594740"; // recombination
 
   static final String Q1361864 = "Q1361864";   // first valid description
   static final String Q427626 = "Q427626";     // taxonomic rank
@@ -135,9 +147,19 @@ public class WikidataDumpReader {
   final Set<String> neededIucnQids = new HashSet<>();
   final Set<String> neededJournalQids = new HashSet<>();
   final Set<String> neededNomStatusQids = new HashSet<>();
+  /** Author QIDs referenced by P405, collected in pass 1, resolved via SPARQL. */
+  final Set<String> neededAuthorQids = new HashSet<>();
+  /** Author QID → resolved info, populated by SPARQL between passes. */
+  final Map<String, AuthorInfo> authors = new HashMap<>();
 
   // Nomenclatural reference info collected during pass 1
   record NomRef(String pubQid, String page, String bhlPageLink) {}
+  /** Resolved author item → ColDP Author columns. */
+  record AuthorInfo(String given, String family, String abbreviationBotany,
+                    String birth, String death, String country, String sex,
+                    String affiliation, String orcid) {}
+  /** Authorship extracted from a taxon's first P225 statement qualifiers. */
+  record NameAuthorship(java.util.List<String> authorQids, String year, boolean recombination) {}
   final Map<String, NomRef> nomRefs = new HashMap<>();
 
   /**
@@ -578,6 +600,28 @@ public class WikidataDumpReader {
     JsonNode propSnaks = snaks.path(prop);
     if (!propSnaks.isArray() || propSnaks.isEmpty()) return null;
     return getItemId(propSnaks.get(0).path("datavalue").path("value"));
+  }
+
+  /**
+   * Extract authorship from the first P225 statement's qualifiers:
+   * P405 author item(s), P574 year, P3831=Q14594740 recombination flag.
+   * Returns null when the entity has no P225 statement.
+   */
+  static NameAuthorship extractAuthorship(JsonNode entity) {
+    JsonNode claims = entity.path("claims").path(P225);
+    if (!claims.isArray() || claims.isEmpty()) return null;
+    JsonNode q = claims.get(0).path("qualifiers");
+    java.util.List<String> authorQids = new java.util.ArrayList<>();
+    JsonNode p405 = q.path(P405);
+    if (p405.isArray()) {
+      for (JsonNode snak : p405) {
+        String id = getItemId(snak.path("datavalue").path("value"));
+        if (id != null) authorQids.add(id);
+      }
+    }
+    String year = WikidataMappings.extractYear(getSnakStringValue(q, P574));
+    boolean recomb = Q14594740.equals(getSnakItemId(q, P3831));
+    return new NameAuthorship(authorQids, year, recomb);
   }
 
   /**

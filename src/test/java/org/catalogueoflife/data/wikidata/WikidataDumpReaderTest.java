@@ -8,7 +8,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class WikidataDumpReaderTest {
 
@@ -54,5 +56,39 @@ public class WikidataDumpReaderTest {
     Map<String, String> out = new HashMap<>();
     WikidataDumpReader.collectSynonymLinks(parse(json), "Q469555", out);
     assertEquals(0, out.size());
+  }
+
+  @Test
+  public void extractAuthorshipRecombination() throws Exception {
+    // Panthera tigris: P405=Q1043, P574=1758, P3831=Q14594740 (recombination)
+    String json = "{"
+        + "\"id\":\"Q19939\",\"claims\":{\"P225\":[{"
+        + "  \"mainsnak\":{\"datavalue\":{\"value\":\"Panthera tigris\"}},"
+        + "  \"qualifiers\":{"
+        + "    \"P405\":[{\"datavalue\":{\"value\":{\"entity-type\":\"item\",\"id\":\"Q1043\"}}}],"
+        + "    \"P574\":[{\"datavalue\":{\"value\":{\"time\":\"+1758-01-01T00:00:00Z\"}}}],"
+        + "    \"P3831\":[{\"datavalue\":{\"value\":{\"entity-type\":\"item\",\"id\":\"Q14594740\"}}}]"
+        + "  }}]}}";
+    WikidataDumpReader.NameAuthorship na = WikidataDumpReader.extractAuthorship(parse(json));
+    assertEquals(java.util.List.of("Q1043"), na.authorQids());
+    assertEquals("1758", na.year());
+    assertTrue(na.recombination());
+  }
+
+  @Test
+  public void extractAuthorshipMultiAuthorOriginal() throws Exception {
+    // Loxosceles reclusa: two authors, no recombination
+    String json = "{"
+        + "\"id\":\"Q284352\",\"claims\":{\"P225\":[{"
+        + "  \"mainsnak\":{\"datavalue\":{\"value\":\"Loxosceles reclusa\"}},"
+        + "  \"qualifiers\":{"
+        + "    \"P405\":[{\"datavalue\":{\"value\":{\"entity-type\":\"item\",\"id\":\"Q955086\"}}},"
+        + "             {\"datavalue\":{\"value\":{\"entity-type\":\"item\",\"id\":\"Q22114001\"}}}],"
+        + "    \"P574\":[{\"datavalue\":{\"value\":{\"time\":\"+1940-01-01T00:00:00Z\"}}}]"
+        + "  }}]}}";
+    WikidataDumpReader.NameAuthorship na = WikidataDumpReader.extractAuthorship(parse(json));
+    assertEquals(java.util.List.of("Q955086", "Q22114001"), na.authorQids());
+    assertEquals("1940", na.year());
+    assertFalse(na.recombination());
   }
 }
