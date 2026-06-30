@@ -46,6 +46,8 @@ public class Generator extends AbstractColdpGenerator {
   private final Map<String, String> rankMap = new HashMap<>();
   private final Set<String> writtenRefs    = new HashSet<>();
   private final Set<String> usedExtIdPids  = new HashSet<>();
+  private TermWriter authorWriter;
+  private final Set<String> usedAuthorQids = new HashSet<>();
 
   // Maps for nom status (P1135) and gender (P2433) QIDs — resolved during pass 1 / SPARQL
   // Key: Wikidata label (lowercase) → ColDP nameStatus value
@@ -661,6 +663,7 @@ public class Generator extends AbstractColdpGenerator {
     });
 
     writeReferences(reader);
+    writeAuthors(reader);
 
     LOG.info("Pass 2 complete: {} taxa ({} synonyms), {} duplicates skipped, {} vernaculars, {} distributions, {} properties, {} name relations, {} references, {} P18 media",
         taxonCount[0], synCount[0], duplicateCount[0], vernCount[0], distCount[0], propCount[0], nameRelCount[0], writtenRefs.size(), mediaCount[0]);
@@ -753,19 +756,33 @@ public class Generator extends AbstractColdpGenerator {
       }
     }
 
-    // Authorship (author citation string)
-    String auth = getStringClaimValue(entity, P835);
+    // Authorship — atomized from P405 author items (authoritative); flat string is a fallback.
+    WikidataDumpReader.NameAuthorship na = WikidataDumpReader.extractAuthorship(entity);
+    WikidataMappings.Authorship auth = WikidataMappings.assembleAuthorship(na, reader.authors);
     if (auth != null) {
-      writer.set(ColdpTerm.authorship, auth);
+      writer.set(ColdpTerm.authorship, auth.flat());
+      writer.set(ColdpTerm.combinationAuthorship, auth.combinationAuthorship());
+      writer.set(ColdpTerm.combinationAuthorshipID, auth.combinationAuthorshipID());
+      writer.set(ColdpTerm.combinationAuthorshipYear, auth.combinationAuthorshipYear());
+      writer.set(ColdpTerm.basionymAuthorship, auth.basionymAuthorship());
+      writer.set(ColdpTerm.basionymAuthorshipID, auth.basionymAuthorshipID());
+      writer.set(ColdpTerm.basionymAuthorshipYear, auth.basionymAuthorshipYear());
+      if (na != null) usedAuthorQids.addAll(na.authorQids());
+    } else {
+      // No P405 → fall back to the P835 author-citation string on the taxon.
+      String fallback = getStringClaimValue(entity, P835);
+      if (fallback != null) writer.set(ColdpTerm.authorship, fallback);
     }
 
-    // Basionym
+    // Basionym — P566, else P1403 (original combination item)
     JsonNode basVal = getClaimValue(entity, P566);
-    if (basVal != null) {
-      String basQid = getItemId(basVal);
-      if (basQid != null) {
-        writer.set(ColdpTerm.basionymID, basQid);
-      }
+    String basQid = basVal != null ? getItemId(basVal) : null;
+    if (basQid == null) {
+      JsonNode origComb = getClaimValue(entity, P1403);
+      if (origComb != null) basQid = getItemId(origComb);
+    }
+    if (basQid != null) {
+      writer.set(ColdpTerm.basionymID, basQid);
     }
 
     // Nomenclatural reference (from pass 1 — "first valid description" reference on P225)
@@ -1011,6 +1028,28 @@ public class Generator extends AbstractColdpGenerator {
     return 1;
   }
 
+  private void writeAuthors(WikidataDumpReader reader) throws IOException {
+    int count = 0;
+    for (var e : reader.authors.entrySet()) {
+      if (!usedAuthorQids.contains(e.getKey())) continue;
+      WikidataDumpReader.AuthorInfo a = e.getValue();
+      authorWriter.set(ColdpTerm.ID, e.getKey());
+      authorWriter.set(ColdpTerm.given, a.given());
+      authorWriter.set(ColdpTerm.family, a.family());
+      authorWriter.set(ColdpTerm.abbreviationBotany, a.abbreviationBotany());
+      if (a.orcid() != null) authorWriter.set(ColdpTerm.alternativeID, "orcid:" + a.orcid());
+      authorWriter.set(ColdpTerm.birth, a.birth());
+      authorWriter.set(ColdpTerm.death, a.death());
+      authorWriter.set(ColdpTerm.country, a.country());
+      authorWriter.set(ColdpTerm.sex, a.sex());
+      authorWriter.set(ColdpTerm.affiliation, a.affiliation());
+      authorWriter.set(ColdpTerm.link, "https://www.wikidata.org/wiki/" + e.getKey());
+      authorWriter.next();
+      count++;
+    }
+    LOG.info("Wrote {} author records ({} referenced)", count, usedAuthorQids.size());
+  }
+
   private void writeReferences(WikidataDumpReader reader) throws IOException {
     LOG.info("Writing {} reference records...", reader.pubInfo.size());
     Set<String> allPubQids = new HashSet<>();
@@ -1065,6 +1104,12 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.rank,
         ColdpTerm.scientificName,
         ColdpTerm.authorship,
+        ColdpTerm.combinationAuthorship,
+        ColdpTerm.combinationAuthorshipID,
+        ColdpTerm.combinationAuthorshipYear,
+        ColdpTerm.basionymAuthorship,
+        ColdpTerm.basionymAuthorshipID,
+        ColdpTerm.basionymAuthorshipYear,
         ColdpTerm.originalSpelling,
         ColdpTerm.gender,
         ColdpTerm.link,
@@ -1128,6 +1173,19 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.license,
         ColdpTerm.link,
         ColdpTerm.remarks
+    ));
+    authorWriter = additionalWriter(ColdpTerm.Author, List.of(
+        ColdpTerm.ID,
+        ColdpTerm.given,
+        ColdpTerm.family,
+        ColdpTerm.abbreviationBotany,
+        ColdpTerm.alternativeID,
+        ColdpTerm.birth,
+        ColdpTerm.death,
+        ColdpTerm.country,
+        ColdpTerm.sex,
+        ColdpTerm.affiliation,
+        ColdpTerm.link
     ));
 
     // Duplicate page debug log (written to the archive directory as a plain TSV)
