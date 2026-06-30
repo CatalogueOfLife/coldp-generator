@@ -113,6 +113,19 @@ public class WikidataDumpReader {
   static final String Q427626 = "Q427626";     // taxonomic rank
   static final String Q13442814 = "Q13442814"; // scholarly article
   static final String Q17362920 = "Q17362920"; // Wikimedia duplicated page
+  static final String Q18609040 = "Q18609040"; // "Wikidata property related to taxa"
+
+  // Taxon-property PIDs (used by Generator.loadTaxonProperties and pass-2 emission)
+  static final String P523  = "P523";  // temporal range start (geological period item)
+  static final String P524  = "P524";  // temporal range end
+  static final String P1034 = "P1034"; // main food source (interaction: eats)
+  static final String P2975 = "P2975"; // has host (interaction)
+  static final String P1605 = "P1605"; // has natural reservoir (interaction)
+  static final String P1606 = "P1606"; // natural reservoir of (interaction, inverse)
+  static final String P2067 = "P2067"; // mass (curated extra)
+  static final String P462  = "P462";  // color (curated extra)
+  static final String P3485 = "P3485"; // bite force quotient (curated extra)
+  static final String P788  = "P788";  // mushroom ecological type (curated extra)
 
   // Data records for lookup maps
   record AreaInfo(String label, String isoCode) {}
@@ -120,6 +133,8 @@ public class WikidataDumpReader {
                  String journalQid, String volume, String issue, String pages) {}
   /** Info about a Wikidata external-identifier property (those that have a formatter URL P1630). */
   record ExtIdInfo(String prefix, String label, String formatterUrl, String formatRegex) {}
+  /** A discovered taxon-describing property: its English label and Wikidata datatype. */
+  record TaxonPropInfo(String label, String datatype) {}
 
   // Lookup maps populated during pass 1
   final Map<String, String> rankLabels = new HashMap<>();
@@ -161,6 +176,12 @@ public class WikidataDumpReader {
   /** Authorship extracted from a taxon's first P225 statement qualifiers. */
   record NameAuthorship(java.util.List<String> authorQids, String year, boolean recombination) {}
   final Map<String, NomRef> nomRefs = new HashMap<>();
+  /** Property PID → info, fetched at startup via SPARQL (Generator.loadTaxonProperties). */
+  final Map<String, TaxonPropInfo> taxonProps = new HashMap<>();
+  /** QID → resolved English label (item-values, units, geological periods). */
+  final Map<String, String> labels = new HashMap<>();
+  /** QIDs whose labels are needed, collected in pass 1, resolved between passes. */
+  final Set<String> neededLabels = new HashSet<>();
 
   /**
    * Stream through the gzipped JSON dump, applying a line-level pre-filter
@@ -630,6 +651,21 @@ public class WikidataDumpReader {
     String year = WikidataMappings.extractYear(getSnakStringValue(q, P574));
     boolean recomb = Q14594740.equals(getSnakItemId(q, P3831));
     return new NameAuthorship(authorQids, year, recomb);
+  }
+
+  /** Amount string of a Wikidata quantity value (e.g. "+250"), or null. */
+  static String quantityAmount(JsonNode value) {
+    if (value == null) return null;
+    return value.path("amount").asText(null);
+  }
+
+  /** Unit QID of a quantity value, or null when dimensionless ("1"/absent). */
+  static String quantityUnitQid(JsonNode value) {
+    if (value == null) return null;
+    String unit = value.path("unit").asText(null);
+    if (unit == null || unit.isBlank() || unit.equals("1")) return null;
+    int slash = unit.lastIndexOf('/');
+    return slash >= 0 ? unit.substring(slash + 1) : unit;
   }
 
   /**

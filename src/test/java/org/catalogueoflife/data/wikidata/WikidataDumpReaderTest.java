@@ -106,4 +106,15 @@ public class WikidataDumpReaderTest {
     assertTrue(out.contains("Q955086"));
     assertTrue(out.contains("Q22114001"));
   }
+
+  @Test
+  public void quantityExtraction() throws Exception {
+    String json = "{\"amount\":\"+250\",\"unit\":\"http://www.wikidata.org/entity/Q11570\"}";
+    assertEquals("+250", WikidataDumpReader.quantityAmount(parse(json)));
+    assertEquals("Q11570", WikidataDumpReader.quantityUnitQid(parse(json)));
+
+    String dimensionless = "{\"amount\":\"+3.5\",\"unit\":\"1\"}";
+    assertEquals("+3.5", WikidataDumpReader.quantityAmount(parse(dimensionless)));
+    assertNull(WikidataDumpReader.quantityUnitQid(parse(dimensionless)));
+  }
 }
