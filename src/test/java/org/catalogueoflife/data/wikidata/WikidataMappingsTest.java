@@ -83,4 +83,19 @@ public class WikidataMappingsTest {
     assertEquals("1758", a.basionymAuthorshipYear());
     assertEquals("(Linnaeus, 1758)", a.flat());
   }
+
+  @Test public void formatQuantity() {
+    assertEquals("250 kilogram", WikidataMappings.formatQuantity("+250", "kilogram"));
+    assertEquals("3.5", WikidataMappings.formatQuantity("+3.5", null));
+    assertEquals("3.5", WikidataMappings.formatQuantity("3.5", ""));
+    assertNull(WikidataMappings.formatQuantity(null, "kilogram"));
+  }
+
+  @Test public void interactionType() {
+    assertEquals("eats", WikidataMappings.interactionType("P1034"));
+    assertEquals("has_host", WikidataMappings.interactionType("P2975"));
+    assertEquals("symbiont_of", WikidataMappings.interactionType("P1605"));
+    assertEquals("host_of", WikidataMappings.interactionType("P1606"));
+    assertNull(WikidataMappings.interactionType("P999"));
+  }
 }
