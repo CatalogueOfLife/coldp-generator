@@ -117,4 +117,22 @@ public class WikidataDumpReaderTest {
     assertEquals("+3.5", WikidataDumpReader.quantityAmount(parse(dimensionless)));
     assertNull(WikidataDumpReader.quantityUnitQid(parse(dimensionless)));
   }
+
+  @Test
+  public void collectPropertyLabelRefs() throws Exception {
+    Map<String, WikidataDumpReader.TaxonPropInfo> tp = new java.util.HashMap<>();
+    tp.put("P2974", new WikidataDumpReader.TaxonPropInfo("habitat", "WikibaseItem"));
+    tp.put("P3063", new WikidataDumpReader.TaxonPropInfo("gestation period", "Quantity"));
+    String json = "{\"id\":\"Q1\",\"claims\":{"
+        + "\"P2974\":[{\"mainsnak\":{\"datavalue\":{\"value\":{\"entity-type\":\"item\",\"id\":\"Q123\"}}}}],"
+        + "\"P3063\":[{\"mainsnak\":{\"datavalue\":{\"value\":{\"amount\":\"+100\",\"unit\":\"http://www.wikidata.org/entity/Q573\"}}}}],"
+        + "\"P523\":[{\"mainsnak\":{\"datavalue\":{\"value\":{\"entity-type\":\"item\",\"id\":\"Q789\"}}}}]"
+        + "}}";
+    java.util.Set<String> out = new java.util.HashSet<>();
+    WikidataDumpReader.collectPropertyLabelRefs(parse(json), tp, out);
+    assertTrue(out.contains("Q123")); // habitat item value
+    assertTrue(out.contains("Q573")); // gestation unit
+    assertTrue(out.contains("Q789")); // temporal period
+    assertEquals(3, out.size());
+  }
 }

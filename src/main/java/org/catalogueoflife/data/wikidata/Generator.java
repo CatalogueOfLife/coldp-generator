@@ -321,6 +321,10 @@ public class Generator extends AbstractColdpGenerator {
       LOG.info("Resolving {} unresolved author QIDs via SPARQL...", reader.neededAuthorQids.size());
       resolveAuthors(reader.neededAuthorQids, reader.authors);
     }
+    if (!reader.neededLabels.isEmpty()) {
+      LOG.info("Resolving {} taxon-property/temporal label QIDs via SPARQL...", reader.neededLabels.size());
+      resolveLabels(reader.neededLabels, reader.labels, false);
+    }
   }
 
   /**

@@ -342,6 +342,7 @@ public class WikidataDumpReader {
     collectSynonymLinks(entity, taxonQid, synonymToAccepted);
     // Collect P405 author QIDs for SPARQL resolution between passes
     collectAuthorRefs(entity, neededAuthorQids);
+    collectPropertyLabelRefs(entity, taxonProps, neededLabels);
 
     // Collect IUCN status QID
     JsonNode iucnVal = getClaimValue(entity, P141);
@@ -657,6 +658,34 @@ public class WikidataDumpReader {
   static String quantityAmount(JsonNode value) {
     if (value == null) return null;
     return value.path("amount").asText(null);
+  }
+
+  /**
+   * Collect QIDs whose labels are needed for taxon-property and temporal-range emission:
+   * item-values of WikibaseItem taxon properties, units of Quantity taxon properties,
+   * and the geological-period values of P523/P524.
+   */
+  static void collectPropertyLabelRefs(JsonNode entity, Map<String, TaxonPropInfo> taxonProps, Set<String> out) {
+    JsonNode claims = entity.path("claims");
+    claims.fieldNames().forEachRemaining(pid -> {
+      TaxonPropInfo info = taxonProps.get(pid);
+      if (info == null) return;
+      for (JsonNode val : getClaimValues(entity, pid)) {
+        if ("WikibaseItem".equals(info.datatype())) {
+          String q = getItemId(val);
+          if (q != null) out.add(q);
+        } else if ("Quantity".equals(info.datatype())) {
+          String u = quantityUnitQid(val);
+          if (u != null) out.add(u);
+        }
+      }
+    });
+    for (String tp : new String[]{P523, P524}) {
+      for (JsonNode val : getClaimValues(entity, tp)) {
+        String q = getItemId(val);
+        if (q != null) out.add(q);
+      }
+    }
   }
 
   /** Unit QID of a quantity value, or null when dimensionless ("1"/absent). */
