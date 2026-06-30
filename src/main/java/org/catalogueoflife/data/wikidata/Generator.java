@@ -86,6 +86,13 @@ public class Generator extends AbstractColdpGenerator {
     return Collections.unmodifiableMap(m);
   }
 
+  // Datatypes we emit as TaxonProperty values; others (ExternalId, CommonsMedia, Url, GeoShape, Time) are skipped.
+  private static final Set<String> TAXON_PROP_DATATYPES =
+      Set.of("WikibaseItem", "Quantity", "String", "Monolingualtext");
+  // PIDs handled specially (temporal range / interactions) — never generic TaxonProperty.
+  private static final Set<String> NON_TAXON_PROP_PIDS =
+      Set.of(P523, P524, P1034, P2975, P1605, P1606);
+
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
     initRankMap();
@@ -255,6 +262,7 @@ public class Generator extends AbstractColdpGenerator {
     File dumpFile = sourceFile(DUMP_FILENAME);
 
     WikidataDumpReader reader = new WikidataDumpReader();
+    loadTaxonProperties(reader);
 
     LOG.info("Starting pass 1: collecting lookup maps...");
     reader.collectLookups(dumpFile, rankMap);
@@ -490,6 +498,44 @@ public class Generator extends AbstractColdpGenerator {
     } catch (Exception e) {
       LOG.warn("Failed to parse SPARQL author results: {}", e.getMessage());
     }
+  }
+
+  static void parseSparqlTaxonProps(String json, Map<String, WikidataDumpReader.TaxonPropInfo> target) {
+    try {
+      JsonNode bindings = mapper.readTree(json).path("results").path("bindings");
+      for (JsonNode b : bindings) {
+        String uri = b.path("p").path("value").asText(null);
+        if (uri == null) continue;
+        String pid = uri.substring(uri.lastIndexOf('/') + 1);
+        if (NON_TAXON_PROP_PIDS.contains(pid)) continue;
+        String typeUri = b.path("pType").path("value").asText("");
+        String datatype = typeUri.substring(typeUri.lastIndexOf('#') + 1);
+        if (!TAXON_PROP_DATATYPES.contains(datatype)) continue;
+        String label = b.path("pLabel").path("value").asText(null);
+        target.put(pid, new WikidataDumpReader.TaxonPropInfo(label, datatype));
+      }
+    } catch (Exception e) {
+      LOG.warn("Failed to parse SPARQL taxon-property results: {}", e.getMessage());
+    }
+  }
+
+  private void loadTaxonProperties(WikidataDumpReader reader) {
+    String sparql = """
+        PREFIX wd: <http://www.wikidata.org/entity/>
+        PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+        SELECT ?p ?pType ?pLabel WHERE {
+          { ?p wdt:P31 wd:Q18609040 } UNION { VALUES ?p { wd:P2067 wd:P462 wd:P3485 wd:P788 } }
+          ?p wikibase:propertyType ?pType .
+          SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+        }
+        """;
+    try {
+      String result = querySparql(sparql);
+      if (result != null) parseSparqlTaxonProps(result, reader.taxonProps);
+    } catch (Exception e) {
+      LOG.warn("Could not load taxon-property set via SPARQL: {}", e.getMessage());
+    }
+    LOG.info("Loaded {} taxon-describing properties", reader.taxonProps.size());
   }
 
   private static String v(JsonNode binding, String key) {
