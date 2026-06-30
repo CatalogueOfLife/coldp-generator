@@ -697,6 +697,49 @@ public class WikidataDumpReader {
     return slash >= 0 ? unit.substring(slash + 1) : unit;
   }
 
+  /** Build [property, value] rows for all taxon-property claims on an entity. */
+  static java.util.List<String[]> taxonPropertyRows(JsonNode entity,
+      Map<String, TaxonPropInfo> taxonProps, Map<String, String> labels) {
+    java.util.List<String[]> rows = new java.util.ArrayList<>();
+    for (var e : taxonProps.entrySet()) {
+      String pid = e.getKey();
+      TaxonPropInfo info = e.getValue();
+      for (JsonNode val : getClaimValues(entity, pid)) {
+        String value = switch (info.datatype()) {
+          case "WikibaseItem" -> {
+            String q = getItemId(val);
+            yield q == null ? null : labels.getOrDefault(q, q);
+          }
+          case "Quantity" -> {
+            String unitQid = quantityUnitQid(val);
+            String unitLabel = unitQid == null ? null : labels.get(unitQid);
+            yield WikidataMappings.formatQuantity(quantityAmount(val), unitLabel);
+          }
+          case "String" -> val.isTextual() ? val.asText(null) : null;
+          case "Monolingualtext" -> val.path("text").asText(null);
+          default -> null;
+        };
+        if (value != null && !value.isBlank() && info.label() != null) {
+          rows.add(new String[]{info.label(), value});
+        }
+      }
+    }
+    return rows;
+  }
+
+  /** Build [type, relatedTaxonID] rows for the interaction properties on an entity. */
+  static java.util.List<String[]> speciesInteractionRows(JsonNode entity) {
+    java.util.List<String[]> rows = new java.util.ArrayList<>();
+    for (String pid : new String[]{P1034, P2975, P1605, P1606}) {
+      String type = WikidataMappings.interactionType(pid);
+      for (JsonNode val : getClaimValues(entity, pid)) {
+        String related = getItemId(val);
+        if (related != null) rows.add(new String[]{type, related});
+      }
+    }
+    return rows;
+  }
+
   /**
    * Derive a short unique CURIE prefix for an external identifier property.
    * Tries to extract a meaningful slug from the formatter URL host, falling back to the PID.

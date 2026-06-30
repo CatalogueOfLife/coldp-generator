@@ -40,6 +40,7 @@ public class Generator extends AbstractColdpGenerator {
   private TermWriter propWriter;
   private TermWriter nameRelWriter;
   private TermWriter mediaWriter;
+  private TermWriter interactionWriter;
   // File[0] = multistream dump, File[1] = multistream index
   private CompletableFuture<File[]> commonsDumpFuture;
   private PrintWriter duplicateLogWriter;
@@ -676,6 +677,7 @@ public class Generator extends AbstractColdpGenerator {
     int[] propCount = {0};
     int[] nameRelCount = {0};
     int[] mediaCount = {0};
+    int[] interCount = {0};
 
     reader.streamDump(dumpFile, line -> line.contains("\"P225\""), entity -> {
       if (!hasClaim(entity, P225)) return;
@@ -700,6 +702,8 @@ public class Generator extends AbstractColdpGenerator {
         distCount[0] += writeInvasiveDistributions(entity, qid, reader);
         distCount[0] += writeTaxonRangeDistributions(entity, qid, reader);
         propCount[0] += writeIucnStatus(entity, qid, reader);
+        propCount[0]  += writeTaxonProperties(entity, qid, reader);
+        interCount[0] += writeSpeciesInteractions(entity, qid);
         nameRelCount[0] += writeNameRelations(entity, qid);
         mediaCount[0]  += writeP18Media(entity, qid);
 
@@ -715,8 +719,8 @@ public class Generator extends AbstractColdpGenerator {
     writeReferences(reader);
     writeAuthors(reader);
 
-    LOG.info("Pass 2 complete: {} taxa ({} synonyms), {} duplicates skipped, {} vernaculars, {} distributions, {} properties, {} name relations, {} references, {} P18 media",
-        taxonCount[0], synCount[0], duplicateCount[0], vernCount[0], distCount[0], propCount[0], nameRelCount[0], writtenRefs.size(), mediaCount[0]);
+    LOG.info("Pass 2 complete: {} taxa ({} synonyms), {} duplicates skipped, {} vernaculars, {} distributions, {} properties, {} name relations, {} references, {} P18 media, {} interactions",
+        taxonCount[0], synCount[0], duplicateCount[0], vernCount[0], distCount[0], propCount[0], nameRelCount[0], writtenRefs.size(), mediaCount[0], interCount[0]);
   }
 
   private void crawlCommonsMedia(File dumpFile, File indexFile, WikidataDumpReader reader) throws Exception {
@@ -936,6 +940,18 @@ public class Generator extends AbstractColdpGenerator {
       writer.set(ColdpTerm.alternativeID, altIdStr);
     }
 
+    // Temporal range (geological period items) → resolved labels
+    JsonNode tStart = getClaimValue(entity, P523);
+    if (tStart != null) {
+      String q = getItemId(tStart);
+      if (q != null) writer.set(ColdpTerm.temporalRangeStart, reader.labels.getOrDefault(q, q));
+    }
+    JsonNode tEnd = getClaimValue(entity, P524);
+    if (tEnd != null) {
+      String q = getItemId(tEnd);
+      if (q != null) writer.set(ColdpTerm.temporalRangeEnd, reader.labels.getOrDefault(q, q));
+    }
+
     writer.next();
   }
 
@@ -1035,6 +1051,30 @@ public class Generator extends AbstractColdpGenerator {
       propWriter.set(ColdpTerm.property, "IUCN");
       propWriter.set(ColdpTerm.value, label);
       propWriter.next();
+      count++;
+    }
+    return count;
+  }
+
+  private int writeTaxonProperties(JsonNode entity, String qid, WikidataDumpReader reader) throws IOException {
+    int count = 0;
+    for (String[] row : WikidataDumpReader.taxonPropertyRows(entity, reader.taxonProps, reader.labels)) {
+      propWriter.set(ColdpTerm.taxonID, qid);
+      propWriter.set(ColdpTerm.property, row[0]);
+      propWriter.set(ColdpTerm.value, row[1]);
+      propWriter.next();
+      count++;
+    }
+    return count;
+  }
+
+  private int writeSpeciesInteractions(JsonNode entity, String qid) throws IOException {
+    int count = 0;
+    for (String[] row : WikidataDumpReader.speciesInteractionRows(entity)) {
+      interactionWriter.set(ColdpTerm.taxonID, qid);
+      interactionWriter.set(ColdpTerm.type, row[0]);
+      interactionWriter.set(ColdpTerm.relatedTaxonID, row[1]);
+      interactionWriter.next();
       count++;
     }
     return count;
@@ -1160,6 +1200,8 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.basionymAuthorship,
         ColdpTerm.basionymAuthorshipID,
         ColdpTerm.basionymAuthorshipYear,
+        ColdpTerm.temporalRangeStart,
+        ColdpTerm.temporalRangeEnd,
         ColdpTerm.originalSpelling,
         ColdpTerm.gender,
         ColdpTerm.link,
@@ -1223,6 +1265,11 @@ public class Generator extends AbstractColdpGenerator {
         ColdpTerm.license,
         ColdpTerm.link,
         ColdpTerm.remarks
+    ));
+    interactionWriter = additionalWriter(ColdpTerm.SpeciesInteraction, List.of(
+        ColdpTerm.taxonID,
+        ColdpTerm.relatedTaxonID,
+        ColdpTerm.type
     ));
     authorWriter = additionalWriter(ColdpTerm.Author, List.of(
         ColdpTerm.ID,
