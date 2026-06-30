@@ -1,6 +1,8 @@
 package org.catalogueoflife.data.wikidata;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /** Pure mapping helpers for the Wikidata generator. No IO so they unit-test. */
 public class WikidataMappings {
@@ -41,6 +43,27 @@ public class WikidataMappings {
       g = g.substring(0, g.length() - family.length()).trim();
     }
     return g.isBlank() ? null : g;
+  }
+
+  record Authorship(String combinationAuthorship, String combinationAuthorshipID,
+                    String combinationAuthorshipYear, String basionymAuthorship,
+                    String basionymAuthorshipID, String basionymAuthorshipYear, String flat) {}
+
+  static Authorship assembleAuthorship(WikidataDumpReader.NameAuthorship na,
+                                       Map<String, WikidataDumpReader.AuthorInfo> authors) {
+    if (na == null || na.authorQids().isEmpty()) return null;
+    List<String> families = new ArrayList<>();
+    for (String qid : na.authorQids()) {
+      WikidataDumpReader.AuthorInfo ai = authors.get(qid);
+      families.add(ai != null && ai.family() != null ? ai.family() : qid);
+    }
+    String fam = joinFamilies(families);
+    String ids = String.join(",", na.authorQids());
+    String flat = flatAuthorship(families, na.year(), na.recombination());
+    if (na.recombination()) {
+      return new Authorship(null, null, null, fam, ids, na.year(), flat);
+    }
+    return new Authorship(fam, ids, na.year(), null, null, null, flat);
   }
 
   static String mapSex(String qid) {

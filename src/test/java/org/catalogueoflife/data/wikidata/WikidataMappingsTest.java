@@ -40,4 +40,40 @@ public class WikidataMappingsTest {
     assertEquals("female", WikidataMappings.mapSex("Q6581072"));
     assertNull(WikidataMappings.mapSex("Q1"));
   }
+
+  private static java.util.Map<String, WikidataDumpReader.AuthorInfo> authorMap() {
+    var m = new java.util.HashMap<String, WikidataDumpReader.AuthorInfo>();
+    m.put("Q1043", new WikidataDumpReader.AuthorInfo("Carl", "Linnaeus", "L.", "1707", "1778", "SE", "male", null, null));
+    m.put("Q955086", new WikidataDumpReader.AuthorInfo(null, "Gertsch", null, null, null, null, null, null, null));
+    m.put("Q22114001", new WikidataDumpReader.AuthorInfo(null, "Mulaik", null, null, null, null, null, null, null));
+    return m;
+  }
+
+  @Test public void assembleOriginalSingle() {
+    var na = new WikidataDumpReader.NameAuthorship(java.util.List.of("Q1043"), "1753", false);
+    var a = WikidataMappings.assembleAuthorship(na, authorMap());
+    assertEquals("Linnaeus", a.combinationAuthorship());
+    assertEquals("Q1043", a.combinationAuthorshipID());
+    assertEquals("1753", a.combinationAuthorshipYear());
+    assertNull(a.basionymAuthorship());
+    assertEquals("Linnaeus, 1753", a.flat());
+  }
+
+  @Test public void assembleOriginalMulti() {
+    var na = new WikidataDumpReader.NameAuthorship(java.util.List.of("Q955086", "Q22114001"), "1940", false);
+    var a = WikidataMappings.assembleAuthorship(na, authorMap());
+    assertEquals("Gertsch & Mulaik", a.combinationAuthorship());
+    assertEquals("Q955086,Q22114001", a.combinationAuthorshipID());
+    assertEquals("Gertsch & Mulaik, 1940", a.flat());
+  }
+
+  @Test public void assembleRecombination() {
+    var na = new WikidataDumpReader.NameAuthorship(java.util.List.of("Q1043"), "1758", true);
+    var a = WikidataMappings.assembleAuthorship(na, authorMap());
+    assertNull(a.combinationAuthorship());
+    assertEquals("Linnaeus", a.basionymAuthorship());
+    assertEquals("Q1043", a.basionymAuthorshipID());
+    assertEquals("1758", a.basionymAuthorshipYear());
+    assertEquals("(Linnaeus, 1758)", a.flat());
+  }
 }
