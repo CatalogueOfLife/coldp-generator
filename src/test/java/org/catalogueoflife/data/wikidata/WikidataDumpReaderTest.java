@@ -91,4 +91,19 @@ public class WikidataDumpReaderTest {
     assertEquals("1940", na.year());
     assertFalse(na.recombination());
   }
+
+  @Test
+  public void collectAuthorRefs() throws Exception {
+    String json = "{"
+        + "\"id\":\"Q284352\",\"claims\":{\"P225\":[{"
+        + "  \"mainsnak\":{\"datavalue\":{\"value\":\"Loxosceles reclusa\"}},"
+        + "  \"qualifiers\":{\"P405\":["
+        + "    {\"datavalue\":{\"value\":{\"entity-type\":\"item\",\"id\":\"Q955086\"}}},"
+        + "    {\"datavalue\":{\"value\":{\"entity-type\":\"item\",\"id\":\"Q22114001\"}}}]}}]}}";
+    java.util.Set<String> out = new java.util.HashSet<>();
+    WikidataDumpReader.collectAuthorRefs(parse(json), out);
+    assertEquals(2, out.size());
+    assertTrue(out.contains("Q955086"));
+    assertTrue(out.contains("Q22114001"));
+  }
 }

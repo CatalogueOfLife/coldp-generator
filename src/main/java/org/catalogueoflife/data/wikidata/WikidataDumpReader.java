@@ -319,6 +319,8 @@ public class WikidataDumpReader {
 
     // Record synonym → accepted links from P1420 (declared on the accepted name)
     collectSynonymLinks(entity, taxonQid, synonymToAccepted);
+    // Collect P405 author QIDs for SPARQL resolution between passes
+    collectAuthorRefs(entity, neededAuthorQids);
 
     // Collect IUCN status QID
     JsonNode iucnVal = getClaimValue(entity, P141);
@@ -505,6 +507,12 @@ public class WikidataDumpReader {
         out.put(synonymQid, acceptedQid);
       }
     }
+  }
+
+  /** Collect P405 author QIDs of a taxon into {@code out} (for later SPARQL resolution). */
+  static void collectAuthorRefs(JsonNode entity, Set<String> out) {
+    NameAuthorship na = extractAuthorship(entity);
+    if (na != null) out.addAll(na.authorQids());
   }
 
   /**
