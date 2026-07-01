@@ -50,6 +50,9 @@ public class Generator extends AbstractColdpGenerator {
   private final Set<String> usedExtIdPids  = new HashSet<>();
   private TermWriter authorWriter;
   private final Set<String> usedAuthorQids = new HashSet<>();
+  // P18 representative images (qid → Commons filename). Written after the Commons crawl so their
+  // metadata (title/creator/date/license/description) can be looked up in the same Commons dump.
+  private final Map<String, String> p18Files = new LinkedHashMap<>();
 
   // Maps for nom status (P1135) and gender (P2433) QIDs — resolved during pass 1 / SPARQL
   // Key: Wikidata label (lowercase) → ColDP nameStatus value
@@ -288,7 +291,12 @@ public class Generator extends AbstractColdpGenerator {
     try {
       commonsFiles = commonsDumpFuture.get();
     } catch (ExecutionException e) {
-      LOG.error("Commons dump download failed, skipping media gallery phase", e.getCause());
+      // Without the Commons dump we cannot enrich media, but still emit the P18 images
+      // (URL/type/link only) so representative taxon images are not lost entirely.
+      LOG.error("Commons dump download failed, writing P18 media without metadata and skipping galleries",
+          e.getCause());
+      int[] c = writeP18MediaRecords(null, new HashSet<>());
+      LOG.info("Wrote {} P18 media records without metadata", c[0]);
       return;
     }
     crawlCommonsMedia(commonsFiles[0], commonsFiles[1], reader);
@@ -728,7 +736,7 @@ public class Generator extends AbstractColdpGenerator {
         propCount[0]  += writeTaxonProperties(entity, qid, reader);
         interCount[0] += writeSpeciesInteractions(entity, qid);
         nameRelCount[0] += writeNameRelations(entity, qid);
-        mediaCount[0]  += writeP18Media(entity, qid);
+        mediaCount[0]  += collectP18Media(entity, qid);
 
         if (taxonCount[0] % 100_000 == 0) {
           LOG.info("Pass 2: {} taxa ({} synonyms), {} duplicates skipped, {} vernaculars, {} distributions, {} properties, {} name relations",
@@ -742,14 +750,54 @@ public class Generator extends AbstractColdpGenerator {
     writeReferences(reader);
     writeAuthors(reader);
 
-    LOG.info("Pass 2 complete: {} taxa ({} synonyms), {} duplicates skipped, {} vernaculars, {} distributions, {} properties, {} name relations, {} references, {} P18 media, {} interactions",
+    LOG.info("Pass 2 complete: {} taxa ({} synonyms), {} duplicates skipped, {} vernaculars, {} distributions, {} properties, {} name relations, {} references, {} P18 images collected, {} interactions",
         taxonCount[0], synCount[0], duplicateCount[0], vernCount[0], distCount[0], propCount[0], nameRelCount[0], writtenRefs.size(), mediaCount[0], interCount[0]);
+  }
+
+  /**
+   * Writes one Media record per collected P18 representative image, enriched with metadata from
+   * the given Commons file-metadata map when available (may be {@code null} if the Commons dump
+   * was unavailable). Returns {@code [recordsWritten, recordsEnriched]}.
+   */
+  private int[] writeP18MediaRecords(Map<String, CommonsXmlDumpReader.FileMetadata> fileMeta,
+                                     Set<String> writtenUrls) throws IOException {
+    int count = 0, enriched = 0;
+    for (var e : p18Files.entrySet()) {
+      String qid  = e.getKey();
+      String norm = e.getValue().replace(' ', '_');
+      String url  = "https://commons.wikimedia.org/wiki/Special:FilePath/" + norm;
+      if (!writtenUrls.add(qid + "\t" + url)) continue;
+      CommonsXmlDumpReader.FileMetadata meta = fileMeta == null ? null
+          : fileMeta.get(e.getValue().replace('_', ' '));
+      String mime = CommonsXmlDumpReader.mimeFromFilename(norm);
+      mediaWriter.set(ColdpTerm.taxonID, qid);
+      mediaWriter.set(ColdpTerm.url,     url);
+      mediaWriter.set(ColdpTerm.type,    mime != null ? CommonsXmlDumpReader.typeFromMime(mime) : "image");
+      mediaWriter.set(ColdpTerm.format,  mime);
+      mediaWriter.set(ColdpTerm.link,    "https://commons.wikimedia.org/wiki/File:" + norm);
+      if (meta != null) {
+        mediaWriter.set(ColdpTerm.title,   meta.title());
+        mediaWriter.set(ColdpTerm.created, meta.created());
+        mediaWriter.set(ColdpTerm.creator, meta.creator());
+        mediaWriter.set(ColdpTerm.license, meta.license());
+        mediaWriter.set(ColdpTerm.remarks, meta.remarks());
+        enriched++;
+      }
+      mediaWriter.next();
+      count++;
+    }
+    return new int[]{count, enriched};
   }
 
   private void crawlCommonsMedia(File dumpFile, File indexFile, WikidataDumpReader reader) throws Exception {
     Set<String> galleryNames = new HashSet<>(reader.galleryNames.values());
-    LOG.info("Commons: {} gallery names to resolve; using {} threads for parallel decompression",
-        galleryNames.size(), CommonsXmlDumpReader.DEFAULT_THREADS);
+    // Seed the Commons file-metadata lookup with the P18 representative images too, so their
+    // File: pages are parsed and we can enrich them with title/creator/date/license/description.
+    // File: page titles use the space form of the filename, matching parseGalleryFiles output.
+    Set<String> p18Needed = new HashSet<>();
+    for (String fn : p18Files.values()) p18Needed.add(fn.replace('_', ' '));
+    LOG.info("Commons: {} gallery names + {} P18 images to resolve; using {} threads for parallel decompression",
+        galleryNames.size(), p18Needed.size(), CommonsXmlDumpReader.DEFAULT_THREADS);
 
     Map<String, List<String>> galleryFiles = new LinkedHashMap<>();
     Map<String, CommonsXmlDumpReader.FileMetadata> fileMeta = new HashMap<>();
@@ -758,13 +806,19 @@ public class Generator extends AbstractColdpGenerator {
         indexFile,
         CommonsXmlDumpReader.DEFAULT_THREADS,
         galleryNames,
+        p18Needed,
         galleryFiles::put,
         fileMeta::put
     );
 
-    // Write Media records: taxon → gallery → files → metadata
-    int count = 0;
-    Set<String> writtenUrls = new HashSet<>(); // dedup vs P18 records
+    Set<String> writtenUrls = new HashSet<>(); // dedup across P18 + gallery per taxon
+
+    // P18 representative images first, now enriched with metadata from their File: pages.
+    int[] p18 = writeP18MediaRecords(fileMeta, writtenUrls);
+    int count = p18[0];
+    int p18WithMeta = p18[1];
+
+    // Gallery files (P935), deduped against the P18 records already written for the same taxon.
     for (var e : reader.galleryNames.entrySet()) {
       String qid = e.getKey();
       List<String> files = galleryFiles.get(e.getValue());
@@ -791,8 +845,8 @@ public class Generator extends AbstractColdpGenerator {
         count++;
       }
     }
-    LOG.info("Commons media: {} records from {} galleries ({} files with metadata)",
-        count, galleryFiles.size(), fileMeta.size());
+    LOG.info("Commons media: {} records ({} P18 images, {} of them enriched) from {} galleries ({} files with metadata)",
+        count, p18Files.size(), p18WithMeta, galleryFiles.size(), fileMeta.size());
   }
 
   private void writeNameUsage(JsonNode entity, String qid, WikidataDumpReader reader) throws IOException {
@@ -1122,22 +1176,14 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   /**
-   * Writes a col:Media record for the P18 (image) property of a taxon.
-   * The Commons filename is available directly from the Wikidata dump — no HTTP calls needed.
-   * URL format: https://commons.wikimedia.org/wiki/Special:FilePath/{filename}
+   * Records the P18 (image) Commons filename of a taxon for later emission. The Media record
+   * itself is written in {@link #crawlCommonsMedia} once the Commons dump has been streamed, so
+   * the image's title/creator/date/license/description can be filled from its File: page.
    */
-  private int writeP18Media(JsonNode entity, String qid) throws IOException {
+  private int collectP18Media(JsonNode entity, String qid) {
     String filename = getStringClaimValue(entity, P18);
     if (filename == null) return 0;
-    // MediaWiki convention: spaces → underscores in URLs
-    String normalized = filename.replace(' ', '_');
-    String url  = "https://commons.wikimedia.org/wiki/Special:FilePath/" + normalized;
-    String link = "https://commons.wikimedia.org/wiki/File:" + normalized;
-    mediaWriter.set(ColdpTerm.taxonID, qid);
-    mediaWriter.set(ColdpTerm.url, url);
-    mediaWriter.set(ColdpTerm.type, "image");
-    mediaWriter.set(ColdpTerm.link, link);
-    mediaWriter.next();
+    p18Files.put(qid, filename);
     return 1;
   }
 

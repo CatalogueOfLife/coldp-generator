@@ -248,12 +248,18 @@ public class CommonsXmlDumpReader {
    *   <li>Phase 2 — process streams containing ns=6 file pages; emit file metadata.
    * </ol>
    *
-   * @param indexFile  the companion {@code …-multistream-index.txt.bz2} file
-   * @param numThreads number of parallel decompression/parse threads
+   * @param indexFile        the companion {@code …-multistream-index.txt.bz2} file
+   * @param numThreads       number of parallel decompression/parse threads
+   * @param galleryNames     ns=0 gallery page titles to resolve into file lists
+   * @param extraNeededFiles additional File: names (space form) whose metadata is wanted even if
+   *                         no gallery references them — e.g. P18 representative images
+   * @param galleryHandler   receives (galleryName, list-of-filenames)
+   * @param fileHandler      receives (filename, FileMetadata)
    */
   public void streamAllParallel(File indexFile,
                                  int numThreads,
                                  Set<String> galleryNames,
+                                 Set<String> extraNeededFiles,
                                  BiConsumer<String, List<String>> galleryHandler,
                                  BiConsumer<String, FileMetadata> fileHandler) throws Exception {
     LOG.info("Commons parallel: parsing index from {}", indexFile.getName());
@@ -274,6 +280,7 @@ public class CommonsXmlDumpReader {
       LOG.info("Commons parallel phase 1: submitted {} tasks", phase1.size());
 
       Set<String> neededFiles = new HashSet<>();
+      if (extraNeededFiles != null) neededFiles.addAll(extraNeededFiles);
       long galleryCount = 0;
       for (int i = 0; i < phase1.size(); i++) {
         for (ParsedPage page : phase1.get(i).get()) {
@@ -556,18 +563,37 @@ public class CommonsXmlDumpReader {
   }
 
   /**
-   * Extracts the value of a named field from an {{Information|field=value|…}} template.
-   * Handles multiline values.
+   * Extracts the value of a named field from an {@code {{Information|field=value|…}}} template.
+   *
+   * <p>Scans from {@code |field=} to the end of the value while tracking {@code {{…}}} template
+   * and {@code [[…]]} link nesting, so the value terminates only at a top-level {@code |} (next
+   * field) or {@code }}} (template close) — never at the closing braces of a nested template such
+   * as {@code {{en|…}}} (a very common description wrapper) or a piped {@code [[link|text]]}.
+   * Handles both single-line and multiline templates.
    */
   static String extractTemplateField(String text, String field) {
-    Pattern p = Pattern.compile(
-        "\\|\\s*" + Pattern.quote(field) + "\\s*=\\s*(.*?)(?=\\n\\s*\\||\\}\\})",
-        Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-    Matcher m = p.matcher(text);
-    if (m.find()) {
-      return m.group(1).trim();
+    Pattern key = Pattern.compile("\\|\\s*" + Pattern.quote(field) + "\\s*=", Pattern.CASE_INSENSITIVE);
+    Matcher m = key.matcher(text);
+    if (!m.find()) return null;
+
+    int i = m.end(), n = text.length();
+    int braces = 0, brackets = 0;
+    StringBuilder sb = new StringBuilder();
+    while (i < n) {
+      char c = text.charAt(i);
+      char d = i + 1 < n ? text.charAt(i + 1) : '\0';
+      if (c == '{' && d == '{')      { braces++;   sb.append("{{"); i += 2; }
+      else if (c == '}' && d == '}') {
+        if (braces == 0) break;               // closes the enclosing template
+        braces--; sb.append("}}"); i += 2;
+      }
+      else if (c == '[' && d == '[') { brackets++; sb.append("[["); i += 2; }
+      else if (c == ']' && d == ']') { if (brackets > 0) brackets--; sb.append("]]"); i += 2; }
+      else if (c == '|' && braces == 0 && brackets == 0) break; // next field
+      else { sb.append(c); i++; }
     }
-    return null;
+    String v = sb.toString().trim();
+    return v.isEmpty() ? null : v;
   }
 
   /**
@@ -581,7 +607,8 @@ public class CommonsXmlDumpReader {
     String first = null;
     while (m.find()) {
       String lang = m.group(1).toLowerCase();
-      String content = m.group(2).trim();
+      // Drop a leading numbered/named parameter, e.g. {{en|1=A tiger…}} → "A tiger…".
+      String content = m.group(2).replaceFirst("^\\s*\\d+\\s*=\\s*", "").trim();
       if (first == null) first = content;
       if (lang.equals("en")) return content;
     }
@@ -601,22 +628,43 @@ public class CommonsXmlDumpReader {
     return value;
   }
 
-  /** Returns the short name of the first recognized license template found in the page text. */
+  /**
+   * Returns the short name of the first recognized license found in the page text.
+   * License tokens appear either as standalone templates ({@code {{cc-by-sa-4.0}}}) or as the
+   * arguments of a {@code {{self|…}}} template ({@code {{self|cc-by-sa-4.0|author=…}}}), the most
+   * common self-published form on Commons — both are considered.
+   */
   static String findLicense(String text) {
-    Pattern licPat = Pattern.compile("\\{\\{\\s*([^|}\\n]+?)\\s*(?:\\|[^}]*)?\\}\\}");
-    Matcher m = licPat.matcher(text);
-    while (m.find()) {
-      String tname = m.group(1).trim();
-      String upper = tname.toUpperCase();
-      if (upper.startsWith("CC-BY-SA")   || upper.startsWith("CC BY-SA"))  return normLicense("CC BY-SA", tname);
-      if (upper.startsWith("CC-BY")      || upper.startsWith("CC BY"))     return normLicense("CC BY",    tname);
-      if (upper.startsWith("CC0")        || upper.startsWith("CC-ZERO")
-                                         || upper.startsWith("CC ZERO"))   return "CC0";
-      if (upper.startsWith("GFDL"))                                        return "GFDL";
-      if (upper.startsWith("FAL"))                                         return "FAL";
-      if (upper.startsWith("PD-"))                                         return tname;
-      if (upper.startsWith("PUBLIC DOMAIN"))                               return "PD";
+    // Candidate tokens: self-template arguments first (higher priority), then all template names.
+    List<String> candidates = new ArrayList<>();
+    Matcher self = Pattern.compile("(?is)\\{\\{\\s*self\\s*\\|([^{}]*)\\}\\}").matcher(text);
+    while (self.find()) {
+      for (String arg : self.group(1).split("\\|")) {
+        arg = arg.trim();
+        if (!arg.isEmpty() && !arg.contains("=")) candidates.add(arg); // skip author=…/attribution=… named args
+      }
     }
+    Matcher m = Pattern.compile("\\{\\{\\s*([^|}\\n]+?)\\s*(?:\\|[^}]*)?\\}\\}").matcher(text);
+    while (m.find()) candidates.add(m.group(1).trim());
+
+    for (String tname : candidates) {
+      String lic = matchLicense(tname);
+      if (lic != null) return lic;
+    }
+    return null;
+  }
+
+  /** Maps a single license template/argument token to a normalized license short name, or null. */
+  private static String matchLicense(String tname) {
+    String upper = tname.toUpperCase();
+    if (upper.startsWith("CC-BY-SA")   || upper.startsWith("CC BY-SA"))  return normLicense("CC BY-SA", tname);
+    if (upper.startsWith("CC-BY")      || upper.startsWith("CC BY"))     return normLicense("CC BY",    tname);
+    if (upper.startsWith("CC0")        || upper.startsWith("CC-ZERO")
+                                       || upper.startsWith("CC ZERO"))   return "CC0";
+    if (upper.startsWith("GFDL"))                                        return "GFDL";
+    if (upper.startsWith("FAL"))                                         return "FAL";
+    if (upper.startsWith("PD-"))                                         return tname;
+    if (upper.startsWith("PUBLIC DOMAIN"))                               return "PD";
     return null;
   }
 

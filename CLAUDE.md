@@ -241,7 +241,7 @@ Dumps are stored under `{sourceDir}/wikidata/` (default: `/tmp/coldp-generator-s
 **Pass 2** (`emitColdpRecords`): streams again (filter: `"P225"`) and emits ColDP records:
 - Skips entities with P31=Q17362920 (Wikimedia duplicated pages) — logs them to `wikidata-duplicates.tsv`.
 - Writes `NameUsage` (accepted + synonyms via P1420), `VernacularName`, `Distribution`, `TaxonProperty`, `NameRelation`, `Reference`.
-- Writes one `Media` record per taxon for P18 (representative image) directly from the dump — no HTTP calls.
+- Collects the P18 (representative image) Commons filename per taxon during pass 2; the `Media` record is written later by `crawlCommonsMedia`, enriched with title/creator/date/license/description from the image's Commons File: page (no HTTP calls — the File: filenames are seeded into the same Commons-dump metadata lookup used for galleries). If the Commons dump is unavailable, P18 images are still emitted with url/type/link only.
 
 #### Property mapping
 
@@ -263,7 +263,7 @@ Dumps are stored under `{sourceDir}/wikidata/` (default: `/tmp/coldp-generator-s
 | P5588 | Distribution establishmentMeans=invasive | |
 | P9714 | Distribution establishmentMeans=native | |
 | sitelinks.enwiki | remarks (Wikipedia URL) | |
-| P18 | Media.url (representative image) | filename → Special:FilePath URL |
+| P18 | Media (representative image) | filename → Special:FilePath URL; title/creator/created/license/remarks enriched from the Commons File: page |
 | all P entities with P1630 | alternativeID (CURIEs) | dynamically discovered |
 
 ##### CURIE prefixes (identifier scopes)
@@ -273,7 +273,7 @@ The CURIE prefix for each external-identifier property is the ChecklistBank **id
 - `NameRelation.tsv` — replacement name relations (P694)
 - `wikidata-duplicates.tsv` — skipped duplicate-page entities
 - `identifier-registry.tsv` — all discovered external identifier properties with CURIE prefix (CLB scope or auto-derived), formatter URL, format regex
-- `Media.tsv` — taxon images from P18 (one per taxon, from Wikidata dump) plus full gallery images from the Commons dump
+- `Media.tsv` — taxon images from P18 (one per taxon; filename from the Wikidata dump, metadata from the Commons File: page) plus full gallery images from the Commons dump
 
 #### Wikimedia Commons dump processing
 
@@ -283,7 +283,7 @@ The CURIE prefix for each external-identifier property is the ChecklistBank **id
 - **Commons pass A** (`streamGalleryPages`): namespace-0 pages → builds `Map<galleryName, List<filename>>` for all taxa with P935 gallery names
 - **Commons pass B** (`streamFilePages`): namespace-6 File: pages → builds `Map<filename, FileMetadata>` for the needed files
 
-File metadata is parsed from `{{Information|description=...|date=...|author=...}}` templates and the first recognized license template. MIME type and media type are derived from the file extension. Fields written: `url` (`Special:FilePath/{filename}`), `type`, `format`, `title`, `created`, `creator`, `license`, `link` (`File:{filename}`), `remarks`. P18 records (one per taxon) are also included; duplicates by URL within a taxon are suppressed.
+File metadata is parsed from `{{Information|description=...|date=...|author=...}}` templates and the first recognized license. `extractTemplateField` scans with `{{…}}`/`[[…]]` nesting awareness so `{{en|1=…}}`-wrapped descriptions and `[[link|text]]` authors are captured whole (a plain regex truncated them at the inner `}}`). License detection recognises both standalone license templates and the common `{{self|cc-by-sa-4.0|author=…}}` form (license read from the self-template argument). MIME type and media type are derived from the file extension. Fields written: `url` (`Special:FilePath/{filename}`), `type`, `format`, `title`, `created`, `creator`, `license`, `link` (`File:{filename}`), `remarks`. P18 records (one per taxon) are written first and share a per-taxon URL dedup set with the gallery records.
 
 ## Notes
 
