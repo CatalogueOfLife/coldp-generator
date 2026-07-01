@@ -6,6 +6,7 @@ import life.catalogue.common.io.TermWriter;
 import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.catalogueoflife.data.utils.AltIdBuilder;
+import org.catalogueoflife.data.utils.HttpException;
 
 import java.io.*;
 import java.net.URI;
@@ -554,13 +555,35 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   private String querySparql(String sparql) throws IOException {
-    try {
-      URI uri = URI.create("https://query.wikidata.org/sparql?format=json&query=" +
-          java.net.URLEncoder.encode(sparql, "UTF-8"));
-      return http.get(uri, Map.of("Accept", "application/sparql-results+json"));
-    } catch (Exception e) {
-      LOG.warn("SPARQL query failed: {}", e.getMessage());
-      return null;
+    URI uri = URI.create("https://query.wikidata.org/sparql?format=json&query=" +
+        java.net.URLEncoder.encode(sparql, "UTF-8"));
+    Map<String, String> header = Map.of("Accept", "application/sparql-results+json");
+    int maxAttempts = 4;
+    for (int attempt = 1; ; attempt++) {
+      try {
+        return http.get(uri, header);
+      } catch (HttpException e) {
+        // Wikidata's query service commonly returns transient 5xx/429 under load;
+        // retry with backoff rather than dropping the whole batch of QIDs.
+        boolean retryable = e.status == 429 || (e.status >= 500 && e.status < 600);
+        if (retryable && attempt < maxAttempts) {
+          long waitMs = 2000L * attempt;
+          LOG.warn("SPARQL query HTTP {} (attempt {}/{}), retrying in {}s",
+              e.status, attempt, maxAttempts, waitMs / 1000);
+          try {
+            Thread.sleep(waitMs);
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            return null;
+          }
+          continue;
+        }
+        LOG.warn("SPARQL query failed: HTTP {}", e.status);
+        return null;
+      } catch (Exception e) {
+        LOG.warn("SPARQL query failed: {}", e.getMessage());
+        return null;
+      }
     }
   }
 
