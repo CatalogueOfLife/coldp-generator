@@ -697,7 +697,7 @@ public class WikidataDumpReader {
     return slash >= 0 ? unit.substring(slash + 1) : unit;
   }
 
-  /** Build [property, value] rows for all taxon-property claims on an entity. */
+  /** Build [property, value, pid] rows for all taxon-property claims on an entity. */
   static java.util.List<String[]> taxonPropertyRows(JsonNode entity,
       Map<String, TaxonPropInfo> taxonProps, Map<String, String> labels) {
     java.util.List<String[]> rows = new java.util.ArrayList<>();
@@ -723,7 +723,7 @@ public class WikidataDumpReader {
           default -> null;
         };
         if (value != null && !value.isBlank() && info.label() != null) {
-          rows.add(new String[]{info.label(), value});
+          rows.add(new String[]{info.label(), value, pid});
         }
       }
     }

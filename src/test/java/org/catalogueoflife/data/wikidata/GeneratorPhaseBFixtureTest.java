@@ -21,9 +21,9 @@ public class GeneratorPhaseBFixtureTest {
         + "}}";
     List<String[]> rows = WikidataDumpReader.taxonPropertyRows(M.readTree(json), tp, labels);
     Set<String> got = new HashSet<>();
-    for (String[] r : rows) got.add(r[0] + "=" + r[1]);
-    assertTrue(got.contains("habitat=forest"));
-    assertTrue(got.contains("mass=250 kilogram"));
+    for (String[] r : rows) got.add(r[0] + "=" + r[1] + "@" + r[2]);
+    assertTrue(got.contains("habitat=forest@P2974"));
+    assertTrue(got.contains("mass=250 kilogram@P2067"));
     assertEquals(2, rows.size());
   }
 

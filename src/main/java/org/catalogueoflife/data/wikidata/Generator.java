@@ -94,9 +94,33 @@ public class Generator extends AbstractColdpGenerator {
   // Datatypes we emit as TaxonProperty values; others (ExternalId, CommonsMedia, Url, GeoShape, Time) are skipped.
   private static final Set<String> TAXON_PROP_DATATYPES =
       Set.of("WikibaseItem", "Quantity", "String", "Monolingualtext");
-  // PIDs handled specially (temporal range / interactions) — never generic TaxonProperty.
-  private static final Set<String> NON_TAXON_PROP_PIDS =
-      Set.of(P523, P524, P1034, P2975, P1605, P1606);
+  // PIDs that already map to a dedicated ColDP field or record — never re-emit them as a generic
+  // TaxonProperty, or the same fact would appear twice (e.g. "taxon name" duplicating scientificName,
+  // "parent taxon" duplicating parentID) and often lose structure (language, area, relation type).
+  private static final Set<String> NON_TAXON_PROP_PIDS = Set.of(
+      // NameUsage core fields
+      P225,   // taxon name        → scientificName
+      P105,   // taxon rank        → rank
+      P171,   // parent taxon      → parentID
+      P835,   // author citation   → authorship
+      P405,   // taxon author item → authorship
+      P566,   // basionym          → basionymID
+      P1403,  // original combination → basionymID
+      P1420,  // taxon synonym     → synonymy
+      P574,   // year of publication → publishedInYear
+      P1353,  // original combination → originalSpelling
+      P1135,  // nomenclatural status → nameStatus
+      P2433,  // gender            → gender
+      P3831,  // recombination flag (qualifier)
+      // dedicated records
+      P1843,  // taxon common name → VernacularName
+      P5588,  // invasive to       → Distribution
+      P9714,  // taxon range       → Distribution
+      P141,   // IUCN status       → IUCN TaxonProperty (written explicitly)
+      P18,    // image             → Media
+      P694,   // replaced synonym  → NameRelation
+      // temporal range + species interactions (handled specially elsewhere)
+      P523, P524, P1034, P2975, P1605, P1606);
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
@@ -734,7 +758,7 @@ public class Generator extends AbstractColdpGenerator {
         distCount[0] += writeTaxonRangeDistributions(entity, qid, reader);
         propCount[0] += writeIucnStatus(entity, qid, reader);
         propCount[0]  += writeTaxonProperties(entity, qid, reader);
-        interCount[0] += writeSpeciesInteractions(entity, qid);
+        interCount[0] += writeSpeciesInteractions(entity, qid, reader);
         nameRelCount[0] += writeNameRelations(entity, qid);
         mediaCount[0]  += collectP18Media(entity, qid);
 
@@ -1127,6 +1151,7 @@ public class Generator extends AbstractColdpGenerator {
       propWriter.set(ColdpTerm.taxonID, qid);
       propWriter.set(ColdpTerm.property, "IUCN");
       propWriter.set(ColdpTerm.value, label);
+      propWriter.set(ColdpTerm.remarks, "Wikidata property " + P141);
       propWriter.next();
       count++;
     }
@@ -1139,22 +1164,43 @@ public class Generator extends AbstractColdpGenerator {
       propWriter.set(ColdpTerm.taxonID, qid);
       propWriter.set(ColdpTerm.property, row[0]);
       propWriter.set(ColdpTerm.value, row[1]);
+      propWriter.set(ColdpTerm.remarks, "Wikidata property " + row[2]);
       propWriter.next();
       count++;
     }
     return count;
   }
 
-  private int writeSpeciesInteractions(JsonNode entity, String qid) throws IOException {
+  private int writeSpeciesInteractions(JsonNode entity, String qid, WikidataDumpReader reader) throws IOException {
+    // ColDP requires both sides of a SpeciesInteraction to be accepted taxa. When either the
+    // subject or the related taxon is a synonym, resolve it to its accepted name.
+    String subjectId = resolveAccepted(qid, reader);
     int count = 0;
     for (String[] row : WikidataDumpReader.speciesInteractionRows(entity)) {
-      interactionWriter.set(ColdpTerm.taxonID, qid);
+      interactionWriter.set(ColdpTerm.taxonID, subjectId);
       interactionWriter.set(ColdpTerm.type, row[0]);
-      interactionWriter.set(ColdpTerm.relatedTaxonID, row[1]);
+      interactionWriter.set(ColdpTerm.relatedTaxonID, resolveAccepted(row[1], reader));
       interactionWriter.next();
       count++;
     }
     return count;
+  }
+
+  /**
+   * Resolves a taxon QID to its accepted name. If the QID is a synonym (present in
+   * {@code synonymToAccepted}) it is replaced by its accepted taxon, following synonym chains
+   * defensively (though ColDP synonyms should never chain). Returns the input unchanged when it is
+   * already accepted or unknown.
+   */
+  private String resolveAccepted(String qid, WikidataDumpReader reader) {
+    if (qid == null) return null;
+    String current = qid;
+    for (int i = 0; i < 10; i++) {
+      String accepted = reader.synonymToAccepted.get(current);
+      if (accepted == null || accepted.equals(current)) break;
+      current = accepted;
+    }
+    return current;
   }
 
   /**
@@ -1299,7 +1345,8 @@ public class Generator extends AbstractColdpGenerator {
     propWriter = additionalWriter(ColdpTerm.TaxonProperty, List.of(
         ColdpTerm.taxonID,
         ColdpTerm.property,
-        ColdpTerm.value
+        ColdpTerm.value,
+        ColdpTerm.remarks
     ));
     nameRelWriter = additionalWriter(ColdpTerm.NameRelation, List.of(
         ColdpTerm.nameID,
