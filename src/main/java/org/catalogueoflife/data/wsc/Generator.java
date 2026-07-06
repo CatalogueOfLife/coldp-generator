@@ -40,6 +40,10 @@ public class Generator extends AbstractColdpGenerator {
   private static final Pattern LSID_PATTERN = Pattern.compile("nmbe.ch:spider(sp|gen|fam):([0-9]+)");
   private static final String ERROR = "error: ";
   static final Pattern yearSuffix = Pattern.compile("(\\d+)[abcdefg]$");
+  // any 4-digit year already present in the WSC author string (e.g. recombinations "(Simon, 1902)")
+  private static final Pattern AUTHOR_HAS_YEAR = Pattern.compile("\\d{4}");
+  // leading publication year in a WSC reference citation, e.g. "Clerck, C. (1757)." or "Simon, E. (1898i)."
+  private static final Pattern REF_YEAR = Pattern.compile("\\((\\d{4})[a-z]?\\)");
   private final String apiKey;
   private final File json;
   private final Set<String> higherLSIDs = new HashSet<>();
@@ -165,7 +169,8 @@ public class Generator extends AbstractColdpGenerator {
             writer.set(ColdpTerm.ID, tax.taxon.lsid);
             writer.set(ColdpTerm.link, link(tax.taxon.lsid));
             writer.set(ColdpTerm.rank, tax.taxon.taxonRank);
-            writer.set(ColdpTerm.authorship, tax.taxon.author);
+            writer.set(ColdpTerm.authorship, authorship(tax.taxon.author,
+                tax.taxon.referenceObject == null ? null : tax.taxon.referenceObject.reference));
             if (tax.taxon.taxonRank.equalsIgnoreCase("family")) {
               LOG.debug("{}: {} {}", tax.taxon.lsid, tax.taxon.family, tax.taxon.author);
               writer.set(ColdpTerm.uninomial, tax.taxon.family);
@@ -225,6 +230,27 @@ public class Generator extends AbstractColdpGenerator {
         }
       }
     }
+  }
+
+  /**
+   * The WSC API omits the publication year from the {@code author} string of original combinations,
+   * leaving a dangling comma (e.g. {@code "Clerck,"}) while recombinations correctly carry it in
+   * parentheses (e.g. {@code "(Blackwall, 1841)"}). This recovers the missing year from the taxon's
+   * original description reference and appends it. Authorships that already contain a year are left
+   * untouched.
+   */
+  static String authorship(String author, String reference) {
+    if (StringUtils.isBlank(author) || AUTHOR_HAS_YEAR.matcher(author).find()) {
+      return author;
+    }
+    String base = author.replaceAll("[\\s,]+$", "");
+    if (reference != null) {
+      var m = REF_YEAR.matcher(reference);
+      if (m.find()) {
+        return base + ", " + m.group(1);
+      }
+    }
+    return base;
   }
 
   private String mapStatus(String status) {
