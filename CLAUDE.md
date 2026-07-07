@@ -215,7 +215,7 @@ The GRIN generator (`grin/`) converts the [GRIN-Global taxonomy](https://npgsweb
 - **Pass 1** (`collectBasionyms`): builds `accepted_id → basionym_id` map from all `synonym_code=B` records.
 - **Pass 2** (`parseSpecies`): writes NameUsage with `basionymID` set for accepted names; synonym records get `status=homotypic synonym` or `heterotypic synonym`; a `NameRelation type=basionym` row is also written for each homotypic synonym.
 
-**ID scheme:** `fam:<taxonomy_family_id>`, `gen:<taxonomy_genus_id>`, `sp:<taxonomy_species_id>`, `ref:<literature_id>`
+**ID scheme:** `fam:<taxonomy_family_id>`, `gen:<taxonomy_genus_id>`, `ref:<literature_id>`. Species/infraspecies use the **native** `<taxonomy_species_id>` with no prefix, so the id resolves directly in GRIN URLs (`taxonomydetail?id=<taxonomy_species_id>`). Families/genera/references keep their prefixes because those integer sequences overlap with the species ids.
 
 **Distribution status mapping:** `n`→native, `i`→introduced, `c`→cultivated, `a`→naturalised; gazetteer=ISO (country codes from `geography.country_code`).
 

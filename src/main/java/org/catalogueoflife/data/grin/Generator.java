@@ -405,7 +405,7 @@ public class Generator extends AbstractColdpGenerator {
       var genusId   = intCol(row, idx, "taxonomy_genus_id");
       if (speciesId == null) continue;
 
-      String id = "sp:" + speciesId;
+      String id = spId(speciesId);
       writer.set(ColdpTerm.ID, id);
       writer.set(ColdpTerm.scientificName, col(row, idx, "name"));
       writer.set(ColdpTerm.authorship, col(row, idx, "name_authority"));
@@ -435,12 +435,12 @@ public class Generator extends AbstractColdpGenerator {
 
       boolean isSynonym = currentId != null && !currentId.equals(speciesId);
       if (isSynonym) {
-        writer.set(ColdpTerm.parentID, "sp:" + currentId);
+        writer.set(ColdpTerm.parentID, spId(currentId));
         String synCode = col(row, idx, "synonym_code");
         if ("B".equals(synCode)) {
           writer.set(ColdpTerm.status, "homotypic synonym");
           // NameRelation: currentId's name has this name as its basionym
-          nomRelWriter.set(ColdpTerm.nameID, "sp:" + currentId);
+          nomRelWriter.set(ColdpTerm.nameID, spId(currentId));
           nomRelWriter.set(ColdpTerm.relatedNameID, id);
           nomRelWriter.set(ColdpTerm.type, "basionym");
           nomRelWriter.next();
@@ -451,7 +451,7 @@ public class Generator extends AbstractColdpGenerator {
       } else {
         writer.set(ColdpTerm.parentID, genusId != null ? "gen:" + genusId : null);
         var basionymId = basionymByAcceptedId.get(speciesId);
-        if (basionymId != null) writer.set(ColdpTerm.basionymID, "sp:" + basionymId);
+        if (basionymId != null) writer.set(ColdpTerm.basionymID, spId(basionymId));
         accepted++;
       }
       writer.next();
@@ -471,7 +471,7 @@ public class Generator extends AbstractColdpGenerator {
       var genusId   = intCol(row, idx, "taxonomy_genus_id");
       var name      = col(row, idx, "name");
       if (name == null) continue;
-      String taxonId = speciesId != null ? "sp:" + speciesId
+      String taxonId = speciesId != null ? spId(speciesId)
                      : genusId   != null ? "gen:" + genusId : null;
       if (taxonId == null) continue;
       vernWriter.set(ColdpTerm.taxonID, taxonId);
@@ -499,7 +499,7 @@ public class Generator extends AbstractColdpGenerator {
       // Skip entries with no usable area information at all
       if (country == null && !geoNameByGeoId.containsKey(geoId)) continue;
       var litId = intCol(row, idx, "literature_id");
-      distWriter.set(ColdpTerm.taxonID, "sp:" + speciesId);
+      distWriter.set(ColdpTerm.taxonID, spId(speciesId));
       if (country != null) {
         distWriter.set(ColdpTerm.areaID, "iso:" + country);
         distWriter.set(ColdpTerm.area, COUNTRY_NAME_MAP.get(country));
@@ -529,7 +529,7 @@ public class Generator extends AbstractColdpGenerator {
       var usage     = col(row, idx, "economic_usage_code");
       var type      = col(row, idx, "usage_type");
       if (speciesId == null || usage == null) continue;
-      propWriter.set(ColdpTerm.taxonID, "sp:" + speciesId);
+      propWriter.set(ColdpTerm.taxonID, spId(speciesId));
       String usageName = USAGE_NAMES.getOrDefault(usage.toUpperCase(), capitalise(usage));
       propWriter.set(ColdpTerm.property, "Economic Use - " + usageName);
       propWriter.set(ColdpTerm.value, type);
@@ -568,6 +568,15 @@ public class Generator extends AbstractColdpGenerator {
   private static Integer intCol(String[] row, Map<String, Integer> idx, String col) {
     String v = col(row, idx, col);
     return v == null ? null : Integer.parseInt(v);
+  }
+
+  /**
+   * Species/infraspecies use their native GRIN taxonomy_species_id as the ColDP ID so it
+   * resolves directly in taxonomydetail?id=… URLs. Genera, families and references keep their
+   * prefixes because those integer sequences overlap with the species ids.
+   */
+  private static String spId(int speciesId) {
+    return Integer.toString(speciesId);
   }
 
   private static String determineRank(String[] row, Map<String, Integer> idx) {
