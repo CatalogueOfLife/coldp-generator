@@ -9,7 +9,7 @@ import life.catalogue.common.io.UTF8IoUtils;
 import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.catalogueoflife.data.utils.CsvUtils;
-import org.gbif.nameparser.NameParserGBIF;
+import org.gbif.nameparser.NameParserImpl;
 import org.gbif.nameparser.api.ParsedName;
 import org.gbif.nameparser.api.Rank;
 import org.gbif.nameparser.api.UnparsableNameException;
@@ -31,7 +31,7 @@ public class Generator extends AbstractColdpGenerator {
   private static final String IMG_URL     = "https://plants.sc.egov.usda.gov/ImageLibrary/standard/";
   private static final int    ENRICH_THREADS = 10;
 
-  private static final NameParserGBIF NAME_PARSER = new NameParserGBIF();
+  private static final NameParserImpl NAME_PARSER = new NameParserImpl();
 
   private static final int COL_SYMBOL  = 0;
   private static final int COL_SYN_SYM = 1;
@@ -206,7 +206,7 @@ public class Generator extends AbstractColdpGenerator {
           (name == null || name.isBlank()) ? nameAuth : name,
           (auth == null || auth.isBlank()) ? null : auth,
           rank);
-    } catch (UnparsableNameException | InterruptedException e) {
+    } catch (UnparsableNameException e) {
       return new ParseResult(nameAuth, null, null);
     }
   }
