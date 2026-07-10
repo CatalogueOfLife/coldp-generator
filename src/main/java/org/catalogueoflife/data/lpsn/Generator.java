@@ -19,7 +19,10 @@ import life.catalogue.api.model.DOI;
 import life.catalogue.api.vocab.NomStatus;
 import life.catalogue.coldp.ColdpTerm;
 import life.catalogue.common.io.TermWriter;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.catalogueoflife.data.utils.HttpException;
@@ -32,8 +35,10 @@ import org.keycloak.protocol.oidc.client.authentication.ClientCredentialsProvide
 import org.keycloak.representations.AccessTokenResponse;
 import org.keycloak.representations.adapters.config.AdapterConfig;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -58,6 +63,13 @@ public class Generator extends AbstractColdpGenerator {
   private static final DOI SOURCE = new DOI("10.1099/ijsem.0.004332");
 
   private static final int FETCH_BATCH = 50;
+  // website crawl for the cyanobacteria the API withholds
+  private static final String WEB = "https://lpsn.dsmz.de";
+  private static final String CYANO_ROOT = "/phylum/cyanobacteriota";
+  private static final String USER_AGENT =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+  private static final int CRAWL_DELAY_MS = 200;
 
   private final AuthzClient authzClient;
   private final Configuration kc;
@@ -72,6 +84,11 @@ public class Generator extends AbstractColdpGenerator {
   private final Map<Integer, FetchDetail> records = new LinkedHashMap<>();
   private final Set<Integer> referenced = new HashSet<>();
   private final Set<Integer> attempted = new HashSet<>();
+  // cyanobacteria website crawl state
+  private final Map<Integer, LpsnPage> pages = new LinkedHashMap<>();
+  private final Map<String, Integer> urlToId = new HashMap<>();
+  private final Map<Integer, Integer> crawlParent = new HashMap<>();
+  private final Set<String> visitedUrls = new HashSet<>();
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
@@ -235,9 +252,11 @@ public class Generator extends AbstractColdpGenerator {
     }
 
     // the yes/no facets miss records only reachable via relationships (e.g. ICN Botanical
-    // Code cyanobacteria correct names); fetch as many as the API will serve, then write
-    // everything with unresolvable references repaired
+    // Code cyanobacteria correct names); fetch as many as the API will serve
     closeReferences();
+    // the API withholds cyanobacteria entirely; recover that subtree from the website
+    crawlCyanobacteria();
+    // write everything, repairing any references still unresolvable
     writeRecords();
   }
 
@@ -447,6 +466,122 @@ public class Generator extends AbstractColdpGenerator {
     if (unresolvable > 0) {
       LOG.warn("{} referenced records are not served by the LPSN API; their references will be repaired at write time", unresolvable);
     }
+  }
+
+  /**
+   * Recover the cyanobacteria that the LPSN API withholds by crawling the website top-down
+   * from the phylum. The subtree is anchored on phylum Cyanobacteriota (30362), which is
+   * validly published under the ICNP and thus already present from the API crawl, so every
+   * scraped node connects to an API-present ancestor. Each page's record number is reused
+   * verbatim as its ColDP id (the same id space the API uses), so scraped nodes fill the
+   * gaps and the previously-dangling correct-names now resolve. Records already obtained
+   * from the API stay authoritative; we still recurse through them to reach their missing
+   * descendants.
+   */
+  private void crawlCyanobacteria() {
+    crawlSubtree(CYANO_ROOT);
+  }
+
+  /** Crawl and merge a website subtree from the given root path. Package-private for tests. */
+  void crawlSubtree(String root) {
+    LOG.info("Crawl the LPSN website subtree from root {}", root);
+    crawlPage(root, null);
+    LOG.info("Fetched {} website pages", pages.size());
+    mergeCrawledRecords();
+  }
+
+  /** The record synthesized/fetched for an id, or null. Package-private for tests. */
+  FetchDetail record(int id) {
+    return records.get(id);
+  }
+
+  private void crawlPage(String path, Integer parentId) {
+    if (!visitedUrls.add(path)) {
+      return; // already fetched (LPSN shows the same node under multiple pages)
+    }
+    LpsnPage page = fetchPage(path);
+    if (page == null || page.recordNo == null) {
+      return;
+    }
+    if (pages.putIfAbsent(page.recordNo, page) != null) {
+      return; // seen under another path
+    }
+    page.url = path;
+    urlToId.put(path, page.recordNo);
+    if (parentId != null) {
+      crawlParent.putIfAbsent(page.recordNo, parentId);
+    }
+    // accepted children and synonyms are all parented to this node
+    for (String child : page.childTaxaLinks) {
+      crawlPage(child, page.recordNo);
+    }
+    for (String syn : page.synonymLinks) {
+      crawlPage(syn, page.recordNo);
+    }
+  }
+
+  private LpsnPage fetchPage(String path) {
+    String slug = path.replaceFirst("^/", "").replace("/", "-");
+    File f = sourceFile("web-" + slug + ".html");
+    if (!f.exists()) {
+      if (cfg.noDownload) {
+        LOG.warn("LPSN: --no-download set but {} not cached; skipping", f.getName());
+        return null;
+      }
+      try {
+        Document doc = Jsoup.connect(WEB + path).userAgent(USER_AGENT).timeout(20_000).get();
+        FileUtils.write(f, doc.outerHtml(), StandardCharsets.UTF_8);
+      } catch (Exception e) {
+        LOG.warn("LPSN: failed to download {}: {}", path, e.getMessage());
+        return null;
+      }
+      crawlDelay(CRAWL_DELAY_MS);
+    }
+    try {
+      return LpsnPage.parse(FileUtils.readFileToString(f, StandardCharsets.UTF_8));
+    } catch (Exception e) {
+      LOG.warn("LPSN: failed to parse {}: {}", path, e.getMessage());
+      return null;
+    }
+  }
+
+  /** Synthesize a {@link FetchDetail} per scraped page and add the ones the API lacks. */
+  private void mergeCrawledRecords() {
+    int added = 0;
+    for (LpsnPage p : pages.values()) {
+      if (records.containsKey(p.recordNo)) {
+        continue; // API record is authoritative
+      }
+      FetchDetail n = new FetchDetail();
+      n.id = p.recordNo;
+      n.full_name = p.name;
+      n.authority = p.author;
+      n.category = p.rank;
+      n.nomenclatural_status = p.nomStatus;
+      n.lpsn_taxonomic_status = p.taxStatus;
+      n.lpsn_address = WEB + p.url;
+      n.basonym_id = resolveLink(p.basionymLink);
+      n.nomenclatural_type_id = resolveLink(p.typeLink);
+      if ("synonym".equals(mapTaxStatus(p.taxStatus))) {
+        Integer correct = resolveLink(p.correctNameLink);
+        if (correct == null) {
+          correct = crawlParent.get(p.recordNo); // reached from its accepted page
+        }
+        n.lpsn_correct_name_id = correct;
+        n.lpsn_parent_id = correct;
+      } else {
+        n.lpsn_correct_name_id = n.id;
+        n.lpsn_parent_id = crawlParent.get(p.recordNo);
+      }
+      records.put(n.id, n);
+      added++;
+    }
+    LOG.info("Added {} cyanobacteria records recovered from the website (not served by the API)", added);
+  }
+
+  /** Resolve a scraped taxon-page href to a crawled record number, or null if outside the subtree. */
+  private Integer resolveLink(String href) {
+    return href == null ? null : urlToId.get(href);
   }
 
   @Override
