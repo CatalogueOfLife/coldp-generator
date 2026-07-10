@@ -35,10 +35,13 @@ import org.keycloak.representations.adapters.config.AdapterConfig;
 import java.io.IOException;
 import java.net.URI;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * LPSN export into ColDP using the LPSN API:
@@ -53,10 +56,19 @@ public class Generator extends AbstractColdpGenerator {
 
   private static final DOI SOURCE = new DOI("10.1099/ijsem.0.004332");
 
+  private static final int FETCH_BATCH = 50;
+
   private final AuthzClient authzClient;
   private final Configuration kc;
   private AccessTokenResponse token;
   private TermWriter nomRelWriter;
+  // referential closure tracking: LPSN advanced_search (validly-published yes/no) does not
+  // return the complete set of records reachable via relationships. In particular names
+  // validly published only under the ICN (Botanical Code) — chiefly cyanobacteria — fall
+  // outside both facets, yet are referenced as correct names, parents, basionyms or types.
+  private final Set<Integer> emitted = new HashSet<>();
+  private final Set<Integer> referenced = new HashSet<>();
+  private final Set<Integer> attempted = new HashSet<>();
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
@@ -218,6 +230,10 @@ public class Generator extends AbstractColdpGenerator {
         page++;
       }
     }
+
+    // the yes/no facets miss records only reachable via relationships (e.g. ICN Botanical
+    // Code cyanobacteria correct names); fetch and emit them so no reference dangles
+    closeReferences();
   }
 
   //@Override
@@ -292,6 +308,7 @@ public class Generator extends AbstractColdpGenerator {
     } else if (nom != null) {
       return switch (nom){
         case "validly published under the ICNP" -> "available";
+        case "validly published under the ICN (Botanical Code)" -> "available";
         case "not validly published" -> "unavailable";
         default -> null;
       };
@@ -340,6 +357,56 @@ public class Generator extends AbstractColdpGenerator {
         nomRelWriter.set(ColdpTerm.relatedNameID, n.nomenclatural_type_id);
         nomRelWriter.next();
       }
+
+      // track what we have emitted and which records we still need to reach for referential closure
+      emitted.add(n.id);
+      addRef(n.lpsn_parent_id);
+      addRef(n.lpsn_correct_name_id);
+      addRef(n.basonym_id);
+      addRef(n.nomenclatural_type_id);
+    }
+  }
+
+  private void addRef(Integer id) {
+    if (id != null) {
+      referenced.add(id);
+    }
+  }
+
+  /**
+   * Fetch any record referenced as a correct name, parent, basionym or type that the
+   * validly-published yes/no crawl did not return, and emit it. LPSN's advanced_search
+   * facets are not exhaustive (e.g. ICN Botanical Code cyanobacteria names are returned by
+   * neither facet), so without this pass those references dangle. The /fetch endpoint
+   * resolves ids regardless of publication status. Iterates until no new ids appear, as
+   * freshly fetched records may themselves reference further missing records.
+   */
+  private void closeReferences() throws IOException {
+    int round = 0;
+    while (true) {
+      List<String> missing = new ArrayList<>();
+      for (Integer id : referenced) {
+        // negative ids are LPSN's synthetic "not assigned to X" placeholder nodes, always
+        // emitted by the crawl; only chase positive ids we have not seen or tried yet
+        if (id != null && id > 0 && !emitted.contains(id) && !attempted.contains(id)) {
+          missing.add(id.toString());
+        }
+      }
+      if (missing.isEmpty()) {
+        break;
+      }
+      round++;
+      LOG.info("Referential closure round {}: fetch {} referenced records missing from the search crawl", round, missing.size());
+      for (String idStr : missing) {
+        attempted.add(Integer.valueOf(idStr));
+      }
+      for (int i = 0; i < missing.size(); i += FETCH_BATCH) {
+        writeNames(missing.subList(i, Math.min(i + FETCH_BATCH, missing.size())));
+      }
+    }
+    long stillMissing = referenced.stream().filter(id -> id > 0 && !emitted.contains(id)).count();
+    if (stillMissing > 0) {
+      LOG.warn("{} referenced records could not be fetched and remain unresolved", stillMissing);
     }
   }
 
