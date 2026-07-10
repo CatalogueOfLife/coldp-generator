@@ -38,6 +38,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,11 +63,13 @@ public class Generator extends AbstractColdpGenerator {
   private final Configuration kc;
   private AccessTokenResponse token;
   private TermWriter nomRelWriter;
-  // referential closure tracking: LPSN advanced_search (validly-published yes/no) does not
-  // return the complete set of records reachable via relationships. In particular names
-  // validly published only under the ICN (Botanical Code) — chiefly cyanobacteria — fall
-  // outside both facets, yet are referenced as correct names, parents, basionyms or types.
-  private final Set<Integer> emitted = new HashSet<>();
+  // Records are buffered and written only after referential closure, so we know the full set
+  // of resolvable ids and never emit a dangling parent/basionym/type reference.
+  // LPSN advanced_search (validly-published yes/no) does not return every record reachable via
+  // relationships, and some referenced records (chiefly ICN Botanical Code cyanobacteria correct
+  // names) are not served by the API at all — neither by search nor by /fetch. References to
+  // those unresolvable records are repaired at write time (see writeRecords()).
+  private final Map<Integer, FetchDetail> records = new LinkedHashMap<>();
   private final Set<Integer> referenced = new HashSet<>();
   private final Set<Integer> attempted = new HashSet<>();
 
@@ -222,7 +225,7 @@ public class Generator extends AbstractColdpGenerator {
           break;
         }
         LOG.info("{} {} names from {} discovered on page {}", res.results.size(), valid? "valid":"invalid", res.count, page);
-        writeNames(res.results);
+        collectNames(res.results);
         if (StringUtils.isBlank(res.next)) {
           LOG.info("last page, stop");
           break;
@@ -232,8 +235,10 @@ public class Generator extends AbstractColdpGenerator {
     }
 
     // the yes/no facets miss records only reachable via relationships (e.g. ICN Botanical
-    // Code cyanobacteria correct names); fetch and emit them so no reference dangles
+    // Code cyanobacteria correct names); fetch as many as the API will serve, then write
+    // everything with unresolvable references repaired
     closeReferences();
+    writeRecords();
   }
 
   //@Override
@@ -328,38 +333,12 @@ public class Generator extends AbstractColdpGenerator {
     var n = resp.results.get(0);
     LOG.debug("{}", n);
   }
-  void writeNames(List<String> ids) throws IOException {
+  void collectNames(List<String> ids) throws IOException {
     LOG.info("Retrieve {} names from the API", ids.size());
     String json = callAPI("/fetch/" + String.join(";", ids));
     var resp = mapper.readValue(json, FetchResult.class);
     for (var n : resp.results) {
-      RemarksBuilder remarks = new RemarksBuilder();
-      writer.set(ColdpTerm.ID, n.id);
-      writer.set(ColdpTerm.parentID, n.lpsn_parent_id); // might be overwritten in case of synonyms
-      writer.set(ColdpTerm.rank, n.category);
-      writer.set(ColdpTerm.scientificName, n.full_name);
-      writer.set(ColdpTerm.authorship, n.authority);
-      writer.set(ColdpTerm.basionymID, n.basonym_id);
-      writer.set(ColdpTerm.nameStatus, mapNomStatus(n.nomenclatural_status, n.lpsn_taxonomic_status));
-      remarks.append(n.nomenclatural_status);
-      writer.set(ColdpTerm.status, mapTaxStatus(n.lpsn_taxonomic_status));
-      writer.set(ColdpTerm.link, n.lpsn_address);
-      remarks.append(n.publication_text);
-      writer.set(ColdpTerm.remarks, remarks.toString());
-      if (!Objects.equals(n.id, n.lpsn_correct_name_id)) {
-        writer.set(ColdpTerm.parentID, n.lpsn_correct_name_id);
-      }
-      writer.next();
-
-      if (n.nomenclatural_type_id != null) {
-        nomRelWriter.set(ColdpTerm.type, "type"); // has type name
-        nomRelWriter.set(ColdpTerm.nameID, n.id);
-        nomRelWriter.set(ColdpTerm.relatedNameID, n.nomenclatural_type_id);
-        nomRelWriter.next();
-      }
-
-      // track what we have emitted and which records we still need to reach for referential closure
-      emitted.add(n.id);
+      records.putIfAbsent(n.id, n);
       addRef(n.lpsn_parent_id);
       addRef(n.lpsn_correct_name_id);
       addRef(n.basonym_id);
@@ -374,12 +353,72 @@ public class Generator extends AbstractColdpGenerator {
   }
 
   /**
+   * Write all buffered records once referential closure is complete. References to ids we could
+   * not obtain from the API are repaired here rather than emitted as dangling pointers:
+   *  - a synonym whose correct name is unresolvable becomes a bare name (no parent), never
+   *    re-filed to an ancestor;
+   *  - an unresolvable basionymID is dropped;
+   *  - a type NameRelation to an unresolvable id is skipped.
+   */
+  private void writeRecords() throws IOException {
+    final Set<Integer> known = records.keySet();
+    int bareNames = 0, droppedBasionyms = 0;
+    for (var n : records.values()) {
+      RemarksBuilder remarks = new RemarksBuilder();
+      boolean isSynonym = !Objects.equals(n.id, n.lpsn_correct_name_id);
+      String status = mapTaxStatus(n.lpsn_taxonomic_status);
+      Integer parentId;
+      if (isSynonym) {
+        if (n.lpsn_correct_name_id != null && known.contains(n.lpsn_correct_name_id)) {
+          parentId = n.lpsn_correct_name_id; // synonym points at its accepted name
+        } else {
+          // accepted name not served by the API: cannot be a ColDP synonym, emit as a bare name
+          parentId = null;
+          status = "bare name";
+          bareNames++;
+        }
+      } else {
+        // accepted taxon: keep the hierarchy parent only if we actually have it
+        parentId = (n.lpsn_parent_id != null && known.contains(n.lpsn_parent_id)) ? n.lpsn_parent_id : null;
+      }
+
+      writer.set(ColdpTerm.ID, n.id);
+      writer.set(ColdpTerm.parentID, parentId);
+      writer.set(ColdpTerm.rank, n.category);
+      writer.set(ColdpTerm.scientificName, n.full_name);
+      writer.set(ColdpTerm.authorship, n.authority);
+      if (n.basonym_id != null && known.contains(n.basonym_id)) {
+        writer.set(ColdpTerm.basionymID, n.basonym_id);
+      } else if (n.basonym_id != null) {
+        droppedBasionyms++;
+      }
+      writer.set(ColdpTerm.nameStatus, mapNomStatus(n.nomenclatural_status, n.lpsn_taxonomic_status));
+      remarks.append(n.nomenclatural_status);
+      writer.set(ColdpTerm.status, status);
+      writer.set(ColdpTerm.link, n.lpsn_address);
+      remarks.append(n.publication_text);
+      writer.set(ColdpTerm.remarks, remarks.toString());
+      writer.next();
+
+      if (n.nomenclatural_type_id != null && known.contains(n.nomenclatural_type_id)) {
+        nomRelWriter.set(ColdpTerm.type, "type"); // has type name
+        nomRelWriter.set(ColdpTerm.nameID, n.id);
+        nomRelWriter.set(ColdpTerm.relatedNameID, n.nomenclatural_type_id);
+        nomRelWriter.next();
+      }
+    }
+    LOG.info("Wrote {} records; {} synonyms with an unresolvable correct name emitted as bare names, {} unresolvable basionym links dropped",
+             records.size(), bareNames, droppedBasionyms);
+  }
+
+  /**
    * Fetch any record referenced as a correct name, parent, basionym or type that the
-   * validly-published yes/no crawl did not return, and emit it. LPSN's advanced_search
-   * facets are not exhaustive (e.g. ICN Botanical Code cyanobacteria names are returned by
-   * neither facet), so without this pass those references dangle. The /fetch endpoint
-   * resolves ids regardless of publication status. Iterates until no new ids appear, as
-   * freshly fetched records may themselves reference further missing records.
+   * validly-published yes/no crawl did not return. LPSN's advanced_search facets are not
+   * exhaustive, so without this pass those references would dangle. The /fetch endpoint
+   * resolves most ids regardless of publication status, though some referenced records
+   * (chiefly ICN Botanical Code cyanobacteria correct names) are not served by the API at
+   * all — those are repaired at write time. Iterates until no new ids appear, as freshly
+   * fetched records may themselves reference further missing records.
    */
   private void closeReferences() throws IOException {
     int round = 0;
@@ -387,8 +426,8 @@ public class Generator extends AbstractColdpGenerator {
       List<String> missing = new ArrayList<>();
       for (Integer id : referenced) {
         // negative ids are LPSN's synthetic "not assigned to X" placeholder nodes, always
-        // emitted by the crawl; only chase positive ids we have not seen or tried yet
-        if (id != null && id > 0 && !emitted.contains(id) && !attempted.contains(id)) {
+        // returned by the crawl; only chase positive ids we have not seen or tried yet
+        if (id != null && id > 0 && !records.containsKey(id) && !attempted.contains(id)) {
           missing.add(id.toString());
         }
       }
@@ -401,12 +440,12 @@ public class Generator extends AbstractColdpGenerator {
         attempted.add(Integer.valueOf(idStr));
       }
       for (int i = 0; i < missing.size(); i += FETCH_BATCH) {
-        writeNames(missing.subList(i, Math.min(i + FETCH_BATCH, missing.size())));
+        collectNames(missing.subList(i, Math.min(i + FETCH_BATCH, missing.size())));
       }
     }
-    long stillMissing = referenced.stream().filter(id -> id > 0 && !emitted.contains(id)).count();
-    if (stillMissing > 0) {
-      LOG.warn("{} referenced records could not be fetched and remain unresolved", stillMissing);
+    long unresolvable = referenced.stream().filter(id -> id > 0 && !records.containsKey(id)).count();
+    if (unresolvable > 0) {
+      LOG.warn("{} referenced records are not served by the LPSN API; their references will be repaired at write time", unresolvable);
     }
   }
 
