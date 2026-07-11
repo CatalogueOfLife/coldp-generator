@@ -28,6 +28,7 @@ public class LpsnPageTest {
     assertEquals("validly published under the ICN (Botanical Code)", p.nomStatus);
     assertEquals("correct name", p.taxStatus);
     assertEquals("/species/aerofilum-fasciculatum", p.typeLink);
+    assertEquals("/family/oculatellaceae", p.parentTaxonLink);
     assertEquals(1, p.childTaxaLinks.size());
     assertEquals("/species/aerofilum-fasciculatum", p.childTaxaLinks.get(0));
     assertTrue(p.synonymLinks.isEmpty());

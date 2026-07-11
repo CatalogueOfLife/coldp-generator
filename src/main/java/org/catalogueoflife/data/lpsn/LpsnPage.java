@@ -42,6 +42,7 @@ public class LpsnPage {
   public String rank;
   public String nomStatus;
   public String taxStatus;
+  public String parentTaxonLink;
   public String correctNameLink;
   public String basionymLink;
   public String typeLink;
@@ -76,6 +77,7 @@ public class LpsnPage {
     p.nomStatus = fieldText(root, "Nomenclatural status:");
     p.taxStatus = fieldText(root, "Taxonomic status:");
 
+    p.parentTaxonLink = fieldLink(root, "Parent taxon:");
     p.correctNameLink = fieldLink(root, "Correct name:");
     p.basionymLink = fieldLink(root, "Basionym:");
     // the type is exposed as "Type species:" (genus), "Type genus:" (family/order), etc.

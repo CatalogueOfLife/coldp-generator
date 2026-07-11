@@ -39,4 +39,29 @@ public class GeneratorCrawlIT {
     assertEquals("its accepted parent is Oculatellaceae",
       Integer.valueOf(6116), synonym.lpsn_correct_name_id);
   }
+
+  /**
+   * An accepted taxon must be parented to its accepted "Parent taxon", and a synonym to its
+   * "Correct name" — never to a synonym sibling reached via LPSN's group-wide Synonyms list.
+   */
+  @Test
+  public void acceptedFamilyIsNotParentedToASynonym() throws Exception {
+    var cfg = new GeneratorConfig();
+    cfg.source = "lpsn";
+    var gen = new Generator(cfg);
+    gen.crawlSubtree("/order/oscillatoriales");
+
+    var order = gen.record(6539);       // accepted order Oscillatoriales
+    assertEquals("correct name", order.lpsn_taxonomic_status);
+
+    var accepted = gen.record(6108);    // accepted family Oscillatoriaceae
+    assertEquals("correct name", accepted.lpsn_taxonomic_status);
+    assertEquals("accepted family parents to the accepted order, not a synonym sibling",
+      Integer.valueOf(6539), accepted.lpsn_parent_id);
+
+    var synonym = gen.record(6124);     // synonym family Phormidiaceae
+    assertEquals("synonym", synonym.lpsn_taxonomic_status);
+    assertEquals("synonym parents to its correct name (Oscillatoriaceae)",
+      Integer.valueOf(6108), synonym.lpsn_correct_name_id);
+  }
 }

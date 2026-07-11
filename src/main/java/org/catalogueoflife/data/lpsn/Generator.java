@@ -381,7 +381,7 @@ public class Generator extends AbstractColdpGenerator {
    */
   private void writeRecords() throws IOException {
     final Set<Integer> known = records.keySet();
-    int bareNames = 0, droppedBasionyms = 0;
+    int bareNames = 0, droppedBasionyms = 0, reparented = 0;
     for (var n : records.values()) {
       RemarksBuilder remarks = new RemarksBuilder();
       boolean isSynonym = !Objects.equals(n.id, n.lpsn_correct_name_id);
@@ -397,8 +397,13 @@ public class Generator extends AbstractColdpGenerator {
           bareNames++;
         }
       } else {
-        // accepted taxon: keep the hierarchy parent only if we actually have it
-        parentId = (n.lpsn_parent_id != null && known.contains(n.lpsn_parent_id)) ? n.lpsn_parent_id : null;
+        // accepted taxon: its parent must itself be an accepted taxon. Defence in depth on top
+        // of the crawl parent sourcing: if the parent is a synonym (a bad API parent, or a
+        // "Parent taxon" link into a synonym), follow it to its accepted correct name.
+        parentId = acceptedAncestor(n.lpsn_parent_id, n.id);
+        if (parentId != null && !Objects.equals(parentId, n.lpsn_parent_id)) {
+          reparented++;
+        }
       }
 
       writer.set(ColdpTerm.ID, n.id);
@@ -426,8 +431,8 @@ public class Generator extends AbstractColdpGenerator {
         nomRelWriter.next();
       }
     }
-    LOG.info("Wrote {} records; {} synonyms with an unresolvable correct name emitted as bare names, {} unresolvable basionym links dropped",
-             records.size(), bareNames, droppedBasionyms);
+    LOG.info("Wrote {} records; {} synonyms with an unresolvable correct name emitted as bare names, {} unresolvable basionym links dropped, {} accepted parents redirected off a synonym",
+             records.size(), bareNames, droppedBasionyms, reparented);
   }
 
   /**
@@ -562,6 +567,11 @@ public class Generator extends AbstractColdpGenerator {
       n.lpsn_address = WEB + p.url;
       n.basonym_id = resolveLink(p.basionymLink);
       n.nomenclatural_type_id = resolveLink(p.typeLink);
+      // Parent comes from each page's own authoritative link, NOT from the crawl descent
+      // path: LPSN's "Synonyms" section is symmetric across the whole name-group, so a synonym
+      // page lists the accepted name among its synonyms. Descent order would otherwise parent an
+      // accepted taxon to a synonym sibling. An accepted taxon parents to its "Parent taxon"
+      // (the accepted higher taxon); a synonym parents to its "Correct name" (its accepted name).
       if ("synonym".equals(mapTaxStatus(p.taxStatus))) {
         Integer correct = resolveLink(p.correctNameLink);
         if (correct == null) {
@@ -571,7 +581,11 @@ public class Generator extends AbstractColdpGenerator {
         n.lpsn_parent_id = correct;
       } else {
         n.lpsn_correct_name_id = n.id;
-        n.lpsn_parent_id = crawlParent.get(p.recordNo);
+        Integer parent = resolveLink(p.parentTaxonLink);
+        if (parent == null) {
+          parent = crawlParent.get(p.recordNo); // root or parent outside the crawled subtree
+        }
+        n.lpsn_parent_id = parent;
       }
       records.put(n.id, n);
       added++;
@@ -582,6 +596,31 @@ public class Generator extends AbstractColdpGenerator {
   /** Resolve a scraped taxon-page href to a crawled record number, or null if outside the subtree. */
   private Integer resolveLink(String href) {
     return href == null ? null : urlToId.get(href);
+  }
+
+  /**
+   * The nearest accepted ancestor to use as an accepted taxon's parent: the id itself if it is an
+   * emitted accepted taxon, else the accepted correct name reached by following synonym links.
+   * Returns null if the parent is unknown, resolves back to the child (self-loop), or no accepted
+   * name is reachable — in which case the child is emitted without a parent rather than under a synonym.
+   */
+  Integer acceptedAncestor(Integer parentId, int selfId) {
+    Set<Integer> seen = new HashSet<>();
+    Integer id = parentId;
+    while (id != null && seen.add(id)) {
+      if (id == selfId) {
+        return null; // would parent the taxon to itself
+      }
+      FetchDetail r = records.get(id);
+      if (r == null) {
+        return null; // parent not emitted
+      }
+      if (Objects.equals(r.id, r.lpsn_correct_name_id)) {
+        return id; // accepted terminus
+      }
+      id = r.lpsn_correct_name_id; // parent is a synonym: follow to its correct name
+    }
+    return null;
   }
 
   @Override
