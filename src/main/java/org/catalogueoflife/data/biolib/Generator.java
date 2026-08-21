@@ -34,6 +34,11 @@ public class Generator extends AbstractTextTreeGenerator {
     super(cfg, true);
   }
 
+  /** text-tree used to print a Rank as its lowercased name and omit UNRANKED entirely. */
+  private static String rankLabel(Rank rank) {
+    return rank == null || rank == Rank.UNRANKED ? null : rank.name().toLowerCase();
+  }
+
   @Override
   protected void populateTree() throws Exception {
     // recursively crawl all children of root
@@ -96,7 +101,10 @@ public class Generator extends AbstractTextTreeGenerator {
       rank = Optional.of(Rank.OTHER);
     }
 
-    final var tn = new SimpleTreeNode(id, nameTxt, rank.orElse(null), false, new HashMap<>(), null);
+    // text-tree 1.7 takes the rank as a plain label and splits the old single basionym flag
+    // into extinct/basionym/homotypic/provisional
+    final var tn = new SimpleTreeNode(id, nameTxt, rankLabel(rank.orElse(null)),
+        false, false, false, false, new HashMap<>(), null);
 
     // add synonyms & vernaculars - load name details
     scrapeName(tn);
@@ -138,7 +146,7 @@ public class Generator extends AbstractTextTreeGenerator {
         if (lang != null && lang.equals(SCIENTIFIC)) {
           // synonym?
           if (!n2.toLowerCase().startsWith(tn.name.toLowerCase())) {
-            var s = new SimpleTreeNode(synID--, n2, null, false);
+            var s = new SimpleTreeNode(synID--, n2, null);
             tn.synonyms.add(s);
           }
 

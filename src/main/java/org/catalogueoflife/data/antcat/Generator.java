@@ -257,7 +257,7 @@ public class Generator extends AbstractColdpGenerator {
       LOG.info("Use local antcat csv file at {}", antFile);
     } else {
       LOG.info("Download antcat csv from {} to {}", ANTWEB_URL, antFile);
-      download.download(ANTWEB_URL, antFile);
+      http.download(ANTWEB_URL, antFile);
     }
 
     var reader = UTF8IoUtils.readerFromFile(antFile);

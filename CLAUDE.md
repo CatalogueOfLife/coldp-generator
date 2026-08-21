@@ -87,7 +87,7 @@ src/main/resources/
 | Apache Jena (ARQ) | RDF/SPARQL for WikiData |
 | univocity-parsers | CSV parsing |
 | Newick-IO / text-tree | Tree format parsing |
-| name-parser | Scientific name parsing |
+| name-parser-api + name-parser-rust | Scientific name parsing (Rust FFM binding) |
 | citeproc-java | Citation/reference formatting |
 | Sweble wikitext parser | Wikitext parsing (sections, links, lists, formatting only — see note) |
 | coldp / dwc-api | ColDP and Darwin Core types |
@@ -99,6 +99,35 @@ src/main/resources/
 **Sweble's `WikitextParser.parseArticle()` does NOT parse `{{template}}` invocations as `WtTemplate` AST nodes.** Template calls are returned as raw `WtText` nodes containing the literal `{{...}}` markup. Only structural elements are properly parsed: sections (`WtSection`), headings (`WtHeading`), wiki links (`WtInternalLink`), formatting (`WtItalics`, `WtBold`), and lists (`WtUnorderedList`, `WtListItem`).
 
 As a consequence, all template detection in the wikispecies generator (and any future generator using Sweble) must use **regex on the `nodeText()` output** rather than `instanceof WtTemplate` checks. The `nodeText()` method returns `WtText` content verbatim, so raw `{{TemplateName}}` strings are present in the output and can be matched with `Pattern.compile("\\{\\{([^|{}\\n]+)")`.
+
+### Name Parser (Rust FFM binding)
+
+`name-parser` 5.0.0 is **api-only** — the pure-Java `NameParserImpl` was removed. The sole
+implementation is now `org.gbif.nameparser.rust.NameParserRust`, which downcalls a Rust cdylib over
+FFM (`java.lang.foreign`). Consequences for this project:
+
+- Two artifacts are needed: the thin `org.gbif.nameparser:name-parser-rust` JAR **plus** the native
+  classifier JAR for the build platform, resolved via os-maven-plugin's `${os.detected.classifier}`
+  (the `<extension>` in `pom.xml`'s `<build>`). `Ffi.extractBundledLib()` unpacks
+  `native/<classifier>/libnameparser_ffi.*` from the classpath to a temp file at first use, so the
+  shaded fat JAR works — **but it only carries the build host's platform**. A JAR built on macOS
+  will not parse names on Linux; build on the platform you deploy to.
+- FFM downcalls are a JDK "restricted method". The shade manifest sets
+  `Enable-Native-Access: ALL-UNNAMED` (honoured by `java -jar` on JDK 24+) and surefire passes
+  `--enable-native-access=ALL-UNNAMED`. Without them the JVM only warns today, but will block
+  outright in a future release.
+- The API is **exceptionless**: `NameParser.parse()` returns a three-way `ParseResult`
+  (`Parsed` | `Informal` | `Unparsable`). `.orElseThrow()` restores the old
+  `UnparsableNameException` flow; `.parsed()` gives an `Optional<ParsedName>`. Note `Informal`
+  results now throw / yield empty where 4.x returned a `ParsedName`.
+- `ParserRuntimeTest` guards all of this — it loads the native binding and the clb parsers, which
+  compile fine but only fail at runtime when versions drift apart.
+
+**Known upstream breakage:** `text-tree` 1.7.0 still depends on the removed `org.gbif:name-parser`
+4.0.0, whose `Tree` calls the 4.x `NameParser.parse(...)  → ParsedName`. Against api 5.0.0 that
+method is gone, so **`Tree.parsed()` throws `NoSuchMethodError`**. `new Tree<>()`, `Tree.simple()`
+and `tree.print()` are unaffected, so every generator still works; only `biolib/TreeDecorator.main`
+(a dev helper) is blocked. clb 1.4.0 carries the same transitive dependency.
 
 ### ColDP Rank Vocabulary
 
@@ -287,7 +316,7 @@ File metadata is parsed from `{{Information|description=...|date=...|author=...}
 
 ## Notes
 
-- Java 21 required
+- **Java 25 required** — clb 1.4.0 is built for Java 25, and the name-parser Rust binding needs FFM (JDK 22+).
 - GBIF Maven repositories are configured in `pom.xml` for COL-specific deps (`coldp`, `api`, `metadata`, `name-parser`)
 - The built fat JAR (`target/coldp-generator-1.0-SNAPSHOT.jar`, ~75MB) includes all dependencies
 - Tests in `src/test/java/ManualCli.java` provide a programmatic way to invoke generators during development

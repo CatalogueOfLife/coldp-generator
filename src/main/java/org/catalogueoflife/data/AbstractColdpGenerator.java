@@ -6,7 +6,6 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import life.catalogue.coldp.ColdpTerm;
-import life.catalogue.common.io.DownloadUtil;
 import life.catalogue.common.io.TermWriter;
 import org.apache.commons.io.FileUtils;
 import org.gbif.dwc.terms.Term;
@@ -19,7 +18,6 @@ import java.time.LocalDate;
 import java.util.*;
 
 public abstract class AbstractColdpGenerator extends AbstractGenerator {
-  protected final DownloadUtil download;
   protected final File sources;
   protected final Map<String, URI> downloadURIs = new HashMap<>();
   protected TermWriter writer;
@@ -40,7 +38,6 @@ public abstract class AbstractColdpGenerator extends AbstractGenerator {
   public AbstractColdpGenerator(GeneratorConfig cfg, boolean addMetadata, Map<String, URI> downloads) throws IOException {
     super(cfg, addMetadata, "ColDP");
     sources = cfg.tmpDir();
-    download = new DownloadUtil(hc);
     if (downloads != null && !downloads.isEmpty()) {
       downloadURIs.putAll(downloads);
     }
@@ -133,7 +130,7 @@ public abstract class AbstractColdpGenerator extends AbstractGenerator {
       if (log) {
         LOG.info("Downloading latest {} from {} to {}", f.getName(), url, f);
       }
-      download.download(url, f);
+      http.download(url, f);
     } else if (log) {
       LOG.info("Reuse source file {}", f);
     }

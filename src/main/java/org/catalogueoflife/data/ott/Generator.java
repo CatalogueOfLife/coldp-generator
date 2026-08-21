@@ -149,7 +149,7 @@ public class Generator extends AbstractColdpGenerator {
   protected LocalDate extractIssueDate() throws IOException {
     LOG.info("Downloading property file for version {} from {}", version, PROPERTY_FILE);
     var propF = new File(dir, "ott-properties.json");
-    download.download(PROPERTY_FILE, propF);
+    http.download(PROPERTY_FILE, propF);
     var prop = mapper.readValue(propF, OttProp.class);
     return LocalDate.parse(prop.date, DateTimeFormatter.BASIC_ISO_DATE);
   }

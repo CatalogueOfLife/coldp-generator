@@ -9,11 +9,12 @@ import life.catalogue.common.io.UTF8IoUtils;
 import org.catalogueoflife.data.AbstractColdpGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
 import org.catalogueoflife.data.utils.CsvUtils;
-import org.gbif.nameparser.NameParserImpl;
+import org.gbif.nameparser.api.NameParser;
 import org.gbif.nameparser.api.ParsedName;
 import org.gbif.nameparser.api.Rank;
 import org.gbif.nameparser.api.UnparsableNameException;
 import org.gbif.nameparser.util.NameFormatter;
+import org.gbif.nameparser.rust.NameParserRust;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,7 +32,8 @@ public class Generator extends AbstractColdpGenerator {
   private static final String IMG_URL     = "https://plants.sc.egov.usda.gov/ImageLibrary/standard/";
   private static final int    ENRICH_THREADS = 10;
 
-  private static final NameParserImpl NAME_PARSER = new NameParserImpl();
+  // name-parser 5.0.0 is api-only; the Rust FFM binding is the sole implementation
+  private static final NameParser NAME_PARSER = new NameParserRust();
 
   private static final int COL_SYMBOL  = 0;
   private static final int COL_SYN_SYM = 1;
@@ -198,7 +200,8 @@ public class Generator extends AbstractColdpGenerator {
   private static ParseResult parseName(String nameAuth) {
     if (nameAuth == null) return new ParseResult(null, null, null);
     try {
-      ParsedName pn = NAME_PARSER.parse(nameAuth);
+      // 5.0.0 returns a three-way ParseResult; orElseThrow keeps the old exception flow
+      ParsedName pn = NAME_PARSER.parse(nameAuth).orElseThrow();
       String name = pn.canonicalNameWithoutAuthorship();
       String auth = NameFormatter.authorshipComplete(pn);
       String rank = rankLabel(pn.getRank());
