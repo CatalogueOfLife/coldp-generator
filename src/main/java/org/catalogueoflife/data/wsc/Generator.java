@@ -43,6 +43,10 @@ public class Generator extends AbstractColdpGenerator {
   private final String apiKey;
   private final File json;
   private final Set<String> higherLSIDs = new HashSet<>();
+  /** LSIDs of all records we emit as accepted - the only legal targets for a ColDP synonym. */
+  private final Set<String> acceptedLSIDs = new HashSet<>();
+  /** WscMappings.speciesKey to LSID, accepted species only, so subspecies can find their species. */
+  private final Map<String, String> acceptedSpecies = new HashMap<>();
   private String rootId;
   private int synIdGen = 1;
 
@@ -81,7 +85,39 @@ public class Generator extends AbstractColdpGenerator {
     LOG.info("Parse JSON files");
     initWriters();
     addRootClassification();
+    index();
     parse();
+  }
+
+  /**
+   * First pass over all records, collecting what the second pass cannot know from a single record:
+   * which LSIDs end up accepted, and which accepted species a subspecies belongs to. The API gives
+   * a subspecies only its genus, so its species has to be found by genus + specific epithet.
+   */
+  private void index() {
+    final Set<String> ambiguous = new HashSet<>();
+    for (String fn : json.list(new SuffixFileFilter(".json"))) {
+      try {
+        var to = read(new File(json, fn));
+        if (to.isEmpty()) continue;
+        var t = to.get().taxon;
+        if (t == null || t.lsid == null) continue;
+        if (!WscMappings.ACCEPTED.equals(WscMappings.status(t.status))) continue;
+        acceptedLSIDs.add(t.lsid);
+        if ("species".equalsIgnoreCase(t.taxonRank) && t.genusObject != null) {
+          String key = WscMappings.speciesKey(t.genusObject.genLsid, t.species);
+          if (key != null && acceptedSpecies.put(key, t.lsid) != null) {
+            // two accepted species with the same name in one genus - do not guess
+            ambiguous.add(key);
+          }
+        }
+      } catch (IOException e) {
+        LOG.error("Error indexing file {}", fn, e);
+      }
+    }
+    ambiguous.forEach(acceptedSpecies::remove);
+    LOG.info("Indexed {} accepted usages, {} accepted species ({} ambiguous names skipped)",
+        acceptedLSIDs.size(), acceptedSpecies.size(), ambiguous.size());
   }
 
   private void addRootClassification() throws IOException {
@@ -170,7 +206,6 @@ public class Generator extends AbstractColdpGenerator {
             if (tax.taxon.taxonRank.equalsIgnoreCase("family")) {
               LOG.debug("{}: {} {}", tax.taxon.lsid, tax.taxon.family, tax.taxon.author);
               writer.set(ColdpTerm.uninomial, tax.taxon.family);
-              writer.set(ColdpTerm.parentID, rootId);
 
             } else if (tax.taxon.taxonRank.equalsIgnoreCase("genus")) {
               LOG.debug("{}: {} {} - {}", tax.taxon.lsid, tax.taxon.genus, tax.taxon.author, tax.taxon.family);
@@ -184,17 +219,21 @@ public class Generator extends AbstractColdpGenerator {
               writer.set(ColdpTerm.infraspecificEpithet, tax.taxon.subspecies);
             }
 
-            writer.set(ColdpTerm.status, mapStatus(tax.taxon.status));
-            writer.set(ColdpTerm.nameStatus, tax.taxon.status);
-            if (tax.taxon.validTaxon != null) {
-              writer.set(ColdpTerm.parentID, tax.taxon.validTaxon.getLSID());
-            } else {
-              if (tax.taxon.genusObject != null) {
-                writer.set(ColdpTerm.parentID, tax.taxon.genusObject.genLsid);
-              } else if (tax.taxon.familyObject != null) {
-                writer.set(ColdpTerm.parentID, tax.taxon.familyObject.famLsid);
-              }
+            String status = WscMappings.status(tax.taxon.status);
+            String acceptedLsid = tax.taxon.validTaxon == null ? null : tax.taxon.validTaxon.getLSID();
+            if (WscMappings.SYNONYM.equals(status) && !acceptedLSIDs.contains(acceptedLsid)) {
+              // a ColDP synonym must point at an accepted name. WSC sometimes replaces a homonym
+              // with a name that is itself doubtful, or links to a record the API never served -
+              // keep the name, but without a placement it cannot support.
+              LOG.debug("{} is a synonym of {}, which is not an accepted name", tax.taxon.lsid, acceptedLsid);
+              status = WscMappings.BARE_NAME;
+              acceptedLsid = null;
             }
+            writer.set(ColdpTerm.status, status);
+            writer.set(ColdpTerm.nameStatus, WscMappings.nameStatus(tax.taxon.status));
+            writer.set(ColdpTerm.parentID, acceptedLsid != null
+                ? acceptedLsid
+                : WscMappings.parentID(tax.taxon, acceptedSpecies, rootId));
 
             if (tax.taxon.referenceObject != null && !StringUtils.isBlank(tax.taxon.referenceObject.reference)) {
               // seen reference before?
@@ -226,14 +265,6 @@ public class Generator extends AbstractColdpGenerator {
         }
       }
     }
-  }
-
-  private String mapStatus(String status) {
-    if (status == null) return null;
-    return switch (status.toUpperCase().trim()) {
-      case "NOMEN_DUBIUM", "NOMEN_NUDUM" -> "bare name";
-      default -> status;
-    };
   }
 
   private Optional<NameUsage> read(File f) throws IOException {

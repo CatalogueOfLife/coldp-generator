@@ -204,6 +204,50 @@ The ASW generator (`asw/`) scrapes [Amphibian Species of the World](https://amph
 
 **ID scheme:** URL path without leading "/" for taxa (e.g. `Amphibia/Anura/Arthroleptidae/Arthroleptinae`); `syn:{n}` for synonym NameUsages; `ref:{bibliography-path}` for references.
 
+### WSC Generator
+
+The WSC generator (`wsc/`) reads the [World Spider Catalog](https://wsc.nmbe.ch) API (API key
+required, daily request limit — a 403 aborts the crawl). Every `lsid/{lsid}` response is cached as
+`{sp|gen|fam}{id}.json` under `--wsc-data-repo`, so re-runs parse locally; `--date skip` skips the
+crawl entirely and `--date <date>` fetches only the API's update feed.
+
+**WSC has one `status` field mixing taxonomic and nomenclatural statements**, and writing it
+verbatim into ColDP caused [data#1662](https://github.com/CatalogueOfLife/data/issues/1662).
+`WscMappings` (pure, unit-tested in `WscMappingsTest`) does the mapping:
+
+| WSC status | ColDP `status` | ColDP `nameStatus` |
+|---|---|---|
+| `VALID` | accepted | `VALID` |
+| `SYNONYM` | synonym | — |
+| `HOMONYM_REPLACED` | synonym | — |
+| `NOMEN_DUBIUM` / `NOMEN_NUDUM` | bare name | passed through |
+| `DELETED` | bare name | — |
+
+`HOMONYM_REPLACED` (308 records) is a junior homonym that WSC points at its replacement name via
+`validTaxon`. ChecklistBank cannot parse the literal string, so it used to default to **accepted**,
+producing accepted species parented to accepted species. `SYNONYM`/`HOMONYM_REPLACED`/`DELETED` are
+taxonomic, not nomenclatural, so they no longer go into `nameStatus` either (that alone was ~10.6k
+"nomenclatural status invalid"). Unknown statuses are **passed through** so a new WSC value surfaces
+in CLB rather than silently becoming an accepted taxon.
+
+**Two-pass parse.** `index()` runs first and collects what a single record cannot know: the set of
+LSIDs emitted as accepted, and an accepted-species index keyed on `genusLsid|specificEpithet`
+(`WscMappings.speciesKey`). Ambiguous keys — 15 genera hold two accepted species of the same name —
+are dropped rather than guessed. Then `parse()` writes:
+
+- **Synonyms** (`validTaxon` present) get `parentID` = the valid taxon. If that target is not an
+  accepted usage — WSC sometimes replaces a homonym with a name that is itself doubtful, or links to
+  a record the API never served (30 records) — the name is emitted as a **bare name** under its
+  normal higher classification instead, never dropped and never re-filed (see
+  [[coldp-synonym-parent-rules]]).
+- **Everything else** is placed by `WscMappings.parentID`: subspecies → their **species** (the API
+  gives a subspecies only its genus, hence the index; 470 of 483 resolve, the rest fall back to the
+  genus), species → genus, genus → family, family → the synthetic `Animalia/Arthropoda/Arachnida/Araneae`
+  root emitted by `addRootClassification()`.
+
+**ID scheme:** the WSC LSID verbatim for all real taxa; lowercased names (`animalia`, `araneae`, …)
+for the synthetic root classification; `hashCode()` of the citation string for references.
+
 ### PFNR Generator
 
 The PFNR generator (`pfnr/`) scrapes the [International Fossil Plant Names Registry](https://www.plantfossilnames.org) — the authoritative nomenclatural registry for ~1,200 fossil plant names. There is no API or bulk download; HTML scraping is the only option (robots.txt permits crawling).
