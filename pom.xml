@@ -54,7 +54,7 @@
     <scribejava.version>8.3.3</scribejava.version>
     <slf4j.version>2.0.17</slf4j.version>
     <tika.version>3.2.3</tika.version>
-    <text-tree.version>1.7.0</text-tree.version>
+    <text-tree.version>2.0.0</text-tree.version>
     <tukaani-xz.version>1.9</tukaani-xz.version>
     <univocity.version>2.9.1</univocity.version>
   </properties>
@@ -372,6 +372,14 @@
     <dependency>
       <groupId>org.gbif</groupId>
       <artifactId>text-tree</artifactId>
+      <version>${text-tree.version}</version>
+    </dependency>
+    <!-- text-tree 2.0.0 split the parsed tree out. The parsed module carries no name parser
+         implementation - one is handed to ParsedTree.parse() - which is what finally lets us off
+         the removed org.gbif:name-parser 4.x that text-tree 1.7 still dragged in. -->
+    <dependency>
+      <groupId>org.gbif</groupId>
+      <artifactId>text-tree-parsed</artifactId>
       <version>${text-tree.version}</version>
     </dependency>
 

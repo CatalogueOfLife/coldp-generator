@@ -86,7 +86,7 @@ src/main/resources/
 | Apache POI | Excel file reading |
 | Apache Jena (ARQ) | RDF/SPARQL for WikiData |
 | univocity-parsers | CSV parsing |
-| Newick-IO / text-tree | Tree format parsing |
+| Newick-IO / text-tree (+ text-tree-parsed) | Tree format parsing |
 | name-parser-api + name-parser-rust | Scientific name parsing (Rust FFM binding) |
 | citeproc-java | Citation/reference formatting |
 | Sweble wikitext parser | Wikitext parsing (sections, links, lists, formatting only — see note) |
@@ -123,11 +123,12 @@ FFM (`java.lang.foreign`). Consequences for this project:
 - `ParserRuntimeTest` guards all of this — it loads the native binding and the clb parsers, which
   compile fine but only fail at runtime when versions drift apart.
 
-**Known upstream breakage:** `text-tree` 1.7.0 still depends on the removed `org.gbif:name-parser`
-4.0.0, whose `Tree` calls the 4.x `NameParser.parse(...)  → ParsedName`. Against api 5.0.0 that
-method is gone, so **`Tree.parsed()` throws `NoSuchMethodError`**. `new Tree<>()`, `Tree.simple()`
-and `tree.print()` are unaffected, so every generator still works; only `biolib/TreeDecorator.main`
-(a dev helper) is blocked. clb 1.4.0 carries the same transitive dependency.
+**text-tree 2.0.0** split the parsed tree into its own `text-tree-parsed` module, which ships **no**
+name parser implementation — you hand one to `ParsedTree.parse(in, parser)`. Both modules are
+declared here off the same `${text-tree.version}`. This removed the last transitive dependency on
+the deleted `org.gbif:name-parser` 4.x, which text-tree 1.7 still carried and which made
+`Tree.parsed()` throw `NoSuchMethodError` against api 5.0.0. The plain `Tree`/`SimpleTreeNode` side
+needs no parser at all; only `biolib/TreeDecorator` uses the parsed side, with `NameParserRust`.
 
 ### ColDP Rank Vocabulary
 

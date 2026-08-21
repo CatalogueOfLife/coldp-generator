@@ -3,9 +3,11 @@ package org.catalogueoflife.data.biolib;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.catalogueoflife.data.utils.HttpUtils;
-import org.gbif.txtree.ParsedTreeNode;
+import org.gbif.nameparser.rust.NameParserRust;
 import org.gbif.txtree.SimpleTreeNode;
 import org.gbif.txtree.Tree;
+import org.gbif.txtree.parsed.ParsedTree;
+import org.gbif.txtree.parsed.ParsedTreeNode;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.slf4j.Logger;
@@ -49,7 +51,7 @@ public class TreeDecorator implements AutoCloseable{
   private SimpleTreeNode convert(ParsedTreeNode n) {
     LOG.debug("convert {}", n.name);
     // read genus index
-    if (!n.parsedName.hasAuthorship()) {
+    if (n.parsedName != null && !n.parsedName.hasAuthorship()) {
       try {
 
         var html = http.get("https://www.biolib.cz/en/formsearch/?searchtype=3&searchrecords=1&selecttaxonid=1&taxonid=&action=execute&string="+n.name);
@@ -88,19 +90,19 @@ public class TreeDecorator implements AutoCloseable{
     return new SimpleTreeNode(n.id, n.name, n.rank, n.extinct, n.basionym, n.homotypic, n.provisional, n.infos, n.comment);
   }
 
-  /**
-   * BROKEN as of name-parser 5: Tree.parsed() below throws NoSuchMethodError. text-tree 1.7.0 still
-   * depends on the removed pure-Java name-parser 4.0.0, whose NameParser.parse() returned a
-   * ParsedName; against name-parser-api 5.0.0 that method no longer exists. Tree.simple() and
-   * writing trees are unaffected, so the generators still work — only this dev helper is blocked
-   * until text-tree is rebuilt against name-parser 5.
-   */
   public static void main(String[] args) throws IOException {
-    var dec = new TreeDecorator();
-    var f = new File("/Users/markus/code/data/data-coccinellidae/taxonomy.txtree");
-    Tree<ParsedTreeNode> tree = org.gbif.txtree.Tree.parsed(new FileInputStream(f));
-    Tree<?> t2 = dec.addAuthors(tree);
-    t2.print(new File("/Users/markus/code/data/data-coccinellidae/taxonomy2.txtree"));
+    try (var dec = new TreeDecorator()) {
+      var f = new File("/Users/markus/code/data/data-coccinellidae/taxonomy.txtree");
+      // text-tree-parsed ships no name parser of its own, so hand it the Rust binding
+      Tree<ParsedTreeNode> tree;
+      try (var in = new FileInputStream(f)) {
+        tree = ParsedTree.parse(in, new NameParserRust());
+      }
+      Tree<?> t2 = dec.addAuthors(tree);
+      t2.print(new File("/Users/markus/code/data/data-coccinellidae/taxonomy2.txtree"));
+    } catch (Exception e) {
+      throw new IOException(e);
+    }
   }
 
   @Override

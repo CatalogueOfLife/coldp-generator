@@ -4,7 +4,13 @@ import org.gbif.nameparser.api.NameParser;
 import org.gbif.nameparser.api.NameType;
 import org.gbif.nameparser.api.Rank;
 import org.gbif.nameparser.rust.NameParserRust;
+import org.gbif.txtree.Tree;
+import org.gbif.txtree.parsed.ParsedTree;
+import org.gbif.txtree.parsed.ParsedTreeNode;
 import org.junit.Test;
+
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.Assert.*;
 
@@ -30,6 +36,32 @@ public class ParserRuntimeTest {
   @Test
   public void rustNameParserUnparsable() {
     assertFalse(new NameParserRust().parse("?").parsed().isPresent());
+  }
+
+  /**
+   * text-tree 1.7 shipped the removed pure-Java name-parser 4.x, so this path threw
+   * NoSuchMethodError against the 5.0 api. 2.0.0 split it out and takes the parser as an argument.
+   */
+  @Test
+  public void parsedTextTree() throws Exception {
+    String txt = "Animalia [kingdom]\n  Insecta [class]\n    Abies alba Mill. [species]\n";
+    Tree<ParsedTreeNode> tree = ParsedTree.parse(
+        new ByteArrayInputStream(txt.getBytes(StandardCharsets.UTF_8)), new NameParserRust());
+    assertEquals(3, tree.size());
+    var root = tree.getRoot().getFirst();
+    assertEquals("Animalia", root.name);
+    var species = root.children.getFirst().children.getFirst();
+    assertEquals("Abies alba Mill.", species.name);
+    assertEquals("Mill.", species.parsedName.getCombinationAuthorship().toString());
+  }
+
+  /** The un-parsed tree must keep working without any name parser on the classpath at all. */
+  @Test
+  public void simpleTextTree() throws Exception {
+    String txt = "Animalia [kingdom]\n  Insecta [class]\n";
+    var tree = Tree.simple(new ByteArrayInputStream(txt.getBytes(StandardCharsets.UTF_8)));
+    assertEquals(2, tree.size());
+    assertEquals("kingdom", tree.getRoot().getFirst().rank);
   }
 
   @Test
