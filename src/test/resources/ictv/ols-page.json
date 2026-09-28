@@ -1,0 +1,137 @@
+{
+  "page": 0,
+  "numElements": 3,
+  "totalPages": 1,
+  "totalElements": 3,
+  "elements": [
+    {
+      "iri": "http://ictv.global/id/MSL41/ICTV20040588",
+      "shortForm": "ICTV20040588",
+      "label": [
+        "Betacoronavirus pandemicum"
+      ],
+      "isObsolete": false,
+      "synonym": [
+        "SARS-CoV",
+        {
+          "type": [
+            "reification"
+          ],
+          "value": "Severe acute respiratory syndrome coronavirus",
+          "axioms": [
+            {
+              "http://www.geneontology.org/formats/oboInOwl#hasSynonymType": "http://purl.obolibrary.org/obo/OMO_0003008",
+              "http://www.w3.org/2002/07/owl#versionInfo": "MSL22",
+              "oboSynonymTypeName": "previous name"
+            }
+          ]
+        },
+        {
+          "type": [
+            "reification"
+          ],
+          "value": "Severe acute respiratory syndrome-related coronavirus",
+          "axioms": [
+            {
+              "http://www.geneontology.org/formats/oboInOwl#hasSynonymType": "http://purl.obolibrary.org/obo/OMO_0003008",
+              "http://www.w3.org/2002/07/owl#versionInfo": "MSL25",
+              "oboSynonymTypeName": "previous name"
+            }
+          ]
+        }
+      ],
+      "directParent": [
+        "http://ictv.global/id/MSL41/ICTV20186129"
+      ],
+      "http://purl.obolibrary.org/obo/TAXRANK_1000000": "http://purl.obolibrary.org/obo/TAXRANK_0000006",
+      "linkedEntities": {
+        "http://purl.obolibrary.org/obo/TAXRANK_0000006": {
+          "label": [
+            "species"
+          ]
+        }
+      }
+    },
+    {
+      "iri": "http://ictv.global/id/MSL41/ICTV19790066",
+      "shortForm": "ICTV19790066",
+      "label": [
+        "Simplexvirus"
+      ],
+      "isObsolete": false,
+      "synonym": [
+        {
+          "type": [
+            "reification"
+          ],
+          "value": "Human herpesvirus 1 group",
+          "axioms": [
+            {
+              "http://www.geneontology.org/formats/oboInOwl#hasSynonymType": "http://purl.obolibrary.org/obo/OMO_0003008",
+              "http://www.w3.org/2002/07/owl#versionInfo": "MSL8",
+              "oboSynonymTypeName": "previous name"
+            }
+          ]
+        },
+        {
+          "type": [
+            "reification"
+          ],
+          "value": "Unnamed genus 1",
+          "axioms": [
+            {
+              "http://www.geneontology.org/formats/oboInOwl#hasSynonymType": "http://purl.obolibrary.org/obo/OMO_0003008",
+              "http://www.w3.org/2002/07/owl#versionInfo": "MSL6",
+              "oboSynonymTypeName": "previous name"
+            }
+          ]
+        }
+      ],
+      "directParent": [
+        "http://ictv.global/id/MSL41/ICTV19780034"
+      ],
+      "http://purl.obolibrary.org/obo/TAXRANK_1000000": "http://purl.obolibrary.org/obo/TAXRANK_0000005",
+      "linkedEntities": {
+        "http://purl.obolibrary.org/obo/TAXRANK_0000005": {
+          "label": [
+            "genus"
+          ]
+        }
+      }
+    },
+    {
+      "iri": "http://ictv.global/id/MSL41/ICTV201907161",
+      "shortForm": "ICTV201907161",
+      "label": [
+        "Floreoviria"
+      ],
+      "isObsolete": false,
+      "synonym": [
+        {
+          "type": [
+            "reification"
+          ],
+          "value": "Monodnaviria",
+          "axioms": [
+            {
+              "http://www.geneontology.org/formats/oboInOwl#hasSynonymType": "http://purl.obolibrary.org/obo/OMO_0003008",
+              "http://www.w3.org/2002/07/owl#versionInfo": "MSL35",
+              "oboSynonymTypeName": "previous name"
+            }
+          ]
+        }
+      ],
+      "directParent": [
+        "http://purl.obolibrary.org/obo/NCBITaxon_10239"
+      ],
+      "http://purl.obolibrary.org/obo/TAXRANK_1000000": "http://purl.obolibrary.org/obo/TAXRANK_0001013",
+      "linkedEntities": {
+        "http://purl.obolibrary.org/obo/TAXRANK_0001013": {
+          "label": [
+            "realm"
+          ]
+        }
+      }
+    }
+  ]
+}

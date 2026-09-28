@@ -30,7 +30,19 @@ public class HttpUtils {
   }
 
   public HttpUtils(String username, String password) {
+    this(username, password, HttpClient.Version.HTTP_2);
+  }
+
+  /**
+   * @param version preferred http version. Some servers, e.g. the EBI OLS, break off large responses over http/2
+   */
+  public HttpUtils(HttpClient.Version version) {
+    this(null, null, version);
+  }
+
+  private HttpUtils(String username, String password, HttpClient.Version version) {
     this.client = HttpClient.newBuilder()
+        .version(version)
         .followRedirects(HttpClient.Redirect.ALWAYS)
         .build();
     this.username = username;

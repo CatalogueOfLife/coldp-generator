@@ -181,6 +181,47 @@ Run: `-s colac --year 2015` (one year per run; vary `-r` for batch). Uses MariaD
 
 **Pure mapping helpers** (`ColacMappings`, unit-tested in `ColacMappingsTest`): `nomCode` (kingdom→code), `status` (label→ColDP TaxonomicStatus), `establishment`, `synonymName` (atomized parts→name), `joinRefs`. The `Generator`/readers are integration-verified against the local MariaDB (`colac/GeneratorTest`, `@Ignore`d).
 
+### ICTV Generator
+
+The ICTV generator (`ictv/`) combines two sources:
+- **Structure** comes from the current Master Species List spreadsheet (`https://ictv.global/msl/current`). The
+  `MSL` sheet has one row per species with the full classification (Realm…Subgenus), the species'
+  `ICTV_ID`, the genome and the last change.
+- **Higher-taxon IDs and previous names** come from the
+  [EVORA ICTV ontology](https://evora-project.github.io/ictv-ontology/) served by EBI OLS4.
+
+**Columns are resolved by header name**, never by index. The MSL column layout drifts between releases:
+MSL41 inserted `ICTV_ID`, which silently broke the old index-based code. A missing header fails fast.
+
+**Official IDs.** ICTV identifiers (`ICTV20040588`) are stable across renames and resolve at
+`https://ictv.global/id/{id}`, which is also written as `link`.
+- Species take the ID from the `ICTV_ID` cell. That cell is a `=HYPERLINK(url,"ICTV…")` formula; the
+  evaluated label is used, with a regex on the formula as fallback.
+- The spreadsheet has **no IDs for higher taxa**, so they are looked up in the ontology by `rank|name`.
+  Names are unique within a release. An unmatched taxon falls back to a generated `rank:name` id with a
+  warning (0 in MSL41).
+
+**Ontology bulk access.** All classes of one release come from
+`/ols4/api/v2/ontologies/ictv/classes?search=MSL41&searchFields=<owl#versionInfo>&exactMatch=true&size=1000`.
+That is 23 pages of about 10 MB each, cached as `ols-{MSL}-p{n}.json`.
+- **Java's HTTP/2 client fails on these large EBI responses** with `EOF reached while reading` (curl
+  works). The generator therefore uses a dedicated `HttpUtils(HttpClient.Version.HTTP_1_1)`, which takes
+  about 5 min for all pages.
+- If the ontology has no data yet for a brand-new MSL, the generator falls back to the previous release.
+  The empty page 0 is not cached.
+
+**Previous names** are the ontology `synonym` entries typed `previous name`, whose `owl#versionInfo` is the
+MSL that introduced the name. They are emitted as synonyms of the current taxon:
+- `ID = {ictvId}-{MSL}`, `rank` = the current rank, `remarks = Previous name, introduced in MSLnn`.
+- Plain-string synonyms are virus abbreviations (RABV, SARS-CoV) and are skipped, as are `Unnamed …`
+  placeholders.
+- This supersedes the spreadsheet's "Taxa Renamed" sheet, which is no longer read (OLS covered all 102
+  MSL41 renames).
+- MSL41 result: 22,670 accepted usages plus `root`, and 10,671 synonyms.
+
+`IctvOntology` (pure JSON parsing) is unit-tested in `IctvOntologyTest` against a trimmed real OLS page
+(`src/test/resources/ictv/ols-page.json`).
+
 ### ASW Generator
 
 The ASW generator (`asw/`) scrapes [Amphibian Species of the World](https://amphibiansoftheworld.amnh.org) — the authoritative online reference for ~9,000 extant amphibian species maintained by Darrel Frost at the American Museum of Natural History.

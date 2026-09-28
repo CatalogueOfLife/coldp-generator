@@ -15,27 +15,36 @@
  */
 package org.catalogueoflife.data.ictv;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import life.catalogue.api.model.DOI;
 import life.catalogue.api.vocab.TaxonomicStatus;
 import life.catalogue.coldp.ColdpTerm;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.*;
 import org.catalogueoflife.data.AbstractXlsSrcGenerator;
 import org.catalogueoflife.data.GeneratorConfig;
+import org.catalogueoflife.data.utils.HttpUtils;
 import org.gbif.nameparser.api.NomCode;
 import org.gbif.nameparser.api.Rank;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.net.http.HttpClient;
 import java.util.*;
 import java.util.regex.Pattern;
 
+/**
+ * Converts the ICTV Master Species List (MSL) spreadsheet into ColDP.
+ * The spreadsheet provides the species with their official, stable ICTV identifiers and the full classification,
+ * but no identifiers for the higher taxa. These and all previous names of a taxon are taken from the
+ * ICTV ontology of the EVORA project, served by the EBI Ontology Lookup Service.
+ */
 public class Generator extends AbstractXlsSrcGenerator {
-  // https://talk.ictvonline.org/files/master-species-lists/
+  // https://ictv.global/msl
   private static final URI DOWNLOAD = URI.create("https://ictv.global/msl/current");
+  private static final String ID_LINK = "https://ictv.global/id/";
+  private static final int OLS_PAGE_SIZE = 1000;
   // manually curated data
   private static final List<DOI> SOURCES = List.of(
       new DOI("10.1093/nar/gkx932"),
@@ -48,14 +57,16 @@ public class Generator extends AbstractXlsSrcGenerator {
   // SPREADSHEET FORMAT
   private static final int MD_SHEET_IDX = 0; // Version
   private static final int MD_COL_IDX = 1;
-  private static final int SHEET_IDX = 1; // MSL
-  private static final int SKIP_ROWS = 1;
-  private static final int COL_SORT = 0;
-  private static final int COL_REALM = 1;
-  private static final int COL_SPECIES   = 15;
-  private static final int COL_COMPOSITION = 16;
-  private static final int COL_CHANGE = 17;
-  private static final int COL_LINK = 20;
+  private static final String SHEET_NAME = "MSL";
+  // column headers of the MSL sheet, resolved to indices at runtime as the column layout changes between releases
+  private static final String COL_SORT = "Sort";
+  private static final String COL_SPECIES = "Species";
+  private static final String COL_ID = "ICTV_ID";
+  private static final String COL_GENOME = "Genome";
+  private static final String COL_CHANGE = "Last Change";
+  private static final String COL_CHANGE_MSL = "MSL of Last Change";
+  private static final Pattern ICTV_ID = Pattern.compile("(ICTV\\d+)");
+  private static final Pattern MSL = Pattern.compile("MSL(\\d+)");
   private static final List<Rank> CLASSIFICATION = List.of(
     Rank.REALM,
     Rank.SUBREALM,
@@ -73,26 +84,27 @@ public class Generator extends AbstractXlsSrcGenerator {
     Rank.SUBGENUS
   );
 
-  private static final int SHEET_RENAMED_IDX = 3; // Taxa Renamed in MSL38
-  private static final int COL_RENAMED_RANK = 0;
-  private static final int COL_RENAMED_OLD = 1;
-  private static final int COL_RENAMED_NEW = 2;
   private final String rootID = "root";
   private final Set<String> ids = new HashSet<>();
+  // emitted usages with an official ICTV id and their rank
+  private final Map<String, Rank> ictvUsages = new LinkedHashMap<>();
+  private Map<String, Integer> columns;
+  private String msl; // base release, e.g. MSL41
+  // ontology taxa by ICTV id and by rank|name
+  private final Map<String, IctvOntology.Taxon> ontologyById = new HashMap<>();
+  private final Map<String, IctvOntology.Taxon> ontologyByName = new HashMap<>();
+  private int missingIds = 0;
+  // the EBI OLS breaks off large responses over http/2
+  private final HttpUtils olsHttp = new HttpUtils(HttpClient.Version.HTTP_1_1);
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true, DOWNLOAD);
-    // assert classification columns dont overlap with species col
-    var i = COL_REALM + CLASSIFICATION.size();
-    Preconditions.checkArgument(i <= COL_SPECIES, "Classification columns overlap with species column");
   }
 
   void extractMetadata() throws IOException {
     // extract metadata
-    String baseversion = null;
     String version = null;
     String date = null;
-    Pattern MSL = Pattern.compile("MSL\\d+");
     Sheet sheet = wb.getSheetAt(MD_SHEET_IDX);
     Iterator<Row> iter = sheet.rowIterator();
     while (iter.hasNext()) {
@@ -100,32 +112,41 @@ public class Generator extends AbstractXlsSrcGenerator {
       if (row.getRowNum() >= 60) break;
       String x = col(row, MD_COL_IDX);
       if (x != null) {
-        if (baseversion == null) {
+        if (msl == null) {
           var m = MSL.matcher(x);
           if (m.find()) {
-            baseversion = m.group(0);
+            msl = m.group(0);
           }
         }
         if (x.startsWith("Version")) {
-          x = col(row, MD_COL_IDX+1);
-          version = baseversion + ".v"+x;
-        }
-        if (x.startsWith("Date")) {
-          date = col(row, MD_COL_IDX+1);
+          version = msl + ".v" + col(row, MD_COL_IDX+1);
+        } else if (x.startsWith("Date")) {
+          date = isoDate(row.getCell(MD_COL_IDX+1));
+          if (date == null) {
+            date = col(row, MD_COL_IDX+1);
+          }
         }
       }
     }
-    if (version == null || date == null) {
-      throw new IllegalStateException("Unable to find version or date metadata");
+    if (msl == null || version == null || date == null) {
+      throw new IllegalStateException("Unable to find MSL, version or date metadata");
     }
     metadata.put("issued", date);
     metadata.put("version", version);
   }
+
+  private static String isoDate(Cell cell) {
+    if (cell != null && cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
+      return cell.getLocalDateTimeCellValue().toLocalDate().toString();
+    }
+    return null;
+  }
+
   @Override
   protected void addData() throws Exception {
     extractMetadata();
+    loadOntology();
 
-    // write just the NameUsage file
     newWriter(ColdpTerm.NameUsage, List.of(
       ColdpTerm.ID,
       ColdpTerm.parentID,
@@ -139,75 +160,215 @@ public class Generator extends AbstractXlsSrcGenerator {
     ));
 
     // data
-    var sheet = wb.getSheetAt(SHEET_IDX);
+    var sheet = wb.getSheet(SHEET_NAME);
+    if (sheet == null) {
+      throw new IllegalStateException("No sheet named " + SHEET_NAME + " found");
+    }
     int rows = sheet.getPhysicalNumberOfRows();
     LOG.info("{} rows found in excel sheet", rows);
 
     // first add a single root
-    addUsageRecord(rootID, null, null, "Viruses", null, null);
+    addUsageRecord(rootID, null, null, "Viruses", null, TaxonomicStatus.ACCEPTED);
 
     var iter = sheet.rowIterator();
     while (iter.hasNext()) {
       Row row = iter.next();
-      if (row.getRowNum()+1 <= SKIP_ROWS) continue;
+      if (columns == null) {
+        columns = readHeader(row);
+        continue;
+      }
 
-      final Integer sort = colInt(row, COL_SORT);
       final String species = col(row, COL_SPECIES);
       if (Strings.isNullOrEmpty(species)) continue;
+      final Integer sort = colInt(row, column(COL_SORT));
 
       String parentID = writeClassification(row, sort);
       // finally the species record
-      writer.set(ColdpTerm.link, link(row, COL_LINK));
-      writer.set(ColdpTerm.remarks, concat(row, COL_COMPOSITION, COL_CHANGE));
-      String id = genID(Rank.SPECIES, species);
+      String id = ictvID(row);
+      if (id == null) {
+        LOG.warn("No ICTV identifier found for species {}", species);
+        missingIds++;
+        id = genID(Rank.SPECIES, species);
+      }
+      writer.set(ColdpTerm.remarks, remarks(row));
       addUsageRecord(id, parentID, Rank.SPECIES, species, sort, TaxonomicStatus.ACCEPTED);
     }
-
-    // now add synonyms from the MSL38 renamer
-    sheet = wb.getSheetAt(SHEET_RENAMED_IDX);
-    rows = sheet.getPhysicalNumberOfRows();
-    LOG.info("{} rows found in synonym sheet", rows);
-    iter = sheet.rowIterator();
-    while (iter.hasNext()) {
-      Row row = iter.next();
-      if (row.getRowNum()+1 <= SKIP_ROWS) continue;
-
-      Rank rank = colRank(row, COL_RENAMED_RANK);
-      String oldName = lastInList(col(row, COL_RENAMED_OLD));
-      String newName = lastInList(col(row, COL_RENAMED_NEW));
-      if (rank == null || Strings.isNullOrEmpty(oldName) || Strings.isNullOrEmpty(newName)) continue;
-
-      // the synonym record
-      writer.set(ColdpTerm.remarks, "Renamed in MSL 38");
-      String id = genID(rank, oldName);
-      String parentID = genID(rank, newName);
-      addUsageRecord(id, parentID, rank, oldName, null, TaxonomicStatus.SYNONYM);
+    if (missingIds > 0) {
+      LOG.warn("{} taxa without an official ICTV identifier", missingIds);
     }
+
+    addPreviousNames();
   }
 
-  private String lastInList(String x) {
-    if (x != null) {
-      int i = x.lastIndexOf(';');
-      return x.substring(i+1).trim();
+  private Map<String, Integer> readHeader(Row row) {
+    Map<String, Integer> header = new HashMap<>();
+    for (Cell cell : row) {
+      String x = StringUtils.trimToNull(cell.getStringCellValue());
+      if (x != null) {
+        header.put(x.toLowerCase(), cell.getColumnIndex());
+      }
+    }
+    List<String> required = new ArrayList<>(List.of(COL_SORT, COL_SPECIES, COL_ID, COL_GENOME, COL_CHANGE, COL_CHANGE_MSL));
+    CLASSIFICATION.forEach(r -> required.add(rankHeader(r)));
+    for (String col : required) {
+      if (!header.containsKey(col.toLowerCase())) {
+        throw new IllegalStateException("Missing column " + col + " in sheet " + SHEET_NAME);
+      }
+    }
+    return header;
+  }
+
+  private static String rankHeader(Rank rank) {
+    return StringUtils.capitalize(rank.name().toLowerCase());
+  }
+
+  private int column(String header) {
+    return columns.get(header.toLowerCase());
+  }
+
+  private String col(Row row, String header) {
+    return col(row, column(header));
+  }
+
+  /**
+   * The ICTV_ID column is a HYPERLINK formula with the identifier as its label.
+   */
+  private String ictvID(Row row) {
+    String x = col(row, COL_ID);
+    if (x != null && ICTV_ID.matcher(x).matches()) {
+      return x;
+    }
+    Cell cell = row.getCell(column(COL_ID));
+    if (cell != null && cell.getCellType() == CellType.FORMULA) {
+      var m = ICTV_ID.matcher(cell.getCellFormula());
+      if (m.find()) {
+        return m.group(1);
+      }
     }
     return null;
   }
 
+  private String remarks(Row row) {
+    List<String> parts = new ArrayList<>();
+    String genome = col(row, COL_GENOME);
+    if (genome != null) {
+      parts.add(genome);
+    }
+    // values come with trailing commas, e.g. "New,"
+    String change = StringUtils.trimToNull(StringUtils.stripEnd(col(row, COL_CHANGE), ", "));
+    if (change != null) {
+      String changeMsl = col(row, COL_CHANGE_MSL);
+      parts.add("Last change: " + change + (changeMsl == null ? "" : " in MSL" + changeMsl));
+    }
+    return parts.isEmpty() ? null : String.join("; ", parts);
+  }
+
+  /**
+   * Loads all taxa of the current MSL release from the ICTV ontology.
+   * Falls back to the previous release in case the ontology has not yet been updated.
+   */
+  private void loadOntology() throws IOException {
+    var m = MSL.matcher(msl);
+    if (!m.find()) throw new IllegalStateException("Bad MSL release " + msl);
+    int release = Integer.parseInt(m.group(1));
+    List<IctvOntology.Taxon> taxa = loadOntology("MSL" + release);
+    if (taxa.isEmpty()) {
+      LOG.warn("ICTV ontology has no data for {}. Use previous release MSL{} instead", msl, release-1);
+      taxa = loadOntology("MSL" + (release-1));
+    }
+    for (var t : taxa) {
+      ontologyById.put(t.id(), t);
+      ontologyByName.put(t.key(), t);
+    }
+    LOG.info("Loaded {} taxa from the ICTV ontology", ontologyById.size());
+  }
+
+  private List<IctvOntology.Taxon> loadOntology(String release) throws IOException {
+    List<IctvOntology.Taxon> taxa = new ArrayList<>();
+    int page = 0;
+    int total = 1;
+    while (page < total) {
+      File f = olsPage(release, page);
+      if (f == null) break;
+      var json = mapper.readTree(f);
+      var pageTaxa = IctvOntology.parsePage(json);
+      if (page == 0) {
+        total = IctvOntology.totalPages(json);
+        if (pageTaxa.isEmpty()) {
+          // do not cache an empty response, the release might show up later
+          f.delete();
+          break;
+        }
+        LOG.info("Loading {} pages of {} taxa from the ICTV ontology", total, release);
+      }
+      taxa.addAll(pageTaxa);
+      page++;
+    }
+    return taxa;
+  }
+
+  private File olsPage(String release, int page) throws IOException {
+    File f = sourceFile("ols-" + release + "-p" + page + ".json");
+    if (!f.exists()) {
+      if (cfg.noDownload) {
+        LOG.warn("--no-download set but {} not cached; skipping", f.getName());
+        return null;
+      }
+      olsHttp.download(IctvOntology.releasePage(release, page, OLS_PAGE_SIZE), f);
+      crawlDelay(200);
+    }
+    return f;
+  }
+
+  /**
+   * Adds all previous names of the emitted taxa known to the ICTV ontology as synonyms.
+   */
+  private void addPreviousNames() throws IOException {
+    int counter = 0;
+    for (var e : ictvUsages.entrySet()) {
+      var t = ontologyById.get(e.getKey());
+      if (t == null) continue;
+      for (var prev : t.previous()) {
+        String base = e.getKey() + "-" + prev.msl();
+        String id = base;
+        int suffix = 2;
+        while (ids.contains(id)) {
+          id = base + "-" + suffix++;
+        }
+        writer.set(ColdpTerm.remarks, "Previous name, introduced in " + prev.msl());
+        addUsageRecord(id, e.getKey(), e.getValue(), prev.name(), null, TaxonomicStatus.SYNONYM);
+        counter++;
+      }
+    }
+    LOG.info("Added {} previous names as synonyms", counter);
+  }
+
   private String writeClassification(Row row, Integer sort) throws IOException {
     String parentID = rootID;
-    int col = COL_REALM;
     for (Rank rank : CLASSIFICATION) {
-      String name = col(row, col);
+      String name = col(row, rankHeader(rank));
       if (!StringUtils.isBlank(name)) {
-        String id = genID(rank, name);
+        String id = higherTaxonID(rank, name);
         if (!ids.contains(id)) {
           addUsageRecord(id, parentID, rank, name, sort, TaxonomicStatus.ACCEPTED);
         }
         parentID = id;
       }
-      col++;
     }
     return parentID;
+  }
+
+  private String higherTaxonID(Rank rank, String name) {
+    var t = ontologyByName.get(IctvOntology.key(rank.name(), name));
+    if (t != null) {
+      return t.id();
+    }
+    String id = genID(rank, name);
+    if (!ids.contains(id)) {
+      LOG.warn("No ICTV identifier found for {} {}", rank, name);
+      missingIds++;
+    }
+    return id;
   }
 
   private static String genID(Rank rank, String name) {
@@ -215,7 +376,7 @@ public class Generator extends AbstractXlsSrcGenerator {
   }
 
   private void addUsageRecord(String id, String parentID, Rank rank, String name, Integer sort, TaxonomicStatus status) throws IOException {
-    // create new realm record
+    boolean official = ICTV_ID.matcher(id).matches();
     writer.set(ColdpTerm.ID, id);
     writer.set(ColdpTerm.parentID, parentID);
     writer.set(ColdpTerm.status, status);
@@ -223,6 +384,10 @@ public class Generator extends AbstractXlsSrcGenerator {
     writer.set(ColdpTerm.scientificName, name);
     writer.set(ColdpTerm.code, NomCode.VIRUS.getAcronym());
     writer.set(ColdpTerm.ordinal, sort);
+    if (official) {
+      writer.set(ColdpTerm.link, ID_LINK + id);
+      ictvUsages.put(id, rank);
+    }
     writer.next();
     ids.add(id);
   }
