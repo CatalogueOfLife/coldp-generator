@@ -2,6 +2,11 @@
 alias: ICTV
 title: ICTV Master Species List (MSL)
 description: |-
+  The official virus taxonomy of the International Committee on Taxonomy of Viruses (ICTV).
+  The classification and all species are taken from the current Master Species List (MSL) spreadsheet.
+  Stable ICTV identifiers for higher taxa and the previous names of all taxa, given as synonyms,
+  come from the ICTV ontology developed by the EVORA project and served by the EBI Ontology Lookup Service.
+
   The Master Species List (MSL) provides access to the official, current virus taxonomy approved by the ICTV. 
   A new MSL will be uploaded whenever a new, revised taxonomy is ratified by the ICTV membership. 
   These Master Species Lists (MSL) provide the complete ICTV taxonomy as a downloadable spreadsheet. 
@@ -24,6 +29,11 @@ contact:
 creator:
  -
    organisation: International Committee on Taxonomy of Viruses (ICTV)
+contributor:
+ -
+   organisation: EVORA project
+   url: https://evora-project.eu/
+   note: ICTV ontology providing identifiers of higher taxa and previous names, https://github.com/EVORA-project/ictv-ontology
 license: CC-BY
 taxonomicScope: Viruses
 geographicScope: global

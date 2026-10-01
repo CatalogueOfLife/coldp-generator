@@ -45,6 +45,8 @@ public class Generator extends AbstractXlsSrcGenerator {
   private static final URI DOWNLOAD = URI.create("https://ictv.global/msl/current");
   private static final String ID_LINK = "https://ictv.global/id/";
   private static final int OLS_PAGE_SIZE = 1000;
+  // ICTV ontology, https://github.com/EVORA-project/ictv-ontology
+  private static final DOI ONTOLOGY = new DOI("10.1093/gigascience/giag089");
   // manually curated data
   private static final List<DOI> SOURCES = List.of(
       new DOI("10.1093/nar/gkx932"),
@@ -90,6 +92,7 @@ public class Generator extends AbstractXlsSrcGenerator {
   private final Map<String, Rank> ictvUsages = new LinkedHashMap<>();
   private Map<String, Integer> columns;
   private String msl; // base release, e.g. MSL41
+  private DOI mslDoi; // Zenodo DOI of the MSL file
   // ontology taxa by ICTV id and by rank|name
   private final Map<String, IctvOntology.Taxon> ontologyById = new HashMap<>();
   private final Map<String, IctvOntology.Taxon> ontologyByName = new HashMap<>();
@@ -125,6 +128,8 @@ public class Generator extends AbstractXlsSrcGenerator {
           if (date == null) {
             date = col(row, MD_COL_IDX+1);
           }
+        } else if (x.startsWith("DOI")) {
+          mslDoi = DOI.parse(col(row, MD_COL_IDX+1)).orElse(null);
         }
       }
     }
@@ -395,6 +400,16 @@ public class Generator extends AbstractXlsSrcGenerator {
   @Override
   protected void addMetadata() throws Exception {
     //   Walker PJ, Siddell SG, Lefkowitz EJ, Mushegian AR, Adriaenssens EM, Alfenas-Zerbini P, Davison AJ, Dempsey DM, Dutilh BE, García ML, Harrach B, Harrison RL, Hendrickson RC, Junglen S, Knowles NJ, Krupovic M, Kuhn JH, Lambert AJ, Łobocka M, Nibert ML, Oksanen HM, Orton RJ, Robertson DL, Rubino L, Sabanadzovic S, Simmonds P, Smith DB, Suzuki N, Van Dooerslaer K, Vandamme AM, Varsani A, Zerbini FM. Changes to virus taxonomy and to the International Code of Virus Classification and Nomenclature ratified by the International Committee on Taxonomy of Viruses (2021). Arch Virol. 2021 Jul 6. doi: 10.1007/s00705-021-05156-1. PMID: 34231026.
+    if (mslDoi != null) {
+      addSource(mslDoi);
+      // Zenodo does not know the MSL release
+      if (!sourceCitations.isEmpty() && sourceCitations.getLast().getVersion() == null) {
+        sourceCitations.getLast().setVersion((String) metadata.get("version"));
+      }
+    } else {
+      LOG.warn("No DOI found for {}", msl);
+    }
+    addSource(ONTOLOGY);
     for (DOI doi : SOURCES) {
       addSource(doi);
     }

@@ -219,6 +219,11 @@ MSL that introduced the name. They are emitted as synonyms of the current taxon:
   MSL41 renames).
 - MSL41 result: 22,670 accepted usages plus `root`, and 10,671 synonyms.
 
+**Metadata sources.** The MSL `Version` sheet has a `DOI:` row, the Zenodo DOI of that release's
+file. It is resolved as the first source, with the MSL version added because Zenodo has none. The
+ontology paper (Lieutaud et al. 2026, `10.1093/gigascience/giag089`) comes next, then the curated ICTV
+papers. The EVORA project is listed as `contributor` in `metadata.yaml`.
+
 `IctvOntology` (pure JSON parsing) is unit-tested in `IctvOntologyTest` against a trimmed real OLS page
 (`src/test/resources/ictv/ols-page.json`).
 
