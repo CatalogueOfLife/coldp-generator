@@ -47,6 +47,7 @@ src/main/java/org/catalogueoflife/data/
 ├── cycads/                     # Cycads generator
 ├── ictv/                       # ICTV MSL generator
 ├── ipni/                       # IPNI generator (API-based)
+├── lcvp/                       # Leipzig Catalogue of Vascular Plants generator
 ├── lpsn/                       # LPSN prokaryotes generator
 ├── mdd/                        # Mammal Diversity Database generator
 ├── mites/                      # Mites generator
@@ -134,9 +135,39 @@ needs no parser at all; only `biolib/TreeDecorator` uses the parsed side, with `
 
 Generators output raw rank labels (e.g. `"familia"`, `"classis"`, `"cohort"`) rather than normalised ColDP rank names. The ChecklistBank rank parser normalises these on import, so generators do not need a rank-mapping table.
 
-## Supported Sources (22)
+## Supported Sources (23)
 
-AntCat, ASW, Birdlife (HBW), BioLib, CITES, Clements, CoL Annual Checklists (colac), Cycads, GRIN, ICTV, IPNI, LPSN, MDD, Mites, OTL, OTT, PBDB, PFNR, USDA, WikiData, WikiSpecies, WSC
+AntCat, ASW, Birdlife (HBW), BioLib, CITES, Clements, CoL Annual Checklists (colac), Cycads, GRIN, ICTV, IPNI, LCVP, LPSN, MDD, Mites, OTL, OTT, PBDB, PFNR, USDA, WikiData, WikiSpecies, WSC
+
+### LCVP Generator
+
+The LCVP generator (`lcvp/`) converts the [Leipzig Catalogue of Vascular Plants](https://github.com/idiv-biodiversity/LCVP)
+(Freiberg et al. 2020, [10.1038/s41597-020-00702-z](https://doi.org/10.1038/s41597-020-00702-z), cited as source). It
+replaces the R script in [data-LCVP](https://github.com/CatalogueOfLife/data-LCVP), which set every accepted
+name's `parentID` to its own `ID` and so flattened ChecklistBank dataset 2262 into 415k roots
+([backend#1625](https://github.com/CatalogueOfLife/backend/issues/1625)).
+
+**Source.** The zipped CSV export in the R package's `raw_data_LCVP/` folder (currently `LCVP 2.0 export 27.7.2022.zip`,
+1.34M rows), found via the GitHub contents API so a new export is picked up automatically. `issued` is the date in
+the file name, `version` the R package `DESCRIPTION` version (3.0.1). Each row is a name with `Status`
+(accepted / synonym / unresolved) and `globalId.of.Output.Taxon`, the id of its accepted name.
+
+**Classification.** LCVP lists only species and below; order and family are columns, genera absent. The tree is
+synthesized: `Tracheophyta` root → `o:{Order}` → `f:{Family}` → `g:{Genus}` → accepted species. Accepted infraspecific
+taxa go under their accepted species (`LcvpMappings.speciesKey`, ambiguous keys dropped), else the genus (24 rows).
+
+**Data quirks** (pure mappings in `LcvpMappings`, unit-tested in `LcvpMappingsTest`):
+- Hybrids are marked by an `_x` suffix on genus or epithet (once `_x_x`): stripped, `×` prefixed in the
+  scientificName (`Abies ×kentiana`, `×Serapicamptis …`), hybrid infraspecifics get a `notho…` rank marker,
+  and `notho` is set. Placeholders `nil` / `---` are blanked.
+- `global.Id` is not unique (2 ids): the accepted row keeps the id, others get `{id}-{line}`.
+- **Unresolved** names (60,952) always carry an accepted output taxon, so they are emitted as `synonym` with a
+  remark. Synonyms pointing at an unresolved name are followed to the accepted terminus (`resolveAccepted`);
+  7 synonyms pointing at non-existent ids become **bare names** (see [[coldp-synonym-parent-rules]]).
+- `Literature` (`;`-separated abbreviated citations) → `Reference` (`R{n}`) + comma-joined `referenceID`;
+  `selbst` ("self", a decision by the LCVP authors) becomes a remark instead. `Comments` → `remarks`.
+
+**ID scheme:** LCVP `global.Id` for names; `o:`/`f:`/`g:` + name for synthesized higher taxa; `R{n}` for references.
 
 ### USDA PLANTS Generator
 
