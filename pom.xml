@@ -81,8 +81,9 @@
     <repository>
       <id>gbif-all</id>
       <url>https://repository.gbif.org/repository/gbif</url>
+      <!-- the gbif group serves no snapshots since 2026-11-06, they moved to repository-snapshots.gbif.org -->
       <snapshots>
-        <updatePolicy>always</updatePolicy>
+        <enabled>false</enabled>
       </snapshots>
     </repository>
     <repository>
@@ -94,11 +95,11 @@
   <distributionManagement>
     <repository>
       <id>gbif-release</id>
-      <url>http://repository.gbif.org/content/repositories/releases</url>
+      <url>https://repository.gbif.org/content/repositories/releases</url>
     </repository>
     <snapshotRepository>
       <id>gbif-snapshot</id>
-      <url>http://repository.gbif.org/content/repositories/snapshots</url>
+      <url>https://repository-snapshots.gbif.org/repository/snapshots</url>
     </snapshotRepository>
   </distributionManagement>
 
