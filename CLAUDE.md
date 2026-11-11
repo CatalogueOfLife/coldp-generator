@@ -45,6 +45,7 @@ src/main/java/org/catalogueoflife/data/
 ├── cites/                      # CITES generator
 ├── clements/                   # Clements checklist generator
 ├── cycads/                     # Cycads generator
+├── dadis/                      # FAO DAD-IS livestock breeds generator
 ├── ictv/                       # ICTV MSL generator
 ├── ipni/                       # IPNI generator (API-based)
 ├── lcvp/                       # Leipzig Catalogue of Vascular Plants generator
@@ -55,6 +56,7 @@ src/main/java/org/catalogueoflife/data/
 ├── ott/                        # Open Tree of Life taxonomy generator
 ├── pbdb/                       # Paleobiology Database generator
 ├── pfnr/                       # Plant Fossil Names Registry generator
+├── wca/                        # FAO WCA 2030 crops generator
 ├── wikidata/                   # Wikidata generator
 ├── wikispecies/                # WikiSpecies generator
 └── wsc/                        # World Spider Catalog generator
@@ -135,9 +137,9 @@ needs no parser at all; only `biolib/TreeDecorator` uses the parsed side, with `
 
 Generators output raw rank labels (e.g. `"familia"`, `"classis"`, `"cohort"`) rather than normalised ColDP rank names. The ChecklistBank rank parser normalises these on import, so generators do not need a rank-mapping table.
 
-## Supported Sources (23)
+## Supported Sources (25)
 
-AntCat, ASW, Birdlife (HBW), BioLib, CITES, Clements, CoL Annual Checklists (colac), Cycads, GRIN, ICTV, IPNI, LCVP, LPSN, MDD, Mites, OTL, OTT, PBDB, PFNR, USDA, WikiData, WikiSpecies, WSC
+AntCat, ASW, Birdlife (HBW), BioLib, CITES, Clements, CoL Annual Checklists (colac), Cycads, DAD-IS, GRIN, ICTV, IPNI, LCVP, LPSN, MDD, Mites, OTL, OTT, PBDB, PFNR, USDA, WCA, WikiData, WikiSpecies, WSC
 
 ### LCVP Generator
 
@@ -168,6 +170,61 @@ taxa go under their accepted species (`LcvpMappings.speciesKey`, ambiguous keys 
   `selbst` ("self", a decision by the LCVP authors) becomes a remark instead. `Comments` → `remarks`.
 
 **ID scheme:** LCVP `global.Id` for names; `o:`/`f:`/`g:` + name for synthesized higher taxa; `R{n}` for references.
+
+### WCA Generator
+
+The WCA generator (`wca/`) converts the crops of the FAO [World Programme for the Census of Agriculture 2030](https://doi.org/10.4060/cd9437en)
+(FAO Statistical Development Series 22, CC BY 4.0; the DOI is resolved as the source). Annex 7 lists ~300 crops with
+botanical name, ICC 1.1 and 1.2 code and CPC 3.0 code; Annex 6 is the Indicative Crop Classification (ICC 1.2) with
+temporary/permanent crop type. Annex 8 (livestock) has no scientific names and is not used.
+
+**Curated, not parsed at runtime.** The tables only exist in the PDF and carry their own errors, and the WCA is
+decennial, so `scripts/gen_wca_tsv.py` (pdfplumber) extracts them once into `resources/wca/icc.tsv` and `crops.tsv`
+(one row per crop × botanical name). Re-run it only for a new revision or corrigendum. It fixes: codes that lost their
+trailing zero (`5.9` → `5.90`) and typos (`20.04.02`, `9.09.02`); the group numbers of Sugar crops (missing, = 8) and
+Other crops (printed 8, = 9); misspelt names (`Erythroxypum`, `Crocus savitus`, `Sorghum bicolour`, …) via `NAME_FIXES`;
+cells listing several plants (`;` `,` `/` ` or `, abbreviated genera `V. corymbosum`); `Genus spp.` → genus;
+cross references (`see Cola nut`); a stray quote and a missing comma in CPC cells. Every ICC 1.2 code is validated
+against Annex 6. The PDF online already includes the corrigendum of 23 Sep 2026. The script also cuts the source
+pages (pdf p. 4 with the required citation and licence, Annexes 6–7 = pdf p. 190–204) into
+`resources/wca/wca2030-annex6-7.pdf` (pypdf, ~200 KB), which the generator copies into the archive root.
+
+**ColDP model.** One accepted NameUsage per distinct botanical name (262), id = slugged name, under `Plantae >
+Tracheophyta` or `Fungi` (mushrooms, truffles). The ICC is explicitly not botanical, so it is no classification: crop
+names → `VernacularName` (eng), and `TaxonProperty` rows `ICC 1.2` (remarks = label path), `ICC 1.1`, `CPC 3.0` (one per
+code; `*` = CPC class shared with other crops) and `crop type`, each naming the crops it applies to. The original
+botanical text goes into `remarks` when it was changed. The licence requires an adaptation disclaimer (in the
+description) and forbids the FAO logo, so there is none. `WcaMappingsTest` checks the curated tables.
+
+### DAD-IS Generator
+
+The DAD-IS generator (`dadis/`) converts the FAO [Domestic Animal Diversity Information System](https://www.fao.org/dad-is)
+(FAO databases are CC BY 4.0). There is no API; the DAD-IS web apps read a **public Firebase realtime database** at
+`https://dadis-ws.firebaseio.com/Data/` (`.json` suffix, no auth; the root and `?shallow` listings are denied):
+`species.json` (44 species, common names in en/es/fr/ru/zh), `countries.json` (252, keyed by ISO3 or M49 code) and
+`breeds/{country}.json` (species → breed → national population record, ~15.7k), plus `bees/species.json` (bee taxa by
+tribe with their countries). All are cached in the sources dir; `--no-download` reuses them.
+
+**Species mapping.** DAD-IS has no scientific names. `resources/dadis/species.tsv` maps each DAD-IS species to a
+scientific name, authorship, rank and kingdom…family. Catch-all species map to a family or genus with a remark: Deer →
+Cervidae, Partridge and Pheasant → Phasianidae (shared node, so it gets neither vernacular), Quail → Coturnix, Goose →
+Anser, Fox → Vulpes, Swallow → Aerodramus (swiftlets). Two DAD-IS species are hybrids (`Camelus bactrianus × Camelus
+dromedarius`, mule ducks). A new DAD-IS species is logged as missing and its breeds are skipped.
+
+**Breeds** (raw rank label `breed`; name-parser `Rank` has no BREED value yet, so CLB's rank parser needs it) are named like cultivars,
+`Bos taurus 'Jersey'` (inner apostrophes become `’`). A national population joins a breed by its
+`TransboundaryOrBrandName`, else its `MostCommonName`, grouped per species by `DadisMappings.key` (case, accents,
+punctuation ignored); the shown spelling is the most frequent one. Names that only repeat the species (any of its
+common names, its scientific name) are no breed: those populations become distributions of the species. Per breed:
+`Distribution` per national population (ISO2 area; `BreedClassification` Native/Exotic → native/introduced; FAO risk →
+closest IUCN threat status, raw status in remarks), `VernacularName` for national names differing from the breed name
+(free-text `Language` like `ger.` cleaned to ISO 639-3 where possible, country = ISO2), `TaxonProperty use` from the
+true `General.Uses` flags. Bees use their real names (genus/species/subspecies nodes under Apidae tribes); only the
+Buckfast hybrid is a breed.
+
+**IDs:** slugged scientific name for taxa (`bos-taurus`, `phasianidae`); `{dadis-species-slug}:{breed-slug}` for breeds
+(`cattle:jersey`), `bee:buckfast`. Result 2026-11: 184 taxa, 8,706 breeds, 15,710 national populations.
+`DadisMappingsTest` covers the pure mappings.
 
 ### USDA PLANTS Generator
 

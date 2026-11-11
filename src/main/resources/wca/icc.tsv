@@ -1,0 +1,199 @@
+code	parent	label	cropType
+1		Cereals	T
+1.01	1	Wheat	T
+1.02	1	Maize	T
+1.03	1	Rice	T
+1.04	1	Sorghum	T
+1.05	1	Barley	T
+1.06	1	Rye	T
+1.07	1	Oats	T
+1.08	1	Millet	T
+1.09	1	Triticale	T
+1.10	1	Buckwheat	T
+1.11	1	Fonio	T
+1.12	1	Quinoa	T
+1.13	1	Canary seed	T
+1.14	1	Mixed cereals	T
+1.90	1	Other cereals, n.e.c.	T
+2		Vegetables and melons	T
+2.01	2	Leafy or stem vegetables	T
+2.01.01	2.01	Artichokes	T
+2.01.02	2.01	Asparagus	T
+2.01.03	2.01	Cabbages	T
+2.01.04	2.01	Cauliflower and broccoli	T
+2.01.05	2.01	Lettuce	T
+2.01.06	2.01	Spinach	T
+2.01.07	2.01	Chicory	T
+2.01.90	2.01	Other leafy or stem vegetables, n.e.c.	T
+2.02	2	Fruit-bearing vegetables	T
+2.02.01	2.02	Cucumbers	T
+2.02.02	2.02	Eggplants (aubergines)	T
+2.02.03	2.02	Tomatoes	T
+2.02.04	2.02	Pumpkin, squash and gourds	T
+2.02.05	2.02	Okra	T
+2.02.90	2.02	Other fruit-bearing vegetables, n.e.c.	T
+2.03	2	Root, bulb or tuberous vegetables	T
+2.03.01	2.03	Carrots	T
+2.03.02	2.03	Turnips	T
+2.03.03	2.03	Garlic	T
+2.03.04	2.03	Onions (including shallots)	T
+2.03.05	2.03	Leeks and other alliaceous vegetables	T
+2.03.90	2.03	Other root, bulb, or tuberous vegetables, n.e.c.	T
+2.04	2	Mushrooms and truffles	T
+2.04.01	2.04	Mushrooms	T
+2.04.02	2.04	Truffles	T
+2.05	2	Melons	T
+2.05.01	2.05	Watermelons	T
+2.05.02	2.05	Cantaloupes and other melons	T
+2.90	2	Other vegetables n.e.c.	T
+3		Fruit and nuts	P
+3.01	3	Tropical and subtropical fruits	P
+3.01.01	3.01	Avocados	P
+3.01.02	3.01	Bananas	P
+3.01.03	3.01	Plantains	P
+3.01.04	3.01	Dates	P
+3.01.05	3.01	Figs	P
+3.01.06	3.01	Mangoes, guavas and mangosteens	P
+3.01.07	3.01	Papayas	P
+3.01.08	3.01	Pineapples	P
+3.01.90	3.01	Other tropical and subtropical fruits, n.e.c.	P
+3.02	3	Citrus fruits	P
+3.02.01	3.02	Grapefruit and pomelo	P
+3.02.02	3.02	Lemons and limes	P
+3.02.03	3.02	Oranges	P
+3.02.04	3.02	Tangerines mandarins, clementines	P
+3.02.90	3.02	Other citrus fruits, n.e.c.	P
+3.03	3	Grapes	P
+3.04	3	Berries	P
+3.04.01	3.04	Currants	P
+3.04.02	3.04	Gooseberries	P
+3.04.03	3.04	Kiwi fruit	P
+3.04.04	3.04	Raspberries	P
+3.04.05	3.04	Strawberries	P
+3.04.06	3.04	Blueberries	P
+3.04.07	3.04	Cranberries	P
+3.04.90	3.04	Other berries, n.e.c.	P
+3.05	3	Pome fruits and stone fruits	P
+3.05.01	3.05	Apples	P
+3.05.02	3.05	Apricots	P
+3.05.03	3.05	Cherries and sour cherries	P
+3.05.04	3.05	Peaches and nectarines	P
+3.05.05	3.05	Pears and quinces	P
+3.05.06	3.05	Plums and sloes	P
+3.05.90	3.05	Other pome fruits and stone fruits, n.e.c.	P
+3.06	3	Nuts	P
+3.06.01	3.06	Almonds	P
+3.06.02	3.06	Cashew nuts	P
+3.06.03	3.06	Chestnuts	P
+3.06.04	3.06	Hazelnuts	P
+3.06.05	3.06	Pistachios	P
+3.06.06	3.06	Walnuts	P
+3.06.07	3.06	Brazil nuts	P
+3.06.08	3.06	Areca nuts	P
+3.06.09	3.06	Cola nuts	P
+3.06.90	3.06	Other nuts, n.e.c.	P
+3.90	3	Other fruits, n.e.c.	P
+4		Oilseed crops and oleaginous fruits	
+4.01	4	Soya beans	T
+4.02	4	Groundnuts	T
+4.03	4	Other temporary oilseed crops	T
+4.03.01	4.03	Castor bean	T
+4.03.02	4.03	Linseed	T
+4.03.03	4.03	Mustard	T
+4.03.04	4.03	Niger seed	T
+4.03.05	4.03	Rapeseed	T
+4.03.06	4.03	Safflower	T
+4.03.07	4.03	Sesame	T
+4.03.08	4.03	Sunflower	T
+4.03.09	4.03	Shea tree (shea butter or karite nuts)	T
+4.03.10	4.03	Tung tree	T
+4.03.11	4.03	Jojoba	T
+4.03.12	4.03	Poppy	T
+4.03.13	4.03	Tallow tree	T
+4.03.90	4.03	Other temporary oilseed crops, n.e.c.	T
+4.04	4	Permanent oilseed crops	P
+4.04.01	4.04	Coconuts	P
+4.04.02	4.04	Olives	P
+4.04.03	4.04	Oil palms	P
+4.04.90	4.04	Other oleaginous fruits, n.e.c.	P
+5		Root/tuber crops with high starch or inulin content	T
+5.01	5	Potatoes	T
+5.02	5	Sweet potatoes	T
+5.03	5	Cassava	T
+5.04	5	Yams	T
+5.05	5	Taro	T
+5.06	5	Yautia	T
+5.90	5	Other roots and tubers, n.e.c.	T
+6		Stimulant, spice and aromatic crops	
+6.01	6	Stimulant crops	P
+6.01.01	6.01	Coffee	P
+6.01.02	6.01	Tea	P
+6.01.03	6.01	Maté	P
+6.01.04	6.01	Cocoa	P
+6.01.05	6.01	Chicory roots	P
+6.01.90	6.01	Other stimulant crops, n.e.c.	P
+6.02	6	Spice and aromatic crops	
+6.02.01	6.02	Temporary spice and aromatic crops	T
+6.02.01.01	6.02.01	Chillies and peppers (capsicum spp.)	T
+6.02.01.02	6.02.01	Anise, badian, and fennel	T
+6.02.01.90	6.02.01	Other temporary spice crops, n.e.c.	T
+6.02.02	6.02	Permanent spice and aromatic crops	P
+6.02.02.01	6.02.02	Pepper (piper spp.)	P
+6.02.02.02	6.02.02	Nutmeg, mace, cardamoms	P
+6.02.02.03	6.02.02	Cinnamon (canella)	P
+6.02.02.04	6.02.02	Cloves	P
+6.02.02.05	6.02.02	Ginger	P
+6.02.02.06	6.02.02	Vanilla	P
+6.02.02.07	6.02.02	Hops	P
+6.02.02.90	6.02.02	Other permanent spice and aromatic crops, n.e.c.	P
+7		Leguminous crops	T
+7.01	7	Beans	T
+7.02	7	Broad beans	T
+7.03	7	Chickpeas	T
+7.04	7	Cowpeas	T
+7.05	7	Lentils	T
+7.06	7	Lupins	T
+7.07	7	Peas	T
+7.08	7	Pigeon peas	T
+7.09	7	Bambara beans	T
+7.10	7	Vetches	T
+7.90	7	Leguminous crops, n.e.c.	T
+8		Sugar crops	T
+8.01	8	Sugar beet	T
+8.02	8	Sugar cane	T
+8.03	8	Sweet sorghum	T
+8.90	8	Other sugar crops, n.e.c.	T
+9		Other crops	
+9.01	9	Grasses and other fodder crops	
+9.01.01	9.01	Temporary grass and fodder crops	T
+9.01.02	9.01	Permanent grass and fodder crops	P
+9.02	9	Fibre crops	
+9.02.01	9.02	Temporary fibre crops	T
+9.02.01.01	9.02.01	Cotton	T
+9.02.01.02	9.02.01	Jute, kenaf, and other similar crops	T
+9.02.01.03	9.02.01	Flax	T
+9.02.01.04	9.02.01	Hemp	T
+9.02.01.90	9.02.01	Other temporary fibre crops, n.e.c.	T
+9.02.02	9.02	Permanent fibre crops	P
+9.02.02.01	9.02.02	Ramie	P
+9.02.02.02	9.02.02	Sisal	P
+9.02.02.90	9.02.02	Other permanent fibre crops, n.e.c.	P
+9.03	9	Medicinal, pesticidal or similar crops	
+9.03.01	9.03	Temporary medicinal, pesticidal or similar crops	T
+9.03.01.01	9.03.01	Mint	T
+9.03.01.02	9.03.01	Basil	T
+9.03.01.90	9.03.01	Other temporary medicinal, pesticidal or similar crops	T
+9.03.02	9.03	Permanent medicinal, pesticidal or similar crops	P
+9.03.02.01	9.03.02	Ginseng	P
+9.03.02.02	9.03.02	Coca	P
+9.03.02.03	9.03.02	Kava	P
+9.03.02.04	9.03.02	Guarana	P
+9.03.02.90	9.03.02	Other permanent medicinal, pesticidal or similar crops	P
+9.04	9	Rubber	P
+9.05	9	Flower crops	
+9.05.01	9.05	Temporary flower crops	T
+9.05.02	9.05	Permanent flower crops	P
+9.06	9	Tobacco	T
+9.90	9	Other crops, n.e.c.	
+9.90.01	9.90	Other crops, n.e.c. – temporary	T
+9.90.02	9.90	Other crops, n.e.c. – permanent	P

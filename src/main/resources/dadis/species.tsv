@@ -1,0 +1,45 @@
+species	scientificName	authorship	rank	kingdom	phylum	class	order	family	remarks
+Alpaca	Vicugna pacos	(Linnaeus, 1758)	species	Animalia	Chordata	Mammalia	Artiodactyla	Camelidae
+American Bison	Bison bison	(Linnaeus, 1758)	species	Animalia	Chordata	Mammalia	Artiodactyla	Bovidae
+Ass	Equus asinus	Linnaeus, 1758	species	Animalia	Chordata	Mammalia	Perissodactyla	Equidae
+Bactrian camel	Camelus bactrianus	Linnaeus, 1758	species	Animalia	Chordata	Mammalia	Artiodactyla	Camelidae
+Buffalo	Bubalus bubalis	(Linnaeus, 1758)	species	Animalia	Chordata	Mammalia	Artiodactyla	Bovidae
+Cassowary	Casuarius casuarius	(Linnaeus, 1758)	species	Animalia	Chordata	Aves	Casuariiformes	Casuariidae
+Cattle	Bos taurus	Linnaeus, 1758	species	Animalia	Chordata	Mammalia	Artiodactyla	Bovidae
+Chicken	Gallus gallus domesticus	(Linnaeus, 1758)	subspecies	Animalia	Chordata	Aves	Galliformes	Phasianidae
+Chilean Tinamou	Nothoprocta perdicaria	(Kittlitz, 1830)	species	Animalia	Chordata	Aves	Tinamiformes	Tinamidae
+Chinchilla	Chinchilla lanigera	(Molina, 1782)	species	Animalia	Chordata	Mammalia	Rodentia	Chinchillidae
+Deer	Cervidae	Goldfuss, 1820	family	Animalia	Chordata	Mammalia	Artiodactyla		DAD-IS lists the breeds of several farmed deer species (red deer, sika, fallow deer, reindeer, …) under one species Deer.
+Dog	Canis familiaris	Linnaeus, 1758	species	Animalia	Chordata	Mammalia	Carnivora	Canidae
+Dromedary	Camelus dromedarius	Linnaeus, 1758	species	Animalia	Chordata	Mammalia	Artiodactyla	Camelidae
+Dromedary Bactrian Camel	Camelus bactrianus × Camelus dromedarius			Animalia	Chordata	Mammalia	Artiodactyla	Camelidae	Hybrids of dromedary and Bactrian camel.
+Duck (domestic)	Anas platyrhynchos domesticus	(Linnaeus, 1758)	subspecies	Animalia	Chordata	Aves	Anseriformes	Anatidae
+Duck(domestic) Muscovy duck	Anas platyrhynchos × Cairina moschata			Animalia	Chordata	Aves	Anseriformes	Anatidae	Mule and mulard ducks, hybrids of the domestic duck and the Muscovy duck.
+Emu	Dromaius novaehollandiae	(Latham, 1790)	species	Animalia	Chordata	Aves	Casuariiformes	Dromaiidae
+Fox	Vulpes	Frisch, 1775	genus	Animalia	Chordata	Mammalia	Carnivora	Canidae	DAD-IS species Fox, farmed for fur (red and Arctic fox).
+Gaur	Bos gaurus	Smith, 1827	species	Animalia	Chordata	Mammalia	Artiodactyla	Bovidae
+Goat	Capra hircus	Linnaeus, 1758	species	Animalia	Chordata	Mammalia	Artiodactyla	Bovidae
+Goose (domestic)	Anser	Brisson, 1760	genus	Animalia	Chordata	Aves	Anseriformes	Anatidae	DAD-IS species Goose (domestic) covers the domestic forms of both the greylag goose (Anser anser) and the swan goose (Anser cygnoides).
+Guanaco	Lama guanicoe	(Müller, 1776)	species	Animalia	Chordata	Mammalia	Artiodactyla	Camelidae
+Guinea fowl	Numida meleagris	(Linnaeus, 1758)	species	Animalia	Chordata	Aves	Galliformes	Numididae
+Guinea pig	Cavia porcellus	(Linnaeus, 1758)	species	Animalia	Chordata	Mammalia	Rodentia	Caviidae
+Horse	Equus caballus	Linnaeus, 1758	species	Animalia	Chordata	Mammalia	Perissodactyla	Equidae
+Llama	Lama glama	(Linnaeus, 1758)	species	Animalia	Chordata	Mammalia	Artiodactyla	Camelidae
+Mithun	Bos frontalis	Lambert, 1804	species	Animalia	Chordata	Mammalia	Artiodactyla	Bovidae
+Muscovy duck	Cairina moschata	(Linnaeus, 1758)	species	Animalia	Chordata	Aves	Anseriformes	Anatidae
+Nandu	Rhea americana	(Linnaeus, 1758)	species	Animalia	Chordata	Aves	Rheiformes	Rheidae
+Nutria	Myocastor coypus	(Molina, 1782)	species	Animalia	Chordata	Mammalia	Rodentia	Echimyidae
+Ostrich	Struthio camelus	Linnaeus, 1758	species	Animalia	Chordata	Aves	Struthioniformes	Struthionidae
+Partridge	Phasianidae	Horsfield, 1821	family	Animalia	Chordata	Aves	Galliformes		DAD-IS lists the breeds of several partridge and snowcock species under one species Partridge.
+Peacock	Pavo cristatus	Linnaeus, 1758	species	Animalia	Chordata	Aves	Galliformes	Phasianidae
+Pheasant	Phasianidae	Horsfield, 1821	family	Animalia	Chordata	Aves	Galliformes		DAD-IS lists the breeds of several pheasant, monal and tragopan species under one species Pheasant.
+Pig	Sus domesticus	Erxleben, 1777	species	Animalia	Chordata	Mammalia	Artiodactyla	Suidae
+Pigeon	Columba livia domestica	Gmelin, 1789	subspecies	Animalia	Chordata	Aves	Columbiformes	Columbidae
+Polecat	Mustela furo	Linnaeus, 1758	species	Animalia	Chordata	Mammalia	Carnivora	Mustelidae	DAD-IS species Polecat, farmed for fur: the ferret, the domestic form of the European polecat.
+Quail	Coturnix	Bonnaterre, 1791	genus	Animalia	Chordata	Aves	Galliformes	Phasianidae	Most DAD-IS quail breeds are Japanese quail (Coturnix japonica), some are common quail (Coturnix coturnix).
+Rabbit	Oryctolagus cuniculus	(Linnaeus, 1758)	species	Animalia	Chordata	Mammalia	Lagomorpha	Leporidae
+Sheep	Ovis aries	Linnaeus, 1758	species	Animalia	Chordata	Mammalia	Artiodactyla	Bovidae
+Swallow	Aerodramus	Oberholser, 1906	genus	Animalia	Chordata	Aves	Apodiformes	Apodidae	DAD-IS species Swallow: swiftlets farmed for their edible nests.
+Turkey	Meleagris gallopavo	Linnaeus, 1758	species	Animalia	Chordata	Aves	Galliformes	Phasianidae
+Vicuña	Vicugna vicugna	(Molina, 1782)	species	Animalia	Chordata	Mammalia	Artiodactyla	Camelidae
+Yak (domestic)	Bos grunniens	Linnaeus, 1766	species	Animalia	Chordata	Mammalia	Artiodactyla	Bovidae

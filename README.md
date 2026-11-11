@@ -38,6 +38,7 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 | `birdlife` | [Birdlife HBW](http://datazone.birdlife.org/species/taxonomy) | [170809](https://www.checklistbank.org/dataset/170809) | Handbook of the Birds of the World |
 | `biolib` | [BioLib](https://www.biolib.cz) | [54592](https://www.checklistbank.org/dataset/54592) | |
 | `clements` | [Clements](https://www.birds.cornell.edu/clementschecklist/) | [2013](https://www.checklistbank.org/dataset/2013) | Clements Checklist of Birds of the World |
+| `dadis` | [DAD-IS](https://www.fao.org/dad-is) | | FAO Domestic Animal Diversity Information System: livestock species and their ~8,700 breeds with national populations |
 | `colac` | [CoL Annual Checklists](https://www.catalogueoflife.org/data/download) | | Historical CoL Annual Checklists 2005–2019 (one archive per `--year`, from local MariaDB dumps) |
 | `cycads` | [Cycads](https://cycadlist.org) | [1163](https://www.checklistbank.org/dataset/1163) | The World List of Cycads |
 | `grin` | [GRIN](https://npgsweb.ars-grin.gov/gringlobal/taxon/abouttaxonomy) | [2018](https://www.checklistbank.org/dataset/2018) | GRIN-Global Taxonomy (cultivated plants) |
@@ -52,6 +53,7 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s <source>
 | `ott` | [OTT](https://tree.opentreeoflife.org/about/taxonomy-version) | [201890](https://www.checklistbank.org/dataset/201890) | Open Tree of Life Reference Taxonomy |
 | `pbdb` | [PBDB](https://paleobiodb.org/) | [1174](https://www.checklistbank.org/dataset/1174) | The Paleobiology Database |
 | `pfnr` | [PFNR](https://www.plantfossilnames.org) | [314595](https://www.checklistbank.org/dataset/314595) | International Fossil Plant Names Registry |
+| `wca` | [WCA 2030](https://doi.org/10.4060/cd9437en) | | Crops of the FAO World Programme for the Census of Agriculture 2030 with ICC and CPC codes |
 | `wikidata` | [Wikidata](https://www.wikidata.org) | [314569](https://www.checklistbank.org/dataset/314569) | Wikidata taxonomy (downloads full Wikidata + Commons dumps, ~260 GB total) |
 | `wikispecies` | [WikiSpecies](https://species.wikimedia.org) | [314570](https://www.checklistbank.org/dataset/314570) | |
 | `usda` | [USDA PLANTS](https://plants.sc.egov.usda.gov/) | | USDA PLANTS Database — vascular plants, mosses, lichens of the US (~49K accepted, ~44K synonyms) |
@@ -81,6 +83,10 @@ Two database schemas are handled and dispatched by year:
 **IDs:** `t<id>` accepted taxa, `s<id>` synonyms, `r<id>` references, `d<id>` source databases.
 
 Requires a MariaDB reachable over TCP (default `localhost:3306`, user/pass `root`/`root`; override with `--db-host/--db-port/--db-user/--db-pass`). The larger years (~4M name usages) benefit from a roomy heap, e.g. `java -Xmx8g`.
+
+### DAD-IS
+
+Reads the public Firebase database behind the [DAD-IS](https://www.fao.org/dad-is) web apps (`https://dadis-ws.firebaseio.com/Data/`): the species, the countries and one JSON file of national breed populations per country (~250 downloads, cached). DAD-IS names its 44 species by common name only, so their scientific names and classification come from the curated `src/main/resources/dadis/species.tsv`; groups like Deer, Partridge or Quail map to a family or genus. Each breed becomes a name of rank `breed` under its species (`Bos taurus 'Jersey'`), grouped across countries by transboundary name or else by its normalised name. National populations become distributions (native/exotic and risk status), national names vernacular names, uses taxon properties. Bees come with real (sub)species names.
 
 ### GRIN
 
@@ -112,6 +118,10 @@ java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s wikidata
 # Re-run without re-downloading (both dumps already cached):
 java -jar target/coldp-generator-1.0-SNAPSHOT.jar -s wikidata --no-download
 ```
+
+### WCA 2030 crops
+
+The crops of Annex 7 of the FAO [World Programme for the Census of Agriculture 2030](https://doi.org/10.4060/cd9437en) with their botanical names, ICC 1.1/1.2 and CPC 3.0 codes. The tables only exist in the PDF and are curated once into `src/main/resources/wca/` by `scripts/gen_wca_tsv.py` (needs `pdfplumber`), which fixes misspelt names, truncated codes and split cells; the generator itself downloads nothing. Botanical names hang under Plantae > Tracheophyta or Fungi; crop names are vernacular names, ICC, CPC and crop type are taxon properties.
 
 ### USDA PLANTS
 
