@@ -238,6 +238,15 @@
       <groupId>org.catalogueoflife</groupId>
       <artifactId>metadata</artifactId>
       <version>${clb.version}</version>
+      <exclusions>
+        <!-- gbif-api leaks lombok 1.18.24 in compile scope. This project uses no lombok, but IntelliJ runs every
+             annotation processor on the classpath, and lombok before 1.18.40 crashes javac on JDK 25 with
+             "ExceptionInInitializerError com.sun.tools.javac.code.TypeTag :: UNKNOWN" -->
+        <exclusion>
+          <groupId>org.projectlombok</groupId>
+          <artifactId>lombok</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.catalogueoflife</groupId>
