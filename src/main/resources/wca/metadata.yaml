@@ -41,6 +41,7 @@ license: CC BY
 url: https://openknowledge.fao.org/handle/20.500.14283/cd9437en
 issn: 1014-3378
 keyword:
+  - FAO
   - crops
   - agriculture
   - census of agriculture
@@ -54,7 +55,7 @@ notes: |-
   from Annexes 6 and 7 of the WCA 2030 PDF (with the corrigendum of 23 September 2026 applied),
   curated into tables by scripts/gen_wca_tsv.py.
   Misspelt botanical names were corrected (e.g. Erythroxypum to Erythroxylum, Crocus savitus to Crocus sativus),
-  "Genus spp." was reduced to the genus, and cells listing several plants were split. The original text is kept
+  "Genus spp." without an epithet was kept as such (e.g. Panax spp.), and cells listing several plants were split. The original text is kept
   in the remarks of each name. Codes that lost their trailing zero in the PDF (5.9 for 5.90) were restored.
   The source pages, i.e. the page with the required citation and licence and Annexes 6 and 7 of the WCA 2030,
   are included in this archive as wca2030-annex6-7.pdf.

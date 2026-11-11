@@ -183,7 +183,7 @@ decennial, so `scripts/gen_wca_tsv.py` (pdfplumber) extracts them once into `res
 (one row per crop × botanical name). Re-run it only for a new revision or corrigendum. It fixes: codes that lost their
 trailing zero (`5.9` → `5.90`) and typos (`20.04.02`, `9.09.02`); the group numbers of Sugar crops (missing, = 8) and
 Other crops (printed 8, = 9); misspelt names (`Erythroxypum`, `Crocus savitus`, `Sorghum bicolour`, …) via `NAME_FIXES`;
-cells listing several plants (`;` `,` `/` ` or `, abbreviated genera `V. corymbosum`); `Genus spp.` → genus;
+cells listing several plants (`;` `,` `/` ` or `, abbreviated genera `V. corymbosum`); `Genus spp.` kept as such (`Lagenaria spp` normalised to `spp.`), a bare genus only where no `spp.` is given (`Volvariella`, `Tuber`);
 cross references (`see Cola nut`); a stray quote and a missing comma in CPC cells. Every ICC 1.2 code is validated
 against Annex 6. The PDF online already includes the corrigendum of 23 Sep 2026. The script also cuts the source
 pages (pdf p. 4 with the required citation and licence, Annexes 6–7 = pdf p. 190–204) into

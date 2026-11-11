@@ -44,7 +44,7 @@ CODE_FIXES = {
 }
 
 # Botanical names that the generic parser below cannot clean: verbatim -> curated names.
-# Misspellings are fixed, cross references resolved and "Genus spp." reduced to the genus.
+# Misspellings are fixed and cross references resolved. "Genus spp." is kept as such, it names no epithet.
 NAME_FIXES = {
     'Musa sapientum, M. cavendishii, M.nana': ['Musa sapientum', 'Musa cavendishii', 'Musa nana'],
     'Prunus avium, cerasus avium': ['Prunus avium', 'Cerasus avium'],
@@ -63,15 +63,15 @@ NAME_FIXES = {
     'Cannabis sativa (marijuana)': ['Cannabis sativa'],
     'Brassica oleracea var. Acephala': ['Brassica oleracea var. acephala'],
     'Macadamia spp. ternifolia': ['Macadamia ternifolia'],
-    'Agaricus spp. ; Pleurotus spp ; Volvariella': ['Agaricus', 'Pleurotus', 'Volvariella'],
-    'Mixture of Triticum spp.; Secale cereale': ['Triticum', 'Secale cereale'],
+    'Agaricus spp. ; Pleurotus spp ; Volvariella': ['Agaricus spp.', 'Pleurotus spp.', 'Volvariella'],
+    'Mixture of Triticum spp.; Secale cereale': ['Triticum spp.', 'Secale cereale'],
     'Raphanus sativus (inc. Cochlearia armoracia)': ['Raphanus sativus', 'Cochlearia armoracia'],
-    'Rose spp.': ['Rosa'],
+    'Rose spp.': ['Rosa spp.'],
     'Crocus savitus': ['Crocus sativus'],
     'Hybrid of Triticum aestivum and Secale cereale': ['×Triticosecale'],
     'Genus tuber': ['Tuber'],
-    'Aleurites spp.; Fordii': ['Aleurites', 'Aleurites fordii'],
-    'Juglans spp. (over 20 sp.), ep. regia': ['Juglans', 'Juglans regia'],
+    'Aleurites spp.; Fordii': ['Aleurites spp.', 'Aleurites fordii'],
+    'Juglans spp. (over 20 sp.), ep. regia': ['Juglans spp.', 'Juglans regia'],
     'Various': [],
 }
 # Annex 7 refers to another row instead of naming the plant.
@@ -133,7 +133,7 @@ def split_names(verbatim):
         m = re.match(r'^([A-Z])\.\s*(\S.*)$', part)  # V. corymbosum
         if m and genus and genus.startswith(m.group(1)):
             part = f'{genus} {m.group(2)}'
-        part = re.sub(r'\s+spp?\.?$', '', part)  # Rubus spp.
+        part = re.sub(r'\s+spp?\.?$', ' spp.', part)  # Lagenaria spp -> Lagenaria spp.
         genus = part.split()[0]
         names.append(part)
     return names

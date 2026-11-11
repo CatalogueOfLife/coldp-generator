@@ -72,7 +72,7 @@ public class WcaMappings {
         .replaceAll("^-|-$", "");
   }
 
-  /** A single word is a genus, e.g. Rubus for "Rubus spp."; other ranks are left to the name parser. */
+  /** A single word is a genus, e.g. Tuber; other ranks, incl. the informal "Rubus spp.", are left to the name parser. */
   static String rank(String name) {
     return name.trim().contains(" ") ? null : "genus";
   }

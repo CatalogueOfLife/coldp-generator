@@ -24,6 +24,8 @@ public class WcaMappingsTest {
     assertEquals("genus", WcaMappings.rank("Rubus"));
     assertEquals("genus", WcaMappings.rank("×Triticosecale"));
     assertNull(WcaMappings.rank("Rubus idaeus"));
+    assertNull(WcaMappings.rank("Rubus spp."));
+    assertEquals("rubus-spp", WcaMappings.id("Rubus spp."));
   }
 
   @Test
