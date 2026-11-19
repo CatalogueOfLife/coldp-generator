@@ -218,7 +218,7 @@ dropped, Cyrillic homoglyphs in Latin names such as `LINE С` made Latin). A **w
 epithet (`epithet`), with the DAD-IS spelling kept in the breed's remarks: it is a letter there (glottal stop in `Gaga'`,
 soft sign in `Kazakhskaya Korridel'`), but the Rust name parser folds every apostrophe-like character (`’ ʼ ʹ ′ ´`) to `'`
 and takes one not followed by a letter as the closing quote, reading the epithet as authorship. Remove the workaround
-once name-parser takes the last quote as the closing one. A national population joins a breed by its
+once name-parser takes the last quote as the closing one ([name-parser-rust#256](https://github.com/gbif/name-parser-rust/issues/256)). A national population joins a breed by its
 `TransboundaryOrBrandName`, else its `MostCommonName`, grouped per species by `DadisMappings.key` (NFKD, case, accents and
 punctuation ignored, undecomposable letters like `ł ß æ ø` folded, Cyrillic transliterated, so ids are ASCII); the shown spelling is the most frequent one. Names that only repeat the species (any of its
 common names, its scientific name) are no breed: those populations become distributions of the species. Per breed:
