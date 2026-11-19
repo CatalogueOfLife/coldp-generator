@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 public class WcaMappings {
   static final String ICC_FILE = "wca/icc.tsv";
   static final String CROPS_FILE = "wca/crops.tsv";
+  static final String VERNACULAR_FILE = "wca/vernacular.tsv";
   // 01919.90* (fodder)
   private static final Pattern CPC = Pattern.compile("^(\\d{4,5}(?:\\.\\d{2})?)(\\*)?\\s*(?:\\((.+)\\))?$");
 
@@ -44,6 +45,28 @@ public class WcaMappings {
       crops.add(new Crop(row[0], row[1], row[2], row[3], row[4], row[5], row[6]));
     }
     return crops;
+  }
+
+  /**
+   * The curated English vernacular names of the crop labels that are no plain name: labels inverted like an index
+   * (Millet, finger), qualified by a use (Oats, for grain or fodder) or listing several names (Cacao (cocoa)).
+   */
+  static Map<String, List<String>> readVernaculars() throws IOException {
+    Map<String, List<String>> names = new LinkedHashMap<>();
+    for (String[] row : read(VERNACULAR_FILE)) {
+      names.put(row[0], Arrays.stream(row[1].split(";")).map(String::trim).filter(x -> !x.isEmpty()).toList());
+    }
+    return names;
+  }
+
+  /** A crop label that is no plain vernacular name and needs an entry in vernacular.tsv. */
+  static boolean qualifiedCrop(String crop) {
+    return crop.matches(".*(,|\\(|/| for | or ).*");
+  }
+
+  /** The vernacular names of a crop: the curated ones, else the crop label itself. */
+  static List<String> vernaculars(Map<String, List<String>> curated, String crop) {
+    return curated.getOrDefault(crop, List.of(crop));
   }
 
   private static List<String[]> read(String resource) throws IOException {

@@ -2,7 +2,10 @@ package org.catalogueoflife.data.dadis;
 
 import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.catalogueoflife.data.dadis.DadisMappings.*;
 import static org.junit.Assert.*;
@@ -16,6 +19,31 @@ public class DadisMappingsTest {
     assertEquals(DadisMappings.key("Bérabiche"), DadisMappings.key("Berabiche"));
     assertEquals("yak domestic", DadisMappings.key("Yak (domestic)"));
     assertEquals("aberdeen-angus", slug("Aberdeen  Angus"));
+    // letters NFKD does not decompose
+    assertEquals(DadisMappings.key("Kłusak"), DadisMappings.key("Klusak"));
+    assertEquals("deutsches sattelschwein", DadisMappings.key("Deutsches Sattelschwein"));
+    assertEquals("weisse gebirgsziege", DadisMappings.key("Weiße Gebirgsziege"));
+    assertEquals("faeroe", DadisMappings.key("Færøe"));
+    // Cyrillic is transliterated
+    assertEquals("azerbaidzhanskii-kavkazskii-buivol", slug("Азербайджанский (кавказский) буйвол"));
+    assertEquals("shvedish-red", slug("Шведиш Ред"));
+    // compatibility forms
+    assertEquals("pin2zyl", slug("Pin²zyl"));
+  }
+
+  @Test
+  public void clean() {
+    assertEquals("Criollo", DadisMappings.clean("\"Criollo\""));
+    assertEquals("Commercial strain STAR-53", DadisMappings.clean("Commercial strain \"STAR-53\""));
+    assertEquals("Muscovy Duck (Makou)", DadisMappings.clean("Muscovy Duck (\"Makou\")"));
+    assertEquals("Jersey", DadisMappings.clean("  Jersey "));
+    assertNull(DadisMappings.clean(" \" "));
+    // Cyrillic homoglyphs in Latin names
+    assertEquals("LINE E", DadisMappings.clean("LINE Е"));
+    assertEquals("LINE C3 – 80 B", DadisMappings.clean("LINE СЗ – 80 B"));
+    assertEquals("SYNTHETIC LINE C", DadisMappings.clean("SYNTHETIC LINE С"));
+    // Cyrillic names stay
+    assertEquals("Шведиш Ред", DadisMappings.clean("Шведиш Ред"));
   }
 
   @Test
@@ -61,6 +89,33 @@ public class DadisMappingsTest {
   public void breedName() {
     assertEquals("Bos taurus 'Jersey'", DadisMappings.breedName("Bos taurus", "Jersey"));
     assertEquals("Bos taurus 'Blonde d’Aquitaine'", DadisMappings.breedName("Bos taurus", "Blonde d'Aquitaine"));
+    assertFalse(epithetChanged("Blonde d'Aquitaine"));
+    // a word-final apostrophe would close the quote for the name parser
+    assertEquals("Ovis aries 'Kazakhskaya Korridel'", DadisMappings.breedName("Ovis aries", "Kazakhskaya Korridel'"));
+    assertEquals("Gallus gallus domesticus 'Gaga'", DadisMappings.breedName("Gallus gallus domesticus", "Gaga'"));
+    assertEquals("Ovis aries 'Korridel Mutton'", DadisMappings.breedName("Ovis aries", "Korridel’ Mutton"));
+    assertTrue(epithetChanged("Gaga'"));
+    assertEquals("Ts´üdi Xirgo", epithet("Ts´üdi Xirgo"));
+  }
+
+  /** Every refile entry names DAD-IS species of species.tsv. */
+  @Test
+  public void refiles() throws Exception {
+    Set<String> species = new HashSet<>();
+    try (var in = getClass().getResourceAsStream("/dadis/species.tsv")) {
+      new String(in.readAllBytes(), StandardCharsets.UTF_8).lines().skip(1)
+          .forEach(l -> species.add(l.split("\t")[0]));
+    }
+    var refiles = readRefiles();
+    assertEquals(9, refiles.size());
+    for (Refile r : refiles.values()) {
+      assertTrue(r.toString(), species.contains(r.species()));
+      assertTrue(r.toString(), species.contains(r.target()));
+    }
+    Refile r = refiles.get(refileKey("Duck(domestic) Muscovy duck", "Muscovy Duck (\"Makou\")"));
+    assertEquals("Muscovy duck", r.target());
+    assertTrue(r.speciesOnly());
+    assertFalse(refiles.get(refileKey("Duck(domestic) Muscovy duck", "Svensk Myskanka")).speciesOnly());
   }
 
   @Test

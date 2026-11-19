@@ -52,6 +52,7 @@ public class Generator extends AbstractColdpGenerator {
   @Override
   protected void addData() throws Exception {
     Map<String, IccClass> icc = readIcc();
+    Map<String, List<String>> vernacularNames = readVernaculars();
     Map<String, List<Crop>> byName = new TreeMap<>();
     for (Crop c : readCrops()) {
       byName.computeIfAbsent(c.scientificName(), k -> new ArrayList<>()).add(c);
@@ -94,9 +95,16 @@ public class Generator extends AbstractColdpGenerator {
       String remarks = verbatim.isEmpty() ? null : "Given in WCA 2030 as: " + String.join(" | ", verbatim);
       usage(id, parent, rank(name), name, remarks);
 
-      for (String crop : new LinkedHashSet<>(crops.stream().map(Crop::crop).toList())) {
+      // case-insensitive, so Sorghum from several crops is written once
+      Map<String, String> names = new LinkedHashMap<>();
+      for (Crop c : crops) {
+        for (String v : vernaculars(vernacularNames, c.crop())) {
+          names.putIfAbsent(v.toLowerCase(Locale.ROOT), v);
+        }
+      }
+      for (String vname : names.values()) {
         vWriter.set(ColdpTerm.taxonID, id);
-        vWriter.set(ColdpTerm.name, crop);
+        vWriter.set(ColdpTerm.name, vname);
         vWriter.set(ColdpTerm.language, "eng");
         vWriter.next();
         vernaculars++;

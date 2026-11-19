@@ -191,7 +191,8 @@ pages (pdf p. 4 with the required citation and licence, Annexes 6–7 = pdf p. 1
 
 **ColDP model.** One accepted NameUsage per distinct botanical name (262), id = slugged name, under `Plantae >
 Tracheophyta` or `Fungi` (mushrooms, truffles). The ICC is explicitly not botanical, so it is no classification: crop
-names → `VernacularName` (eng), and `TaxonProperty` rows `ICC 1.2` (remarks = label path), `ICC 1.1`, `CPC 3.0` (one per
+names → `VernacularName` (eng; labels that are no plain name, like `Millet, finger` or `Cacao (cocoa)`, get curated names
+from `resources/wca/vernacular.tsv`, which `WcaMappingsTest` requires for every such label), and `TaxonProperty` rows `ICC 1.2` (remarks = label path), `ICC 1.1`, `CPC 3.0` (one per
 code; `*` = CPC class shared with other crops) and `crop type`, each naming the crops it applies to. The original
 botanical text goes into `remarks` when it was changed. The licence requires an adaptation disclaimer (in the
 description) and forbids the FAO logo, so there is none. `WcaMappingsTest` checks the curated tables.
@@ -212,18 +213,25 @@ Anser, Fox → Vulpes, Swallow → Aerodramus (swiftlets). Two DAD-IS species ar
 dromedarius`, mule ducks). A new DAD-IS species is logged as missing and its breeds are skipped.
 
 **Breeds** (raw rank label `breed`; name-parser `Rank` has no BREED value yet, so CLB's rank parser needs it) are named like cultivars,
-`Bos taurus 'Jersey'` (inner apostrophes become `’`). A national population joins a breed by its
-`TransboundaryOrBrandName`, else its `MostCommonName`, grouped per species by `DadisMappings.key` (case, accents,
-punctuation ignored); the shown spelling is the most frequent one. Names that only repeat the species (any of its
+`Bos taurus 'Jersey'` (inner apostrophes become `’`). DAD-IS names are cleaned first (`DadisMappings.clean`: double quotes
+dropped, Cyrillic homoglyphs in Latin names such as `LINE С` made Latin). A **word-final apostrophe is dropped** from the
+epithet (`epithet`), with the DAD-IS spelling kept in the breed's remarks: it is a letter there (glottal stop in `Gaga'`,
+soft sign in `Kazakhskaya Korridel'`), but the Rust name parser folds every apostrophe-like character (`’ ʼ ʹ ′ ´`) to `'`
+and takes one not followed by a letter as the closing quote, reading the epithet as authorship. Remove the workaround
+once name-parser takes the last quote as the closing one. A national population joins a breed by its
+`TransboundaryOrBrandName`, else its `MostCommonName`, grouped per species by `DadisMappings.key` (NFKD, case, accents and
+punctuation ignored, undecomposable letters like `ł ß æ ø` folded, Cyrillic transliterated, so ids are ASCII); the shown spelling is the most frequent one. Names that only repeat the species (any of its
 common names, its scientific name) are no breed: those populations become distributions of the species. Per breed:
 `Distribution` per national population (ISO2 area; `BreedClassification` Native/Exotic → native/introduced; FAO risk →
 closest IUCN threat status, raw status in remarks), `VernacularName` for national names differing from the breed name
 (free-text `Language` like `ger.` cleaned to ISO 639-3 where possible, country = ISO2), `TaxonProperty use` from the
-true `General.Uses` flags. Bees use their real names (genus/species/subspecies nodes under Apidae tribes); only the
+true `General.Uses` flags. `resources/dadis/refile.tsv` moves populations reported under the wrong
+species (Muscovy and Mallard ducks under the mule-duck hybrid, Bactrian/Dromedary under the camel hybrid) to their
+species, as a breed or a population of the species; the distribution remarks say where DAD-IS listed them. Bees use their real names (genus/species/subspecies nodes under Apidae tribes); only the
 Buckfast hybrid is a breed.
 
 **IDs:** slugged scientific name for taxa (`bos-taurus`, `phasianidae`); `{dadis-species-slug}:{breed-slug}` for breeds
-(`cattle:jersey`), `bee:buckfast`. Result 2026-11: 184 taxa, 8,706 breeds, 15,710 national populations.
+(`cattle:jersey`), `bee:buckfast`. Result 2026-11: 184 taxa, 8,698 breeds, 15,702 national populations.
 `DadisMappingsTest` covers the pure mappings.
 
 ### USDA PLANTS Generator

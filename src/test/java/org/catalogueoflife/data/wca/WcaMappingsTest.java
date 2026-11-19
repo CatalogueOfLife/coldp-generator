@@ -70,4 +70,27 @@ public class WcaMappingsTest {
     assertNull(cropType(icc, "6.02"));
     assertEquals("permanent", cropType(icc, "6.02.02.01"));
   }
+
+  /** Every crop label that is no plain name has curated vernacular names, and every curated label is a crop. */
+  @Test
+  public void curatedVernaculars() throws Exception {
+    Map<String, List<String>> curated = readVernaculars();
+    Set<String> labels = new HashSet<>();
+    for (Crop c : readCrops()) {
+      labels.add(c.crop());
+      if (qualifiedCrop(c.crop())) {
+        assertTrue("No vernacular names for " + c.crop(), curated.containsKey(c.crop()));
+      }
+    }
+    for (var e : curated.entrySet()) {
+      assertTrue("Not a crop: " + e.getKey(), labels.contains(e.getKey()));
+      assertFalse(e.getKey(), e.getValue().isEmpty());
+      for (String v : e.getValue()) {
+        assertFalse(v, qualifiedCrop(v));
+      }
+    }
+    assertEquals(List.of("Finger millet"), vernaculars(curated, "Millet, finger"));
+    assertEquals(List.of("Bajra", "Bulrush millet", "Pearl millet"), vernaculars(curated, "Millet, bajra, bulrush or pearl"));
+    assertEquals(List.of("Banana"), vernaculars(curated, "Banana"));
+  }
 }

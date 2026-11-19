@@ -39,7 +39,9 @@ public class Generator extends AbstractColdpGenerator {
 
   record Node(String id, String parentID, String rank, String name, String authorship, Set<String> remarks) {}
   record Country(String key, String iso2, String name) {}
-  record Population(Country country, String establishment, String risk, String nationalName, String language) {}
+  /** A national breed population. note says under which DAD-IS species it was reported if it was refiled. */
+  record Population(Country country, String establishment, String risk, String nationalName, String language,
+                    String note) {}
 
   /** A DAD-IS species with the id of the node it maps to and the names that only repeat the species. */
   record Species(String name, String nodeID, String slug, Set<String> genericKeys) {}
@@ -64,6 +66,8 @@ public class Generator extends AbstractColdpGenerator {
   private final Map<String, List<Population>> speciesPopulations = new HashMap<>();
   private final Map<String, Country> countries = new LinkedHashMap<>();
   private final Set<String> unknownSpecies = new TreeSet<>();
+  private Map<String, Refile> refiles;
+  private final Set<Refile> usedRefiles = new HashSet<>();
 
   public Generator(GeneratorConfig cfg) throws IOException {
     super(cfg, true);
@@ -73,11 +77,19 @@ public class Generator extends AbstractColdpGenerator {
   protected void addData() throws Exception {
     JsonNode speciesJson = json("species.json", "species.json");
     readSpecies(speciesJson);
+    refiles = readRefiles();
+    for (Refile r : refiles.values()) {
+      if (!species.containsKey(r.species()) || !species.containsKey(r.target())) {
+        throw new IllegalStateException("refile.tsv names a species missing in species.tsv: " + r);
+      }
+    }
     readCountries(json("countries.json", "countries.json"));
     LOG.info("Reading breeds of {} countries", countries.size());
     for (Country c : countries.values()) {
       readBreeds(c, json("breeds-" + c.key() + ".json", "breeds/" + c.key() + ".json"));
     }
+    refiles.values().stream().filter(r -> !usedRefiles.contains(r))
+        .forEach(r -> LOG.warn("refile.tsv entry matches no DAD-IS population anymore: {}", r));
     if (!unknownSpecies.isEmpty()) {
       LOG.warn("Breeds of species missing in species.tsv are skipped: {}", unknownSpecies);
     }
@@ -109,11 +121,12 @@ public class Generator extends AbstractColdpGenerator {
     for (Breed b : breeds.values()) {
       String name = bestSpelling(b.spellings);
       Node parent = nodes.get(b.species.nodeID());
-      usage(b.id, parent.id(), BREED, breedName(parent.name(), name), null, Set.of());
+      Set<String> remarks = epithetChanged(name) ? Set.of("DAD-IS name: " + name) : Set.of();
+      usage(b.id, parent.id(), BREED, breedName(parent.name(), name), null, remarks);
       String breedKey = key(name);
       Set<List<String>> vernaculars = new LinkedHashSet<>();
       for (Population p : b.populations) {
-        if (!key(p.nationalName()).equals(breedKey)) {
+        if (p.nationalName() != null && !key(p.nationalName()).equals(breedKey)) {
           vernaculars.add(Arrays.asList(p.nationalName(), p.language(), p.country().iso2()));
         }
       }
@@ -217,27 +230,41 @@ public class Generator extends AbstractColdpGenerator {
       spe.getValue().properties().forEach(be -> {
         JsonNode rec = be.getValue();
         JsonNode nameJson = rec.path("General").path("Name");
-        String national = text(nameJson.path("MostCommonName"), be.getKey());
-        String transboundary = text(nameJson.path("TransboundaryOrBrandName"), null);
+        String national = clean(text(nameJson.path("MostCommonName"), be.getKey()));
+        String transboundary = clean(text(nameJson.path("TransboundaryOrBrandName"), null));
+        // a population reported under the wrong species, e.g. a Muscovy duck under the mule ducks
+        Refile refile = null;
+        for (String candidate : new String[]{transboundary, national}) {
+          if (refile == null && candidate != null) {
+            refile = refiles.get(refileKey(sp.name(), candidate));
+          }
+        }
+        if (refile != null) {
+          usedRefiles.add(refile);
+        }
+        final Species target = refile == null ? sp : species.get(refile.target());
         var pop = new Population(country,
             establishmentMeans(text(rec.path("OriginAndDevelopment").path("BreedClassification"), null)),
             text(rec.path("General").path("Risk").path("breedRiskDetail"), null),
-            national, language(text(nameJson.path("Language"), null)));
+            national, language(text(nameJson.path("Language"), null)),
+            refile == null ? null : "Reported to DAD-IS as " + sp.name());
         // a transboundary name groups the breed across countries, a name that just repeats the species is none
         String name = null;
-        for (String candidate : new String[]{transboundary, national}) {
-          if (candidate != null && !sp.genericKeys().contains(key(candidate)) && !key(candidate).isEmpty()) {
-            name = candidate;
-            break;
+        if (refile == null || !refile.speciesOnly()) {
+          for (String candidate : new String[]{transboundary, national}) {
+            if (candidate != null && !target.genericKeys().contains(key(candidate)) && !key(candidate).isEmpty()) {
+              name = candidate;
+              break;
+            }
           }
         }
         if (name == null) {
-          speciesPopulations.computeIfAbsent(sp.nodeID(), k -> new ArrayList<>()).add(pop);
+          speciesPopulations.computeIfAbsent(target.nodeID(), k -> new ArrayList<>()).add(pop);
           return;
         }
-        String id = sp.slug() + ":" + slug(name);
-        Breed b = breeds.computeIfAbsent(id, k -> new Breed(k, sp));
-        b.spellings.merge(name.trim(), 1, Integer::sum);
+        String id = target.slug() + ":" + slug(name);
+        Breed b = breeds.computeIfAbsent(id, k -> new Breed(k, target));
+        b.spellings.merge(name, 1, Integer::sum);
         b.populations.add(pop);
         rec.path("General").path("Uses").forEach(group -> group.properties().forEach(u -> {
           if (u.getValue().asBoolean(false)) {
@@ -281,7 +308,7 @@ public class Generator extends AbstractColdpGenerator {
         String taxonID = p;
         rec.path("Country").fieldNames().forEachRemaining(cc -> {
           Country c = countries.getOrDefault(cc, new Country(cc, iso2(cc), cc));
-          dist.computeIfAbsent(taxonID, k -> new ArrayList<>()).add(new Population(c, null, null, null, null));
+          dist.computeIfAbsent(taxonID, k -> new ArrayList<>()).add(new Population(c, null, null, null, null, null));
         });
       });
     });
@@ -314,7 +341,10 @@ public class Generator extends AbstractColdpGenerator {
     for (Population p : pops) {
       Country c = p.country();
       String area = c.iso2() != null ? c.iso2() : c.name();
-      String remarks = p.risk() == null ? null : "DAD-IS risk status: " + humanize(p.risk());
+      StringJoiner sj = new StringJoiner("; ");
+      if (p.risk() != null) sj.add("DAD-IS risk status: " + humanize(p.risk()));
+      if (p.note() != null) sj.add(p.note());
+      String remarks = sj.length() == 0 ? null : sj.toString();
       if (seen.add(Arrays.asList(area, p.establishment(), p.risk()))) {
         dWriter.set(ColdpTerm.taxonID, taxonID);
         dWriter.set(ColdpTerm.area, area);
