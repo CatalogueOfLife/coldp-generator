@@ -29,6 +29,10 @@ public class DadisMappingsTest {
     assertEquals("shvedish-red", slug("Шведиш Ред"));
     // compatibility forms
     assertEquals("pin2zyl", slug("Pin²zyl"));
+    // breeds ignore spacing and hyphens altogether
+    assertEquals(breedKey("Hy-line"), breedKey("Hyline"));
+    assertEquals(breedKey("Satsuma-Dori"), breedKey("Satsumadori"));
+    assertNotEquals(breedKey("Limousin"), breedKey("limousine"));
   }
 
   @Test
@@ -40,7 +44,8 @@ public class DadisMappingsTest {
     assertNull(DadisMappings.clean(" \" "));
     // Cyrillic homoglyphs in Latin names
     assertEquals("LINE E", DadisMappings.clean("LINE Е"));
-    assertEquals("LINE C3 – 80 B", DadisMappings.clean("LINE СЗ – 80 B"));
+    assertEquals("LINE C3 - 80 B", DadisMappings.clean("LINE СЗ – 80 B"));
+    assertEquals("Gunsi - Alpha", DadisMappings.clean("Gunsi — Alpha"));
     assertEquals("SYNTHETIC LINE C", DadisMappings.clean("SYNTHETIC LINE С"));
     // Cyrillic names stay
     assertEquals("Шведиш Ред", DadisMappings.clean("Шведиш Ред"));
@@ -89,12 +94,10 @@ public class DadisMappingsTest {
   public void breedName() {
     assertEquals("Bos taurus 'Jersey'", DadisMappings.breedName("Bos taurus", "Jersey"));
     assertEquals("Bos taurus 'Blonde d’Aquitaine'", DadisMappings.breedName("Bos taurus", "Blonde d'Aquitaine"));
-    assertFalse(epithetChanged("Blonde d'Aquitaine"));
-    // a word-final apostrophe would close the quote for the name parser
-    assertEquals("Ovis aries 'Kazakhskaya Korridel'", DadisMappings.breedName("Ovis aries", "Kazakhskaya Korridel'"));
-    assertEquals("Gallus gallus domesticus 'Gaga'", DadisMappings.breedName("Gallus gallus domesticus", "Gaga'"));
-    assertEquals("Ovis aries 'Korridel Mutton'", DadisMappings.breedName("Ovis aries", "Korridel’ Mutton"));
-    assertTrue(epithetChanged("Gaga'"));
+    // a word-final apostrophe is a letter
+    assertEquals("Ovis aries 'Kazakhskaya Korridel’'", DadisMappings.breedName("Ovis aries", "Kazakhskaya Korridel'"));
+    assertEquals("Gallus gallus domesticus 'Gaga’'", DadisMappings.breedName("Gallus gallus domesticus", "Gaga'"));
+    assertEquals("Ovis aries 'Korridel’ Mutton'", DadisMappings.breedName("Ovis aries", "Korridel’ Mutton"));
     assertEquals("Ts´üdi Xirgo", epithet("Ts´üdi Xirgo"));
   }
 

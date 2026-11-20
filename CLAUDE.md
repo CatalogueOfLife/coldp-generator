@@ -210,17 +210,17 @@ tribe with their countries). All are cached in the sources dir; `--no-download` 
 scientific name, authorship, rank and kingdom…family. Catch-all species map to a family or genus with a remark: Deer →
 Cervidae, Partridge and Pheasant → Phasianidae (shared node, so it gets neither vernacular), Quail → Coturnix, Goose →
 Anser, Fox → Vulpes, Swallow → Aerodramus (swiftlets). Two DAD-IS species are hybrids (`Camelus bactrianus × Camelus
-dromedarius`, mule ducks). A new DAD-IS species is logged as missing and its breeds are skipped.
+dromedarius`, mule ducks). The genus of every species, and the species of the domestic subspecies (`Gallus gallus`,
+`Anas platyrhynchos`, `Columba livia`), are added as nodes so CLB finds them in the parent chain. A new DAD-IS species is logged as missing and its breeds are skipped.
 
 **Breeds** (raw rank label `breed`; name-parser `Rank` has no BREED value yet, so CLB's rank parser needs it) are named like cultivars,
 `Bos taurus 'Jersey'` (inner apostrophes become `’`). DAD-IS names are cleaned first (`DadisMappings.clean`: double quotes
-dropped, Cyrillic homoglyphs in Latin names such as `LINE С` made Latin). A **word-final apostrophe is dropped** from the
-epithet (`epithet`), with the DAD-IS spelling kept in the breed's remarks: it is a letter there (glottal stop in `Gaga'`,
-soft sign in `Kazakhskaya Korridel'`), but the Rust name parser folds every apostrophe-like character (`’ ʼ ʹ ′ ´`) to `'`
-and takes one not followed by a letter as the closing quote, reading the epithet as authorship. Remove the workaround
-once name-parser takes the last quote as the closing one ([name-parser-rust#256](https://github.com/gbif/name-parser-rust/issues/256)). A national population joins a breed by its
-`TransboundaryOrBrandName`, else its `MostCommonName`, grouped per species by `DadisMappings.key` (NFKD, case, accents and
-punctuation ignored, undecomposable letters like `ł ß æ ø` folded, Cyrillic transliterated, so ids are ASCII); the shown spelling is the most frequent one. Names that only repeat the species (any of its
+dropped, Cyrillic homoglyphs in Latin names such as `LINE С` made Latin, dashes made hyphens). A word-final apostrophe
+is a letter (glottal stop in `Gaga’`, soft sign in `Kazakhskaya Korridel’`) and is kept; the name parser takes the last
+quote as the closing one since [name-parser-rust#256](https://github.com/gbif/name-parser-rust/issues/256). A national population joins a breed by its
+`TransboundaryOrBrandName`, else its `MostCommonName`, grouped per species by `DadisMappings.breedKey`: the `key` (NFKD, case, accents and
+punctuation ignored, undecomposable letters like `ł ß æ ø` folded, Cyrillic transliterated, so ids are ASCII) without
+any spacing, so `Hy-line` = `Hyline` and `South Down` = `Southdown`; the id is the slug of the first spelling seen, the shown spelling the most frequent one. Names that only repeat the species (any of its
 common names, its scientific name) are no breed: those populations become distributions of the species. Per breed:
 `Distribution` per national population (ISO2 area; `BreedClassification` Native/Exotic → native/introduced; FAO risk →
 closest IUCN threat status, raw status in remarks), `VernacularName` for national names differing from the breed name
@@ -231,7 +231,7 @@ species, as a breed or a population of the species; the distribution remarks say
 Buckfast hybrid is a breed.
 
 **IDs:** slugged scientific name for taxa (`bos-taurus`, `phasianidae`); `{dadis-species-slug}:{breed-slug}` for breeds
-(`cattle:jersey`), `bee:buckfast`. Result 2026-11: 184 taxa, 8,698 breeds, 15,702 national populations.
+(`cattle:jersey`), `bee:buckfast`. Result 2026-11: 215 taxa, 8,690 breeds, 15,702 national populations.
 `DadisMappingsTest` covers the pure mappings.
 
 ### USDA PLANTS Generator

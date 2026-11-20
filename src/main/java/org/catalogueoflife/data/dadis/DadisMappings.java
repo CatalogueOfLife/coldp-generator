@@ -70,12 +70,12 @@ public class DadisMappings {
 
   /**
    * Cleans a DAD-IS breed name: double quotes are dropped ("Criollo", Commercial strain "STAR-53"),
-   * Cyrillic homoglyphs in a Latin name become Latin (LINE С = LINE C), spacing is normalised.
-   * Returns null for an empty name.
+   * Cyrillic homoglyphs in a Latin name become Latin (LINE С = LINE C), dashes become hyphens (Gunsi – Alpha),
+   * spacing is normalised. Returns null for an empty name.
    */
   static String clean(String name) {
     if (name == null) return null;
-    String n = name.replaceAll("[\"“”„]", "");
+    String n = name.replaceAll("[\"“”„]", "").replaceAll("[‐‑‒–—―]", "-");
     if (n.chars().anyMatch(c -> Character.UnicodeScript.of(c) == Character.UnicodeScript.LATIN)) {
       StringBuilder sb = new StringBuilder(n.length());
       for (char c : n.toCharArray()) {
@@ -103,6 +103,14 @@ public class DadisMappings {
       if (r == null) sb.append(c); else sb.append(r);
     }
     return sb.toString().replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+  }
+
+  /**
+   * The key that groups the spellings of a breed: the key without any spacing, so that Hy-line = Hyline and
+   * Satsuma-Dori = Satsumadori.
+   */
+  static String breedKey(String name) {
+    return key(name).replace(" ", "");
   }
 
   /** A readable id part from a name: the key with hyphens. */
@@ -168,26 +176,16 @@ public class DadisMappings {
 
   /**
    * The breed name as it goes into the quoted cultivar-style epithet.
-   * Apostrophes become typographic so they do not close the quote (Blonde d’Aquitaine). A word-final apostrophe
-   * is dropped: it is a letter in DAD-IS names, a glottal stop (Gaga') or a transliterated soft sign
-   * (Kazakhskaya Korridel'), but the name parser takes any apostrophe that is not followed by a letter as the
-   * closing quote and then reads the epithet as authorship. The generator keeps the DAD-IS spelling in the remarks.
+   * Apostrophes become typographic so they do not read as the closing quote (Blonde d’Aquitaine). A word-final one
+   * is a letter in DAD-IS names, a glottal stop (Gaga') or a transliterated soft sign (Kazakhskaya Korridel'), and is kept.
    */
   static String epithet(String breed) {
-    return breed.replace('\'', '’')
-        .replaceAll("[’ʼʹ′´`](?!\\p{L})", "")
-        .replaceAll("\\s+", " ")
-        .trim();
+    return breed.replace('\'', '’').replaceAll("\\s+", " ").trim();
   }
 
   /** The name of a breed under its parent, in the quoted form of cultivar names: Bos taurus 'Jersey'. */
   static String breedName(String parentName, String breed) {
     return parentName + " '" + epithet(breed) + "'";
-  }
-
-  /** The epithet differs from the DAD-IS name in more than the typographic apostrophes. */
-  static boolean epithetChanged(String breed) {
-    return !epithet(breed).equals(breed.replace('\'', '’'));
   }
 
   /**

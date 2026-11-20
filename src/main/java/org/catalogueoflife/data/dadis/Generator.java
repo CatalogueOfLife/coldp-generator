@@ -62,6 +62,7 @@ public class Generator extends AbstractColdpGenerator {
   private final Map<String, Node> nodes = new LinkedHashMap<>();
   private final Map<String, Species> species = new HashMap<>();
   private final Map<String, Breed> breeds = new TreeMap<>();
+  private final Map<String, String> breedIds = new HashMap<>();
   // populations of a species that have no breed name of their own, by node id
   private final Map<String, List<Population>> speciesPopulations = new HashMap<>();
   private final Map<String, Country> countries = new LinkedHashMap<>();
@@ -121,12 +122,11 @@ public class Generator extends AbstractColdpGenerator {
     for (Breed b : breeds.values()) {
       String name = bestSpelling(b.spellings);
       Node parent = nodes.get(b.species.nodeID());
-      Set<String> remarks = epithetChanged(name) ? Set.of("DAD-IS name: " + name) : Set.of();
-      usage(b.id, parent.id(), BREED, breedName(parent.name(), name), null, remarks);
-      String breedKey = key(name);
+      usage(b.id, parent.id(), BREED, breedName(parent.name(), name), null, Set.of());
+      String breedKey = breedKey(name);
       Set<List<String>> vernaculars = new LinkedHashSet<>();
       for (Population p : b.populations) {
-        if (p.nationalName() != null && !key(p.nationalName()).equals(breedKey)) {
+        if (p.nationalName() != null && !breedKey(p.nationalName()).equals(breedKey)) {
           vernaculars.add(Arrays.asList(p.nationalName(), p.language(), p.country().iso2()));
         }
       }
@@ -176,7 +176,16 @@ public class Generator extends AbstractColdpGenerator {
             parent = node(higher, parent, HIGHER_RANKS.get(i), null, null).id();
           }
         }
-        Node n = node(sciName, parent, row[3], row[2], row[9]);
+        // the genus, and the species of a domestic subspecies (Gallus gallus for chickens), are no DAD-IS species
+        String rank = row[3];
+        if ("species".equals(rank) || "subspecies".equals(rank)) {
+          String[] words = sciName.split(" ");
+          parent = node(words[0], parent, "genus", null, null).id();
+          if ("subspecies".equals(rank)) {
+            parent = node(words[0] + " " + words[1], parent, "species", null, null).id();
+          }
+        }
+        Node n = node(sciName, parent, rank, row[2], row[9]);
         Set<String> generic = new HashSet<>();
         generic.add(key(name));
         generic.add(key(sciName));
@@ -205,6 +214,11 @@ public class Generator extends AbstractColdpGenerator {
   private Node node(String name, String parentID, String rank, String authorship, String remarks) {
     Node n = nodes.computeIfAbsent(slug(name),
         id -> new Node(id, parentID, rank, name, authorship, new LinkedHashSet<>()));
+    if (n.authorship() == null && authorship != null) {
+      // a genus added for its species before its own species.tsv row
+      n = new Node(n.id(), n.parentID(), n.rank(), n.name(), authorship, n.remarks());
+      nodes.put(n.id(), n);
+    }
     if (remarks != null) {
       n.remarks().add(remarks);
     }
@@ -262,7 +276,10 @@ public class Generator extends AbstractColdpGenerator {
           speciesPopulations.computeIfAbsent(target.nodeID(), k -> new ArrayList<>()).add(pop);
           return;
         }
-        String id = target.slug() + ":" + slug(name);
+        // spellings that differ in spacing and hyphens only share the id of the first one seen
+        final String breedName = name;
+        final String id = breedIds.computeIfAbsent(target.slug() + "|" + breedKey(name),
+            k -> target.slug() + ":" + slug(breedName));
         Breed b = breeds.computeIfAbsent(id, k -> new Breed(k, target));
         b.spellings.merge(name, 1, Integer::sum);
         b.populations.add(pop);
